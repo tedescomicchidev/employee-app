@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": ["Bash(xcodebuild:*)", "Bash(xcrun simctl:*)", "Bash(xcodegen:*)",
+              "Bash(swift:*)", "Bash(uv:*)", "Bash(pytest:*)", "Bash(npm:*)",
+              "Bash(./scripts/*)", "Bash(git status)", "Bash(git diff:*)",
+              "Bash(git add:*)", "Bash(git commit:*)", "Bash(git push origin phase-*)",
+              "Bash(gh pr create:*)", "Bash(az bicep build:*)", "Bash(az account show)",
+              "Bash(azd env get-values)", "Bash(azd ai agent invoke:*)",
+              "Bash(azd ai agent run:*)", "Bash(azd ai agent show:*)",
+              "Bash(azd ai agent monitor:*)", "Read(/Users/Shared/handoff/**)",
+              "mcp__microsoft-learn"],
+    "deny":  ["Bash(azd up:*)", "Bash(azd deploy:*)", "Bash(azd provision:*)",
+              "Bash(azd down:*)", "Bash(azd ai connection create:*)",
+              "Bash(azd ai toolbox create:*)", "Bash(az group delete:*)",
+              "Bash(az ad:*)", "Bash(az role assignment:*)", "Bash(git push origin main*)",
+              "Bash(git push --force:*)", "Bash(gh pr merge:*)", "Bash(rm -rf:*)",
+              "Read(./**/.env)", "Read(./**/*.p8)"]
+  }
+}

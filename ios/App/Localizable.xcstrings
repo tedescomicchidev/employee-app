@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "root.title" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Employee App" } },
+        "de" : { "stringUnit" : { "state" : "needs_review", "value" : "Mitarbeiter-App" } },
+        "fr" : { "stringUnit" : { "state" : "needs_review", "value" : "Application collaborateurs" } },
+        "it" : { "stringUnit" : { "state" : "needs_review", "value" : "App dipendenti" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}
