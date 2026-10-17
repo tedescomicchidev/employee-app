@@ -11,4 +11,4 @@ Measure: time on task, taps, errors, completion, satisfaction, cost/task.
 Constraints: Entra ID sign-in; Azure Switzerland North where available;
   azd-deployable; iOS 17+; distribution as Custom App via Apple Business Manager.
 Out of scope: sick leave/health data, payroll, Android, Teams client.
-Demo tenant: m365cpi55218196.onmicrosoft.com; seeded users: CEO, 2 managers, 8 employees.
+Tenant: M365CPI55218196.onmicrosoft.com, single tenant for users, Entra apps, Work IQ and the Azure subscription.
