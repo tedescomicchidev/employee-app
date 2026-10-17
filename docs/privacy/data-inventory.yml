@@ -1,2 +1,227 @@
-# Data inventory: filled as data flows are defined (see docs/privacy/dpia-notes.md).
-entries: []
+# Data inventory (Phase 1 draft). Requirements: PRIV-001..PRIV-010.
+# Retention is intentionally HUMAN_CONFIRMATION_REQUIRED for every entry (U-05); no period is asserted.
+# storage "cosmos" = Azure Cosmos DB account in Switzerland North (to be verified, NFR-001).
+# Controller, legal basis and DPIA status: HUMAN_CONFIRMATION_REQUIRED.
+version: 1
+status: draft
+legal_review: HUMAN_CONFIRMATION_REQUIRED
+entries:
+  - id: identity-claims
+    description: Entra identity of the signed-in user (object id, name, email/UPN, app roles, tenant id)
+    fields: [oid, display_name, upn, roles, tenant_id]
+    data_subjects: [employee]
+    classification: personal
+    purpose: authentication, authorisation, audit
+    source: Entra ID (MSAL token claims)
+    storage: [ios-keychain (tokens only), none server-side except oid in records]
+    processors: [Microsoft Entra ID]
+    shared_with_agents: oid only (never tokens)
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self, api]
+    requirements: [FR-AUTH-001, FR-AUTH-002, FR-AUTH-003]
+
+  - id: employee-directory
+    description: Employee attributes needed for routing and targeting
+    fields: [oid, work_canton, store_or_hq, region, role, manager_oid, language]
+    data_subjects: [employee]
+    classification: personal
+    purpose: audience targeting, approver routing, holiday counting
+    source: Entra attributes or seeded directory file (A-12, U-07)
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: only as resolved results of tools for the calling user
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [api]
+    requirements: [FR-ANN-002, FR-VAC-004, FR-VAC-006]
+
+  - id: announcements
+    description: Published announcements and audience rules
+    fields: [id, title, body, language, author_oid, audience_rule, recipient_count, status, published_at]
+    data_subjects: [publisher]
+    classification: internal (content may contain personal data entered by the publisher)
+    purpose: internal communication
+    source: Publisher via app or agent confirm card
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: audience-matched items for the calling user, as untrusted data
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [audience members, publishers, api]
+    requirements: [FR-ANN-001, FR-ANN-002, FR-ANN-003, FR-ANN-004, FR-ANN-005]
+
+  - id: announcement-read-state
+    description: Which user has read which announcement
+    fields: [announcement_id, oid, read_at]
+    data_subjects: [employee]
+    classification: personal
+    purpose: unread badge
+    source: app
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: own state only
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self, api]
+    requirements: [FR-ANN-003]
+
+  - id: vacation-requests
+    description: Vacation requests, decisions and balances (no sick leave, no employee-entered reason)
+    fields: [id, oid, start_date, end_date, counted_days, per_year_split, status, approver_oid, decided_at, rejection_reason]
+    data_subjects: [employee, manager]
+    classification: personal (HR)
+    purpose: vacation management
+    source: employee and manager actions
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: own requests; manager's direct reports' pending requests and coverage, via tools
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [owner, approver, api]
+    notes: rejection_reason is free text written by the manager; may contain personal data; not logged
+    requirements: [FR-VAC-001, FR-VAC-002, FR-VAC-003, FR-VAC-004, FR-VAC-005, FR-VAC-007, PRIV-002]
+
+  - id: vacation-parameters
+    description: Entitlement, carry-over and balance parameters per employee (placeholder values)
+    fields: [oid, entitlement_days, carry_over_days, carry_over_cap]
+    data_subjects: [employee]
+    classification: personal (HR)
+    purpose: balance calculation
+    source: seed file (values HR-CONFIRM)
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: own balance only
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [owner, api]
+    requirements: [FR-VAC-001]
+
+  - id: holiday-and-blackout-config
+    description: Cantonal/public holidays and blackout ranges
+    fields: [canton, date, name, scope, blackout_start, blackout_end, blackout_scope]
+    data_subjects: []
+    classification: non-personal configuration
+    purpose: day counting and request rules
+    source: seed file (HUMAN_CONFIRMATION_REQUIRED, U-04)
+    storage: [cosmos or repository seed]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: yes, as tool results
+    retention: not applicable
+    access: [all signed-in users read, api]
+    requirements: [FR-VAC-006, FR-VAC-002]
+
+  - id: briefing-optin
+    description: Whether a user opted in to the weekly briefing
+    fields: [oid, opted_in, opted_in_at]
+    data_subjects: [employee]
+    classification: personal
+    purpose: consent record for Work IQ access
+    source: user action
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: own state only
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self, api]
+    requirements: [FR-BRF-001, PRIV-003]
+
+  - id: workiq-calendar-content
+    description: Calendar events of the signed-in user retrieved through Work IQ (delegated, on-behalf-of)
+    fields: [event_title, start, end, location, attendee_count, attendee_names_as_present_in_own_events, online_flag]
+    data_subjects: [employee, third parties named in the user's own events]
+    classification: personal (potentially sensitive)
+    purpose: weekly briefing for that user only
+    source: Work IQ via user-delegated token (U-03)
+    storage: [none by default; in-memory per request (A-09)]
+    processors: [Microsoft Work IQ / Microsoft 365, Foundry agent runtime when AGENT mode]
+    shared_with_agents: own events only, as untrusted data, never reused for other users
+    retention: not stored by default; HUMAN_CONFIRMATION_REQUIRED if that changes
+    access: [self]
+    requirements: [FR-BRF-002, FR-BRF-004, FR-AUTH-004, PRIV-003]
+
+  - id: agent-conversations
+    description: Prompts and replies in AGENT mode
+    fields: [conversation_id, messages, tool_calls, tool_results]
+    data_subjects: [employee]
+    classification: personal
+    purpose: deliver agent responses; evals use synthetic data only
+    source: user and agent
+    storage: [foundry thread state or none (to be decided in Phase 2); not persisted by app by default]
+    processors: [Microsoft Foundry, model provider (region to verify, U-09)]
+    shared_with_agents: n/a
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self]
+    requirements: [PRIV-005, PRIV-004]
+
+  - id: audit-log
+    description: Content-free audit and operational logs
+    fields: [ts, oid, tool_or_endpoint, outcome, correlation_id, latency_ms, status]
+    data_subjects: [employee]
+    classification: personal (pseudonymous reference)
+    purpose: security audit and operations
+    source: api
+    storage: [log analytics workspace (region to verify)]
+    processors: [Azure Monitor]
+    shared_with_agents: never
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [operators]
+    requirements: [FR-AUTH-003, NFR-012, PRIV-010]
+
+  - id: confirmation-tokens
+    description: Single-use confirmation tokens (hash of payload, user, action, expiry)
+    fields: [token_id, oid, action, payload_hash, expires_at, used_at]
+    data_subjects: [employee]
+    classification: security metadata
+    purpose: enforce explicit confirmation for writes
+    source: api
+    storage: [cosmos with short TTL]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: opaque token string only after the user confirms
+    retention: short TTL (value configurable; HUMAN_CONFIRMATION_REQUIRED)
+    access: [api]
+    requirements: [FR-AUTH-006]
+
+  - id: experiment-events
+    description: Pseudonymous experiment events and server cost records
+    fields: [participant_id, session_id, task_run_id, task_id, mode, elapsed_ms, tap_count, message_count, error_code, score, tokens, cost]
+    data_subjects: [participant]
+    classification: pseudonymous personal data
+    purpose: PoC evaluation
+    source: app and api
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: never
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [experiment owner]
+    notes: participant_id mapping stored separately, deletable (EXP-007)
+    requirements: [EXP-001, EXP-002, EXP-003, EXP-005, EXP-006, EXP-007, PRIV-007]
+
+  - id: push-and-notification-state
+    description: Local notification schedule (device) and, if used, APNs device token
+    fields: [notification_prefs, apns_device_token (only if push is built, A-15)]
+    data_subjects: [employee]
+    classification: personal
+    purpose: opt-in reminders (announcements, decisions, Monday 07:00 briefing)
+    source: app
+    storage: [device; cosmos only if push is built]
+    processors: [Apple APNs if used]
+    shared_with_agents: never
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self, api]
+    requirements: [FR-BRF-003]
+
+  - id: device-cache
+    description: Cached read data on device (feed, balance, requests)
+    fields: [announcements, balance, requests]
+    data_subjects: [employee]
+    classification: personal
+    purpose: offline display
+    source: api
+    storage: [ios app container, excluded from backup, cleared on sign-out]
+    processors: []
+    shared_with_agents: never
+    retention: until sign-out; HUMAN_CONFIRMATION_REQUIRED for any time limit
+    access: [self]
+    requirements: [FR-ANN-003, NFR-007, FR-AUTH-005]
+
+not_collected:
+  - sick leave and health data
+  - payroll and salary data
+  - employee-entered reasons for absence
+  - precise location
+  - advertising identifiers or third-party analytics
+  - calendar content persisted server-side (by default)

@@ -1,2 +1,63 @@
 # Metrics and events
-Filled alongside Phase 1: experiment event definitions.
+
+Requirements: EXP-001..EXP-007, NFR-005, NFR-006, PRIV-007. Hypotheses: `hypotheses.md`.
+All events are pseudonymous and content-free. Timestamps are UTC ISO-8601; business dates Europe/Zurich.
+
+## Common fields (every event)
+| Field | Type | Notes |
+|---|---|---|
+| `event` | string | name below |
+| `participant_id` | uuid | random, per participant; mapping stored separately and deletable (EXP-007) |
+| `session_id` | uuid | app session |
+| `task_run_id` | uuid | one attempt of one task; joins device and server records |
+| `task_id` | enum | `T-ANN-PUB`, `T-ANN-READ`, `T-VAC-BAL`, `T-VAC-REQ`, `T-VAC-REJ`, `T-VAC-APR`, `T-VAC-COV`, `T-BRF-VIEW` |
+| `feature` | enum | `ann`, `vac`, `brf` |
+| `mode` | enum | `classic`, `agent` |
+| `order_index` | int | position of this mode for this participant/task (counterbalancing) |
+| `app_version`, `os_version`, `locale` | string | no device identifiers |
+| `ts` | datetime | event time |
+
+## Events
+| Event | When | Extra fields | Req |
+|---|---|---|---|
+| `task_started` | the participant begins the task (prompt shown / entry screen opened) | | EXP-001 |
+| `task_completed` | the task's persisted outcome is achieved | `elapsed_ms`, `tap_count`, `message_count` (agent only), `outcome_valid` (bool, server-verified against Outcome AC) | EXP-001/002 |
+| `task_abandoned` | user leaves the flow without outcome | `elapsed_ms`, `tap_count`, `last_state` | EXP-001 |
+| `task_error` | domain or system error visible to the user | `code` (e.g. `INSUFFICIENT_BALANCE`, `OVERLAP`, `BLACKOUT`, `FORBIDDEN`, `WORKIQ_UNAVAILABLE`, `AGENT_TOOL_FAILURE`), `recovered` (bool) | EXP-003 |
+| `confirm_shown` | review screen (classic) or confirm card (agent) displayed | `action` (publish/request/cancel/decide/opt_in) | FR-AUTH-006 |
+| `confirm_accepted` / `confirm_rejected` | user taps confirm / dismisses | `action`, `latency_ms` since shown | FR-AUTH-006 |
+| `agent_turn` | each agent response completed (client) | `latency_first_token_ms`, `latency_total_ms`, `tool_calls` (count) | EXP-002/005 |
+| `satisfaction` | after task, optional | `score` 1-5 | EXP-006 |
+| `session_comparison` | end of session, optional | `preferred_mode` (`classic`/`agent`/`same`), `score_ease_classic`, `score_ease_agent` | EXP-006 |
+| `withdrawal` | participant withdraws | none (triggers deletion job) | EXP-007 |
+
+## Server-side records (joined by `task_run_id`)
+| Record | Fields | Req |
+|---|---|---|
+| `api_call` | `endpoint`, `status`, `latency_ms`, count per task | EXP-005 |
+| `agent_run` | `model_id`, `input_tokens`, `output_tokens`, `tool_call_count`, `latency_ms`, `estimated_cost` | EXP-005, NFR-006 |
+| `safety_counter` | `unconfirmed_write_blocked`, `cross_user_block`, `injection_detected` (counts only, never content) | H9 |
+| `outcome_check` | `task_run_id`, `outcome_valid`, `reason` | H3, H4 |
+
+Never recorded: announcement text, calendar content, user prompts/agent replies, rejection reasons,
+names, emails, tokens.
+
+## Derived metrics
+| Metric | Definition | Unit of analysis |
+|---|---|---|
+| Time on task | `elapsed_ms` of `task_completed` | per participant x task x mode |
+| Taps | `tap_count` | same |
+| Errors | count of `task_error` per run; wrong-outcome rate = share of completed runs with `outcome_valid = false` | same |
+| Completion | completed with `outcome_valid=true` / (completed + abandoned) | per task x mode |
+| Satisfaction | mean `score` | per task x mode |
+| Cost per task | agent: `estimated_cost` from `agent_run`; classic: infra cost apportioned per API call (method in `analysis.md`) | per task x mode |
+| Confirm friction | median `confirm_shown -> confirm_accepted` latency | per action x mode |
+| Safety | any `unconfirmed_write_blocked` that was NOT blocked (should be 0), cross-user disclosures (should be 0) | per session |
+| Work IQ success | briefing runs ending in content or defined empty state / all runs | per user |
+
+## Collection rules
+- Emit from the shared task-flow wrapper in `Packages/Core` so every flow gets events by construction;
+  each slice adds its flow to the task table above (CLAUDE.md invariant).
+- Events are batched and sent to `api/` (`POST /v1/events`), validated against this schema; unknown fields rejected.
+- Retention of events is configurable and unset (U-05, PRIV-004).
+- Participants are informed what is collected and can withdraw (EXP-007, U-14).
