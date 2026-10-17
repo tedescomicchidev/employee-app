@@ -23,8 +23,8 @@ Conventions
 
 | Role | Entra app role (proposed) | Seeded demo users | Can do |
 |---|---|---|---|
-| Publisher (CEO / Comms) | `Announcement.Publish` | 1 (CEO) | publish announcements; also an employee |
-| Manager | `Vacation.Approve` | 2 | approve/reject requests of direct reports; see team coverage; also an employee |
+| Publisher (CEO / Comms) | `Communicator` | 1 (CEO) | publish announcements; also an employee |
+| Manager | `Manager` | 2 (+ CEO, who approves managers' requests, R10) | approve/reject requests of direct reports; see team coverage; also an employee |
 | Employee | `Employee` (default) | 8 (+ all above) | read announcements, see own balance, request/cancel vacation, opt in to briefing |
 
 Reporting lines (employee -> manager; manager -> CEO) come from the seeded directory/Entra `manager`
