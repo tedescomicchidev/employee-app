@@ -161,8 +161,51 @@ entries:
     access: [operators]
     requirements: [FR-AUTH-003, NFR-012, PRIV-010]
 
+  - id: announcement-inbox
+    description: One document per announcement recipient (fan-out at publish) with read state (ADR-007)
+    fields: [announcement_id, oid, read_at, status]
+    data_subjects: [employee]
+    classification: personal
+    purpose: feed query limited to own recipients; unread badge
+    source: api
+    storage: [cosmos]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: own items only, via tools
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [self, api]
+    notes: supersedes the storage of announcement-read-state; same data, different container
+    requirements: [FR-ANN-002, FR-ANN-003]
+
+  - id: participants-mapping
+    description: Mapping from oid to the random experiment participant_id (ADR-009)
+    fields: [participant_id, oid]
+    data_subjects: [participant]
+    classification: personal (re-identification key)
+    purpose: pseudonymisation of experiment events; deletable on withdrawal
+    source: api
+    storage: [cosmos, separate container and RBAC role]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: never
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [api, experiment owner (restricted)]
+    requirements: [EXP-007, PRIV-006, PRIV-007]
+
+  - id: proposals
+    description: Server-side proposals that back the native confirm card and the confirmation token (ADR-005)
+    fields: [proposal_id, oid, action, payload, payload_hash, expires_at]
+    data_subjects: [employee, publisher]
+    classification: personal (payload holds a draft announcement or vacation dates)
+    purpose: show exactly what is confirmed; execute only that
+    source: api (propose_* tools and REST)
+    storage: [cosmos with short TTL]
+    processors: [Azure Cosmos DB]
+    shared_with_agents: proposal_id and summary returned to the agent that proposed it
+    retention: short TTL (value configurable; HUMAN_CONFIRMATION_REQUIRED)
+    access: [self, api]
+    requirements: [FR-AUTH-006, FR-ANN-001, FR-VAC-002]
+
   - id: confirmation-tokens
-    description: Single-use confirmation tokens (hash of payload, user, action, expiry)
+    description: Single-use confirmation tokens (hash of payload, user, action, expiry); stored with the proposal
     fields: [token_id, oid, action, payload_hash, expires_at, used_at]
     data_subjects: [employee]
     classification: security metadata
