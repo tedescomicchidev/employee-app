@@ -4,6 +4,18 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
 
+echo "== infra =="
+cd "$root"
+az bicep build --file infra/main.bicep --outfile /dev/null
+# NFR-001 / ADR-001: no literal resource location other than switzerlandnorth.
+if grep -rnE "location: *'" infra --include=*.bicep | grep -v "switzerlandnorth"; then
+  echo "infra: literal location other than switzerlandnorth (ADR-001)"; exit 1
+fi
+# NFR-014: no keys or secrets in templates.
+if grep -rnE "listKeys|listSecrets|adminUserEnabled: *true|disableLocalAuth: *false" infra --include=*.bicep; then
+  echo "infra: key-based access found"; exit 1
+fi
+
 echo "== ios =="
 cd "$root/ios"
 xcodegen generate
