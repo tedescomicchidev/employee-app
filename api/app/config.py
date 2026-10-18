@@ -13,6 +13,16 @@ class Settings:
         return f"https://login.microsoftonline.com/{self.tenant_id}/v2.0"
 
     @property
+    def audiences(self) -> list[str]:
+        """v2 access tokens carry the bare client id as `aud`, v1 tokens the application id URI."""
+        return [a for a in dict.fromkeys([self.api_audience, self.api_client_id]) if a]
+
+    @property
+    def issuers(self) -> list[str]:
+        """v2.0 issuer, plus the v1 issuer in case the app registration still issues v1 tokens."""
+        return [self.issuer, f"https://sts.windows.net/{self.tenant_id}/"]
+
+    @property
     def jwks_uri(self) -> str:
         return f"https://login.microsoftonline.com/{self.tenant_id}/discovery/v2.0/keys"
 

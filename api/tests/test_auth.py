@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.auth.errors import ApiError
 from app.auth.principal import Principal, Role, authorize
+from tests.conftest import CLIENT, TENANT
 
 TokenFactory = Callable[..., str]
 
@@ -25,6 +26,28 @@ def test_fr_auth_001_valid_token_returns_identity(
     assert body["display_name"] == "Test User"
     assert body["roles"] == ["Employee", "Manager"]
     assert body["oid"] == "00000000-0000-0000-0000-0000000000aa"
+
+
+def test_fr_auth_001_v2_token_with_client_id_audience_is_accepted(
+    client: TestClient, make_token: TokenFactory
+) -> None:
+    # requestedAccessTokenVersion 2: aud is the bare client id.
+    assert get_me(client, make_token(aud=CLIENT)).status_code == 200
+
+
+def test_fr_auth_001_v1_issuer_is_accepted(client: TestClient, make_token: TokenFactory) -> None:
+    iss = f"https://sts.windows.net/{TENANT}/"
+    assert get_me(client, make_token(iss=iss)).status_code == 200
+
+
+def test_fr_auth_001_rejection_logs_reason_without_token(
+    client: TestClient, make_token: TokenFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    token = make_token(aud="api://someone-else")
+    with caplog.at_level("WARNING"):
+        assert get_me(client, token).status_code == 401
+    assert "access token rejected: audience" in caplog.text
+    assert token not in caplog.text
 
 
 def test_fr_auth_001_missing_token_is_unauthenticated(client: TestClient) -> None:
