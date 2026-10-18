@@ -31,6 +31,7 @@ Notification Hubs are available there. Model availability is the constraint: onl
 - Learn's Groundedness guardrail is not available in Switzerland North; the design does not depend on it.
 - Not verified this session: Cosmos DB, Container Apps, Key Vault, Log Analytics, ACR in Switzerland North (spike S-4).
 - Foundry projects created before 2026-06-25 need a publicly reachable ACR for the agent image; create a new project.
+- Dev exception (2026-10-18): the dev subscription has no Standard (regional) gpt-4.x quota in Switzerland North (limit 0). Dev deploys `gpt-4o` 2024-11-20 as GlobalStandard, so prompts may be processed outside Switzerland/the EU. Demo data only. Revert to Standard once quota is granted (`AZURE_MODEL_SKU`).
 
 ## Alternatives
 - Switzerland West: also lists hosted agents, but Notification Hubs/Cosmos AZ behaviour differs and nothing here requires it.
