@@ -1,0 +1,26 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "ds.loading" : { "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading" } },
+      "de" : { "stringUnit" : { "state" : "translated", "value" : "Lädt" } },
+      "fr" : { "stringUnit" : { "state" : "translated", "value" : "Chargement" } },
+      "it" : { "stringUnit" : { "state" : "translated", "value" : "Caricamento" } } } },
+    "ds.details" : { "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Details" } },
+      "de" : { "stringUnit" : { "state" : "translated", "value" : "Details" } },
+      "fr" : { "stringUnit" : { "state" : "translated", "value" : "Détails" } },
+      "it" : { "stringUnit" : { "state" : "translated", "value" : "Dettagli" } } } },
+    "ds.correlation_id" : { "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Reference" } },
+      "de" : { "stringUnit" : { "state" : "translated", "value" : "Referenz" } },
+      "fr" : { "stringUnit" : { "state" : "translated", "value" : "Référence" } },
+      "it" : { "stringUnit" : { "state" : "translated", "value" : "Riferimento" } } } },
+    "ds.code" : { "localizations" : {
+      "en" : { "stringUnit" : { "state" : "translated", "value" : "Code" } },
+      "de" : { "stringUnit" : { "state" : "translated", "value" : "Code" } },
+      "fr" : { "stringUnit" : { "state" : "translated", "value" : "Code" } },
+      "it" : { "stringUnit" : { "state" : "translated", "value" : "Codice" } } } }
+  },
+  "version" : "1.0"
+}

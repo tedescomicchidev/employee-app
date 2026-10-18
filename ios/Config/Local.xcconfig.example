@@ -1,0 +1,5 @@
+// Copy to Local.xcconfig (gitignored) and fill in the ids from the Entra registrations.
+// ENTRA_CLIENT_ID = <employee-ios application (client) id>
+// ENTRA_TENANT_ID = <tenant id>
+// API_CLIENT_ID = <employee-api application (client) id>
+// API_BASE_URL = https:/$()/<container-app-fqdn>

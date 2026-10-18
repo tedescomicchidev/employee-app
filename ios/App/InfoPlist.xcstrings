@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "CFBundleDisplayName" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Employee" } },
+        "de" : { "stringUnit" : { "state" : "translated", "value" : "Mitarbeiter" } },
+        "fr" : { "stringUnit" : { "state" : "translated", "value" : "Collaborateurs" } },
+        "it" : { "stringUnit" : { "state" : "translated", "value" : "Dipendenti" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

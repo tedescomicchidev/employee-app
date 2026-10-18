@@ -11,6 +11,9 @@ settings:
     CODE_SIGN_STYLE: Automatic
     CODE_SIGNING_ALLOWED: NO   # agent account has no signing identity; human signs
 packages:
+  MSAL:
+    url: https://github.com/AzureAD/microsoft-authentication-library-for-objc
+    from: 2.16.0
   Core:
     path: Packages/Core
   Features:
@@ -20,6 +23,24 @@ targets:
     type: application
     platform: iOS
     sources: [App]
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
+    info:
+      path: Config/Info.plist
+      properties:
+        CFBundleLocalizations: [en, de, fr, it]
+        EntraClientID: $(ENTRA_CLIENT_ID)
+        EntraTenantID: $(ENTRA_TENANT_ID)
+        ApiClientID: $(API_CLIENT_ID)
+        ApiBaseURL: $(API_BASE_URL)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes: ["msauth.$(PRODUCT_BUNDLE_IDENTIFIER)"]
+        LSApplicationQueriesSchemes: [msauthv2, msauthv3]
+    entitlements:
+      path: App/EmployeeApp.entitlements
+      properties:
+        keychain-access-groups: ["$(AppIdentifierPrefix)com.microsoft.adalcache"]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ch.example.employee
@@ -30,6 +51,8 @@ targets:
     dependencies:
       - package: Core
       - package: Features
+      - package: MSAL
+        product: MSAL
   AppTests:
     type: bundle.unit-test
     platform: iOS
