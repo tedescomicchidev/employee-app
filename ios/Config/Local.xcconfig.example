@@ -4,8 +4,8 @@
 // API_CLIENT_ID = <employee-api application (client) id>
 // API_BASE_URL = https:/$()/<container-app-fqdn>
 
-// Signing (required for MSAL / Keychain). The redirect URI is msauth.<APP_BUNDLE_ID>://auth
+// Simulator: nothing to set, ad-hoc signing is on by default (MSAL needs it for the Keychain).
+// Device: set your bundle id and Apple team. The redirect URI is msauth.<APP_BUNDLE_ID>://auth
 // and must be registered on employee-ios.
 // APP_BUNDLE_ID = ch.<retailer>.employee
-// CODE_SIGNING_ALLOWED = YES
 // DEVELOPMENT_TEAM = <your Apple team id>
