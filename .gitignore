@@ -9,4 +9,22 @@ DerivedData/
 .env
 .build/
 .swiftpm/
-Config/Local.xcconfig
+
+# Local config and secrets (never commit)
+**/Config/Local.xcconfig
+.env.*
+!.env.example
+.azure/
+local.settings.json
+.claude/settings.local.json
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile
+*.keystore
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
