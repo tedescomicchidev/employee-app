@@ -9,9 +9,9 @@ param environmentName string
 @allowed(['switzerlandnorth'])
 param location string = 'switzerlandnorth'
 
-param modelName string = 'gpt-4.1'
-param modelVersion string = '2025-04-14'
-param modelSkuName string = 'Standard'
+param modelName string = 'gpt-4o'
+param modelVersion string = '2024-11-20'
+param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 30
 
 var tags = {
