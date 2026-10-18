@@ -1,0 +1,14 @@
+[
+  {"oid": "00000000-0000-0000-0000-000000000001", "alias": "ceo", "name": "Clara Ceo", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000002", "alias": "mgr1", "name": "Maria Keller", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000003", "alias": "mgr2", "name": "Marco Bernasconi", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000011", "alias": "emp1", "name": "Emp One", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000012", "alias": "emp2", "name": "Emp Two", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000013", "alias": "emp3", "name": "Emp Three", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000014", "alias": "emp4", "name": "Emp Four", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000015", "alias": "emp5", "name": "Emp Five", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000016", "alias": "emp6", "name": "Emp Six", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000017", "alias": "emp7", "name": "Emp Seven", "active": true},
+  {"oid": "00000000-0000-0000-0000-000000000018", "alias": "emp8", "name": "Emp Eight", "active": true},
+  {"oid": "00000000-0000-0000-0000-0000000000d1", "alias": "disabled1", "name": "Disabled One", "active": false}
+]

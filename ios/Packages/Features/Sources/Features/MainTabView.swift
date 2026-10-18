@@ -42,7 +42,7 @@ struct MainTabView: View {
 
     @ViewBuilder private func content(for tab: AppTab) -> some View {
         switch tab {
-        case .announcements: HomeView(model: model, title: tab.title)
+        case .announcements: HomeView(model: model, environment: environment, title: tab.title)
         case .more: MoreView(model: model, environment: environment)
         case .vacation, .week, .approvals: PlaceholderTab(title: tab.title, symbol: tab.symbol)
         }

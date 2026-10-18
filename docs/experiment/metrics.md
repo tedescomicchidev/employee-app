@@ -61,3 +61,8 @@ names, emails, tokens.
 - Events are batched and sent to `api/` (`POST /v1/events`), validated against this schema; unknown fields rejected.
 - Retention of events is configurable and unset (U-05, PRIV-004).
 - Participants are informed what is collected and can withdraw (EXP-007, U-14).
+
+## Flows implemented
+| Task | Mode | Where | Notes |
+|---|---|---|---|
+| `T-ANN-PUB` | classic | `Packages/Features/.../PublishModel` via `TaskFlow` (FR-ANN-001) | `confirm_*` fire on Review. Taps count explicit button and picker actions, not text-field focus. `participant_id` is a per-install random uuid until `GET /v1/me/participant` exists. `POST /v1/events` validates and accepts but has no durable sink yet. |

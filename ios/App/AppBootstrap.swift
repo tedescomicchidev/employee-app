@@ -19,8 +19,11 @@ enum AppBootstrap {
         }
         do {
             let msal = try MSALAuthService(configuration: config)
+            let events = URLSessionEventSink(baseURL: config.apiBaseURL) { try await msal.accessToken() }
             return configure(AppEnvironment(
-                auth: msal, me: URLSessionMeService(baseURL: config.apiBaseURL), mode: mode))
+                auth: msal, me: URLSessionMeService(baseURL: config.apiBaseURL), mode: mode,
+                announcements: URLSessionAnnouncementService(baseURL: config.apiBaseURL),
+                events: events, taskContext: taskContext()), clearing: events)
         } catch {
             // Typically "Failed to retrieve teamId from keychain" (-42008) in an unsigned build.
             // Codes only: no tokens, no identifiers.
@@ -37,13 +40,30 @@ enum AppBootstrap {
     }
 
     /// Sign-out hooks (FR-AUTH-005): drafts, scheduled notifications, cached responses.
-    private static func configure(_ environment: AppEnvironment) -> AppEnvironment {
+    /// Stopgap participant id: a random per-install uuid. The server-issued, deletable mapping
+    /// (`GET /v1/me/participant`, ADR-009) is not built yet.
+    private static func taskContext() -> TaskContext {
+        let key = "experiment.participant_id"
+        let stored = UserDefaults.standard.string(forKey: key).flatMap(UUID.init)
+        let id = stored ?? UUID()
+        if stored == nil { UserDefaults.standard.set(id.uuidString, forKey: key) }
+        return TaskContext(
+            participantId: id,
+            appVersion: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev",
+            osVersion: ProcessInfo.processInfo.operatingSystemVersionString,
+            locale: Locale.current.language.languageCode?.identifier ?? "en")
+    }
+
+    private static func configure(
+        _ environment: AppEnvironment, clearing events: URLSessionEventSink? = nil
+    ) -> AppEnvironment {
         let drafts = environment.drafts
         let cleaner = environment.cleaner
         Task {
             await cleaner.register { await drafts.clear() }
             await cleaner.register { UNUserNotificationCenter.current().removeAllPendingNotificationRequests() }
             await cleaner.register { URLCache.shared.removeAllCachedResponses() }
+            if let events { await cleaner.register { await events.clear() } }
         }
         return environment
     }

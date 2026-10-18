@@ -4,6 +4,7 @@ import SwiftUI
 /// Signed-in home: name + role from `GET /v1/me`. Feature content lands in later slices.
 struct HomeView: View {
     let model: AppModel
+    let environment: AppEnvironment
     let title: LocalizedStringResource
 
     var body: some View {
@@ -22,6 +23,7 @@ struct HomeView: View {
             }
             .background(DSColor.bg)
             .navigationTitle(Text(title))
+            .composeEntry(model: model, environment: environment)
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { Task { await model.reload() } } label: {
