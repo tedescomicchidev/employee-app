@@ -8,7 +8,8 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
 bundle=ch.example.employee
-scenarios=(signin signin-failed signin-offline home-employee home-manager home-publisher)
+scenarios=(signin signin-failed signin-offline home-employee home-manager home-publisher
+           compose-ok compose-validation review-ok review-success review-error review-offline)
 lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 
@@ -33,7 +34,7 @@ for appearance in "${appearances[@]}"; do
   for s in "${scenarios[@]}"; do
     xcrun simctl terminate "$sim" "$bundle" 2>/dev/null || true
     xcrun simctl launch "$sim" "$bundle" -AppleLanguages "($lang)" -scenario "$s" >/dev/null
-    sleep 2
+    sleep 3
     xcrun simctl io "$sim" screenshot "$out/$s-$appearance.png"
   done
 done
@@ -43,7 +44,7 @@ xcrun simctl ui "$sim" content_size accessibility-extra-extra-extra-large
 for s in "${scenarios[@]}"; do
   xcrun simctl terminate "$sim" "$bundle" 2>/dev/null || true
   xcrun simctl launch "$sim" "$bundle" -AppleLanguages "($lang)" -scenario "$s" >/dev/null
-  sleep 2
+  sleep 3
   xcrun simctl io "$sim" screenshot "$out/$s-largest-text.png"
 done
 xcrun simctl ui "$sim" content_size large

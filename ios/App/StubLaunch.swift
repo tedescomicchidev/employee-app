@@ -7,6 +7,7 @@ import Foundation
 ///   -authStub <employee|manager|publisher|failed|cancelled|offline|notAllowed|expiresAfterSignIn>
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
+///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden>
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -21,6 +22,22 @@ enum StubLaunch {
         "home-employee": (.employee, true),
         "home-manager": (.manager, true),
         "home-publisher": (.publisher, true),
+        "compose-ok": (.publisher, true),
+        "compose-validation": (.publisher, true),
+        "review-ok": (.publisher, true),
+        "review-success": (.publisher, true),
+        "review-error": (.publisher, true),
+        "review-offline": (.publisher, true),
+    ]
+
+    /// Publish-flow scenarios: autopilot step and what the stub API does (FR-ANN-001).
+    static let announcementScenarios: [String: (AnnouncementAutopilot, AnnouncementStubScenario)] = [
+        "compose-ok": (.composeOK, .ok),
+        "compose-validation": (.composeValidation, .ok),
+        "review-ok": (.reviewOK, .ok),
+        "review-success": (.reviewSuccess, .ok),
+        "review-error": (.reviewError, .publishFails),
+        "review-offline": (.reviewOffline, .publishOffline),
     ]
 
     @MainActor
@@ -35,7 +52,14 @@ enum StubLaunch {
         }
         guard let (scenario, signedIn) = resolved else { return nil }
         let stub = StubAuthService(scenario: scenario, signedIn: signedIn)
-        var environment = AppEnvironment(auth: stub, me: stub, mode: mode)
+        let name = argument("-scenario")
+        let flow = name.flatMap { announcementScenarios[$0] }
+        let announcementScenario = flow?.1
+            ?? argument("-announcementStub").flatMap(AnnouncementStubScenario.init) ?? .ok
+        var environment = AppEnvironment(
+            auth: stub, me: stub, mode: mode,
+            announcements: StubAnnouncementService(scenario: announcementScenario))
+        environment.announcementAutopilot = flow?.0
         environment.autoSignIn = argument("-scenario").map(autoSignIn.contains) ?? false
         environment.debug = DebugHooks(
             useScenario: { await stub.use($0) },

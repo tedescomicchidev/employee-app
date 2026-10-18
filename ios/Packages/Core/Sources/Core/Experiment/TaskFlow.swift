@@ -1,0 +1,156 @@
+import Foundation
+
+/// docs/experiment/metrics.md. Content-free by construction: there is no field that could hold text.
+public struct ExperimentEvent: Sendable, Equatable, Encodable {
+    public enum Name: String, Sendable, Encodable {
+        case taskStarted = "task_started", taskCompleted = "task_completed"
+        case taskAbandoned = "task_abandoned", taskError = "task_error"
+        case confirmShown = "confirm_shown", confirmAccepted = "confirm_accepted"
+        case confirmRejected = "confirm_rejected"
+    }
+    public enum Action: String, Sendable, Encodable { case publish, request, cancel, decide, optIn = "opt_in" }
+
+    public var event: Name
+    public var participantId: UUID
+    public var sessionId: UUID
+    public var taskRunId: UUID
+    public var taskId: String
+    public var feature: String
+    public var mode: String
+    public var orderIndex: Int
+    public var appVersion: String
+    public var osVersion: String
+    public var locale: String
+    public var ts: Date
+    public var elapsedMs: Int?
+    public var tapCount: Int?
+    public var outcomeValid: Bool?
+    public var lastState: String?
+    public var code: String?
+    public var recovered: Bool?
+    public var action: Action?
+    public var latencyMs: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case event, ts, feature, mode, locale, code, recovered, action
+        case participantId = "participant_id", sessionId = "session_id", taskRunId = "task_run_id"
+        case taskId = "task_id", orderIndex = "order_index", appVersion = "app_version"
+        case osVersion = "os_version", elapsedMs = "elapsed_ms", tapCount = "tap_count"
+        case outcomeValid = "outcome_valid", lastState = "last_state", latencyMs = "latency_ms"
+    }
+}
+
+public protocol EventSink: Sendable {
+    func record(_ event: ExperimentEvent) async
+}
+
+public struct TaskContext: Sendable {
+    public var participantId: UUID
+    public var sessionId: UUID
+    public var orderIndex: Int
+    public var appVersion: String
+    public var osVersion: String
+    public var locale: String
+
+    public init(
+        participantId: UUID, sessionId: UUID = UUID(), orderIndex: Int = 0,
+        appVersion: String = "dev", osVersion: String = "", locale: String = "en"
+    ) {
+        self.participantId = participantId
+        self.sessionId = sessionId
+        self.orderIndex = orderIndex
+        self.appVersion = appVersion
+        self.osVersion = osVersion
+        self.locale = locale
+    }
+}
+
+/// Shared task-flow wrapper (ADR-009): `task_started`, then exactly one of completed/abandoned.
+/// Late events after the terminal one are dropped, so a flow can never double-report.
+@MainActor
+public final class TaskFlow {
+    public let taskId: String
+    public let feature: String
+    public let mode: AppMode
+    private let context: TaskContext
+    private let sink: any EventSink
+    private let now: @Sendable () -> Date
+    private let runId = UUID()
+    private var startedAt: Date?
+    private var shownAt: Date?
+    private var taps = 0
+    private var finished = false
+
+    public init(
+        taskId: String, feature: String, mode: AppMode, context: TaskContext, sink: any EventSink,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
+        self.taskId = taskId
+        self.feature = feature
+        self.mode = mode
+        self.context = context
+        self.sink = sink
+        self.now = now
+    }
+
+    public var tapCount: Int { taps }
+    public var isFinished: Bool { finished }
+
+    public func start() {
+        guard startedAt == nil else { return }
+        startedAt = now()
+        emit(.taskStarted)
+    }
+
+    public func tap() { if !finished { taps += 1 } }
+
+    public func confirmShown() {
+        shownAt = now()
+        emit(.confirmShown) { $0.action = .publish }
+    }
+
+    public func confirmAccepted() { confirmResolved(.confirmAccepted) }
+    public func confirmRejected() { confirmResolved(.confirmRejected) }
+
+    public func error(code: String, recovered: Bool) {
+        emit(.taskError) { $0.code = code; $0.recovered = recovered }
+    }
+
+    public func complete(outcomeValid: Bool) {
+        finish(.taskCompleted) { $0.outcomeValid = outcomeValid }
+    }
+
+    public func abandon(lastState: String) {
+        guard startedAt != nil else { return }
+        finish(.taskAbandoned) { $0.lastState = lastState }
+    }
+
+    private func confirmResolved(_ name: ExperimentEvent.Name) {
+        let latency = shownAt.map { Int(now().timeIntervalSince($0) * 1000) }
+        emit(name) { $0.action = .publish; $0.latencyMs = latency }
+    }
+
+    private func finish(_ name: ExperimentEvent.Name, _ configure: (inout ExperimentEvent) -> Void) {
+        guard startedAt != nil, !finished else { return }
+        let elapsed = startedAt.map { Int(now().timeIntervalSince($0) * 1000) }
+        let taps = taps
+        emit(name) { event in
+            event.elapsedMs = elapsed
+            event.tapCount = taps
+            configure(&event)
+        }
+        finished = true
+    }
+
+    private func emit(_ name: ExperimentEvent.Name, _ configure: (inout ExperimentEvent) -> Void = { _ in }) {
+        guard startedAt != nil, !finished else { return }
+        var event = ExperimentEvent(
+            event: name, participantId: context.participantId, sessionId: context.sessionId,
+            taskRunId: runId, taskId: taskId, feature: feature, mode: mode.rawValue,
+            orderIndex: context.orderIndex, appVersion: context.appVersion, osVersion: context.osVersion,
+            locale: context.locale, ts: now())
+        configure(&event)
+        let sink = sink
+        Task { await sink.record(event) }
+    }
+}

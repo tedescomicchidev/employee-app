@@ -1,4 +1,5 @@
 import Core
+import Foundation
 
 #if DEBUG
 /// Debug-menu hooks into the stubbed auth layer.
@@ -23,10 +24,15 @@ public struct AppEnvironment: Sendable {
     public let cleaner: SessionCleaner
     public let drafts: DraftStore
     public let mode: ModeStore
+    public let announcements: any AnnouncementService
+    public let events: any EventSink
+    public let taskContext: TaskContext
     #if DEBUG
     public var debug: DebugHooks?
     /// Screenshots: tap "Sign in" at launch so failure states are visible.
     public var autoSignIn = false
+    /// Screenshots: open the publish flow at launch and drive it to this state.
+    public var announcementAutopilot: AnnouncementAutopilot?
     #endif
 
     public init(
@@ -34,12 +40,37 @@ public struct AppEnvironment: Sendable {
         me: any MeService,
         cleaner: SessionCleaner = SessionCleaner(),
         drafts: DraftStore = DraftStore(),
-        mode: ModeStore
+        mode: ModeStore,
+        announcements: any AnnouncementService = UnconfiguredAnnouncementService(),
+        events: any EventSink = MemoryEventSink(),
+        taskContext: TaskContext = TaskContext(participantId: UUID())
     ) {
         self.auth = auth
         self.me = me
         self.cleaner = cleaner
         self.drafts = drafts
         self.mode = mode
+        self.announcements = announcements
+        self.events = events
+        self.taskContext = taskContext
     }
 }
+
+#if DEBUG
+/// Drives the publish flow without taps so `screenshot.sh` can capture each state.
+public enum AnnouncementAutopilot: String, Sendable {
+    case composeOK, composeValidation, reviewOK, reviewSuccess, reviewError, reviewOffline
+
+    var prefill: AnnouncementDraft {
+        switch self {
+        case .composeValidation:
+            AnnouncementDraft(title: "", body: "Ab Freitag öffnen alle Filialen um 8 Uhr.", language: .de)
+        default:
+            AnnouncementDraft(
+                title: "Früher Start am Freitag",
+                body: "Ab Freitag öffnen alle Filialen um 8 Uhr. Bitte plant die Frühschicht entsprechend.",
+                language: .de)
+        }
+    }
+}
+#endif
