@@ -53,6 +53,7 @@ extension AppModel.Issue {
         case .failed: L10n.signInFailed
         case .notAllowed: L10n.signInNotAllowed
         case .misconfigured: L10n.signInMisconfigured
+        case .unavailable: L10n.signInUnavailable
         }
     }
 
@@ -60,7 +61,7 @@ extension AppModel.Issue {
         switch self {
         case .cancelled: .info
         case .offline: .offline
-        case .failed, .notAllowed, .misconfigured: .error
+        case .failed, .notAllowed, .misconfigured, .unavailable: .error
         }
     }
 }

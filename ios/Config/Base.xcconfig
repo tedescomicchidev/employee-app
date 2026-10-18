@@ -6,4 +6,9 @@ ENTRA_TENANT_ID = 00000000-0000-0000-0000-000000000000
 API_CLIENT_ID = 00000000-0000-0000-0000-000000000000
 // `$()` keeps the double slash from starting an xcconfig comment.
 API_BASE_URL = https:/$()/api.example.invalid
+// Signing and bundle id. The agent account cannot sign, so CI and the agent build unsigned.
+// MSAL needs a signed build (Keychain team id): override these in Local.xcconfig.
+APP_BUNDLE_ID = ch.example.employee
+CODE_SIGNING_ALLOWED = NO
+DEVELOPMENT_TEAM =
 #include? "Local.xcconfig"

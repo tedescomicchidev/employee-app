@@ -35,6 +35,8 @@ public enum AuthFailure: Sendable, Equatable {
     /// Wrong tenant, disabled or unassigned account.
     case accountNotAllowed
     case misconfigured
+    /// The auth SDK could not start (for example no Keychain access in an unsigned build).
+    case unavailable
     case generic
 }
 

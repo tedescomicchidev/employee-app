@@ -92,11 +92,14 @@ final class MSALAuthService: AuthService {
     }
 }
 
-/// Used when the Entra ids are still placeholders: sign-in explains it instead of crashing.
+/// Used when sign-in cannot start (placeholder Entra ids, or MSAL failed to initialise):
+/// sign-in explains why instead of crashing.
 struct UnconfiguredAuthService: AuthService, MeService {
+    let failure: AuthFailure
+
     func hasCachedAccount() async -> Bool { false }
-    func signIn() async throws { throw AuthError.failed(.misconfigured) }
+    func signIn() async throws { throw AuthError.failed(failure) }
     func accessToken() async throws -> String { throw AuthError.interactionRequired }
     func signOut() async throws {}
-    func me(accessToken: String) async throws -> Session { throw AuthError.failed(.misconfigured) }
+    func me(accessToken: String) async throws -> Session { throw AuthError.failed(failure) }
 }

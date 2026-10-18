@@ -9,7 +9,6 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     CODE_SIGN_STYLE: Automatic
-    CODE_SIGNING_ALLOWED: NO   # agent account has no signing identity; human signs
 packages:
   MSAL:
     url: https://github.com/AzureAD/microsoft-authentication-library-for-objc
@@ -43,7 +42,7 @@ targets:
         keychain-access-groups: ["$(AppIdentifierPrefix)com.microsoft.adalcache"]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ch.example.employee
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID)
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_CFBundleDisplayName: Employee
@@ -57,20 +56,26 @@ targets:
     type: bundle.unit-test
     platform: iOS
     sources: [AppTests]
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: ch.example.employee.tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).tests
     dependencies:
       - target: EmployeeApp
   AppUITests:
     type: bundle.ui-testing
     platform: iOS
     sources: [AppUITests]
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
-        PRODUCT_BUNDLE_IDENTIFIER: ch.example.employee.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(APP_BUNDLE_ID).uitests
     dependencies:
       - target: EmployeeApp
 schemes:

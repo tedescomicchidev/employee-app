@@ -64,6 +64,23 @@ struct AppModelTests {
         }
     }
 
+    @Test("FR-AUTH-001: an unavailable auth SDK is reported as such, not as missing configuration")
+    func unavailableIsDistinct() async {
+        struct Unavailable: AuthService, MeService {
+            func hasCachedAccount() async -> Bool { false }
+            func signIn() async throws { throw AuthError.failed(.unavailable) }
+            func accessToken() async throws -> String { throw AuthError.interactionRequired }
+            func signOut() async throws {}
+            func me(accessToken: String) async throws -> Session { throw AuthError.failed(.unavailable) }
+        }
+        let service = Unavailable()
+        let model = AppModel(auth: service, me: service, cleaner: SessionCleaner())
+        await model.start()
+        await model.signIn()
+        #expect(model.issue == .unavailable)
+        #expect(model.issue != .misconfigured)
+    }
+
     @Test("FR-AUTH-005: expired refresh asks to sign in again and keeps the session on screen")
     func expiry() async {
         let (model, stub) = makeModel(.employee, signedIn: true)

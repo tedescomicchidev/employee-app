@@ -3,3 +3,9 @@
 // ENTRA_TENANT_ID = <tenant id>
 // API_CLIENT_ID = <employee-api application (client) id>
 // API_BASE_URL = https:/$()/<container-app-fqdn>
+
+// Signing (required for MSAL / Keychain). The redirect URI is msauth.<APP_BUNDLE_ID>://auth
+// and must be registered on employee-ios.
+// APP_BUNDLE_ID = ch.<retailer>.employee
+// CODE_SIGNING_ALLOWED = YES
+// DEVELOPMENT_TEAM = <your Apple team id>

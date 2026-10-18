@@ -14,7 +14,7 @@ public final class AppModel {
     }
 
     public enum Issue: Equatable {
-        case cancelled, offline, failed, notAllowed, misconfigured
+        case cancelled, offline, failed, notAllowed, misconfigured, unavailable
     }
 
     public private(set) var phase: Phase = .launching
@@ -129,6 +129,7 @@ public final class AppModel {
         case .offline: .offline
         case .failed(.accountNotAllowed): .notAllowed
         case .failed(.misconfigured): .misconfigured
+        case .failed(.unavailable): .unavailable
         default: .failed
         }
     }

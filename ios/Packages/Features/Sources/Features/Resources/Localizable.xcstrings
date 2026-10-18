@@ -840,6 +840,34 @@
           }
         }
       }
+    },
+    "signin.unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sign-in isn’t available in this build. Check the app’s code signing (Keychain access)."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anmeldung ist in diesem Build nicht verfügbar. Prüfe die Code-Signierung der App (Keychain-Zugriff)."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La connexion n’est pas disponible dans cette version. Vérifiez la signature du code de l’application (accès au trousseau)."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’accesso non è disponibile in questa build. Controlla la firma del codice dell’app (accesso al portachiavi)."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -16,6 +16,7 @@ enum L10n {
     static var signInFailed: LocalizedStringResource { .init("signin.failed", bundle: bundle) }
     static var signInNotAllowed: LocalizedStringResource { .init("signin.not_allowed", bundle: bundle) }
     static var signInMisconfigured: LocalizedStringResource { .init("signin.misconfigured", bundle: bundle) }
+    static var signInUnavailable: LocalizedStringResource { .init("signin.unavailable", bundle: bundle) }
     static var signInOffline: LocalizedStringResource { .init("signin.offline", bundle: bundle) }
 
     static var tabAnnouncements: LocalizedStringResource { .init("tab.announcements", bundle: bundle) }
