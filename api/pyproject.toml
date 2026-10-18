@@ -5,6 +5,7 @@ description = "Employee App PoC API (FastAPI)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",
+    "pyjwt[crypto]>=2.15.1",
     "uvicorn>=0.32",
 ]
 

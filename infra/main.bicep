@@ -13,6 +13,8 @@ param modelName string = 'gpt-4o'
 param modelVersion string = '2024-11-20'
 param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 30
+@description('Client id of the employee-api Entra app registration (non-secret). Set after the human-only registration.')
+param apiClientId string = ''
 
 var tags = {
   'azd-env-name': environmentName
@@ -100,6 +102,8 @@ module containerApps 'modules/containerapps.bicep' = {
     cosmosDatabase: cosmos.outputs.databaseName
     keyVaultUri: keyVault.outputs.uri
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
+    entraTenantId: tenant().tenantId
+    apiClientId: apiClientId
   }
 }
 
