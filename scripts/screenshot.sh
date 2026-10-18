@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Simulator screenshots per seeded scenario -> build/screenshots/<scenario>-<appearance>.png
 # Usage: scripts/screenshot.sh [scenario ...]   (default: all scenarios below)
-# The app reads `-scenario <name>` from launch arguments. Only `launch` exists in Phase 0;
-# add scenarios here as features land.
+# The app reads `-scenario <name>` from launch arguments (DEBUG builds; see ios/App/StubLaunch.swift).
+# Language defaults to German like the mockups; override with SCREENSHOT_LANG=en|fr|it.
+# Add scenarios here as features land.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
 bundle=ch.example.employee
-scenarios=(launch)
+scenarios=(signin signin-failed signin-offline home-employee home-manager home-publisher)
+lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 
 if [ "$#" -gt 0 ]; then scenarios=("$@"); fi
@@ -27,9 +29,10 @@ out="$root/build/screenshots"
 mkdir -p "$out"
 for appearance in "${appearances[@]}"; do
   xcrun simctl ui "$sim" appearance "$appearance"
+  sleep 2   # let the appearance change settle before launching
   for s in "${scenarios[@]}"; do
     xcrun simctl terminate "$sim" "$bundle" 2>/dev/null || true
-    xcrun simctl launch "$sim" "$bundle" -scenario "$s" >/dev/null
+    xcrun simctl launch "$sim" "$bundle" -AppleLanguages "($lang)" -scenario "$s" >/dev/null
     sleep 2
     xcrun simctl io "$sim" screenshot "$out/$s-$appearance.png"
   done
@@ -39,7 +42,7 @@ done
 xcrun simctl ui "$sim" content_size accessibility-extra-extra-extra-large
 for s in "${scenarios[@]}"; do
   xcrun simctl terminate "$sim" "$bundle" 2>/dev/null || true
-  xcrun simctl launch "$sim" "$bundle" -scenario "$s" >/dev/null
+  xcrun simctl launch "$sim" "$bundle" -AppleLanguages "($lang)" -scenario "$s" >/dev/null
   sleep 2
   xcrun simctl io "$sim" screenshot "$out/$s-largest-text.png"
 done

@@ -1,0 +1,11 @@
+// Copy to Local.xcconfig (gitignored) and fill in the ids from the Entra registrations.
+// ENTRA_CLIENT_ID = <employee-ios application (client) id>
+// ENTRA_TENANT_ID = <tenant id>
+// API_CLIENT_ID = <employee-api application (client) id>
+// API_BASE_URL = https:/$()/<container-app-fqdn>
+
+// Simulator: nothing to set, ad-hoc signing is on by default (MSAL needs it for the Keychain).
+// Device: set your bundle id and Apple team. The redirect URI is msauth.<APP_BUNDLE_ID>://auth
+// and must be registered on employee-ios.
+// APP_BUNDLE_ID = ch.<retailer>.employee
+// DEVELOPMENT_TEAM = <your Apple team id>
