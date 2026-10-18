@@ -9,7 +9,8 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
 bundle=ch.example.employee
 scenarios=(signin signin-failed signin-offline home-employee home-manager home-publisher
-           compose-ok compose-validation review-ok review-success review-error review-offline)
+           compose-ok compose-validation review-ok review-success review-error review-offline
+           audience-ok feed-ok feed-loading feed-empty feed-error feed-offline detail-ok)
 lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 

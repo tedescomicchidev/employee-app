@@ -1,6 +1,6 @@
 import json
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
@@ -15,6 +15,9 @@ class Employee:
     oid: str
     name: str
     active: bool
+    role: str = "Employee"
+    store: str = ""
+    region: str = ""
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,12 @@ class AnnouncementStore(Protocol):
 
     def get(self, announcement_id: str) -> Announcement | None: ...
     def list_for(self, oid: str) -> list[tuple[Announcement, InboxItem]]: ...
+    def get_for(self, oid: str, announcement_id: str) -> tuple[Announcement, InboxItem] | None:
+        """Only items in `oid`'s own inbox; anything else is None (FR-ANN-002.3)."""
+
+    def mark_read(self, oid: str, announcement_id: str, at: datetime) -> InboxItem | None:
+        """Idempotent; touches only `oid`'s inbox item (FR-ANN-003.2)."""
+
     def count(self) -> int: ...
 
 
@@ -66,7 +75,12 @@ class SeedDirectory:
     @classmethod
     def from_file(cls, path: Path = SEED_FILE) -> "SeedDirectory":
         rows = json.loads(path.read_text())
-        return cls([Employee(r["oid"], r["name"], r["active"]) for r in rows])
+        return cls(
+            [
+                Employee(r["oid"], r["name"], r["active"], r["role"], r["store"], r["region"])
+                for r in rows
+            ]
+        )
 
     def get(self, oid: str) -> Employee | None:
         return self._by_oid.get(oid)
@@ -103,6 +117,22 @@ class InMemoryAnnouncementStore:
             if i.status == "published"
         ]
         return sorted(items, key=lambda pair: pair[0].published_at, reverse=True)
+
+    def get_for(self, oid: str, announcement_id: str) -> tuple[Announcement, InboxItem] | None:
+        item = self._inbox.get(oid, {}).get(announcement_id)
+        if item is None or item.status != "published":
+            return None
+        return self._announcements[announcement_id], item
+
+    def mark_read(self, oid: str, announcement_id: str, at: datetime) -> InboxItem | None:
+        with self._lock:
+            item = self._inbox.get(oid, {}).get(announcement_id)
+            if item is None or item.status != "published":
+                return None
+            if item.read_at is None:
+                item = replace(item, read_at=at)
+                self._inbox[oid][announcement_id] = item
+            return item
 
     def count(self) -> int:
         return len(self._announcements)

@@ -20,7 +20,7 @@ struct ComposeEntry: ViewModifier {
                 }
             }
             .sheet(item: $flowItem) { publish in
-                ComposeFlowView(model: publish.model) { flowItem = nil }
+                ComposeFlowView(model: publish.model, startAtAudience: publish.startAtAudience) { flowItem = nil }
             }
             #if DEBUG
             .task {
@@ -54,13 +54,17 @@ struct ComposeEntry: ViewModifier {
             Task { await Self.drive(publish, autopilot) }
         }
         #endif
+        #if DEBUG
+        flowItem = ComposeFlowItem(model: publish, startAtAudience: autopilot == .audienceOK)
+        #else
         flowItem = ComposeFlowItem(model: publish)
+        #endif
     }
 
     #if DEBUG
     @MainActor private static func drive(_ model: PublishModel, _ autopilot: AnnouncementAutopilot) async {
         switch autopilot {
-        case .composeOK: break
+        case .composeOK, .audienceOK: break
         case .composeValidation, .reviewOK: await model.review()
         case .reviewSuccess: await model.review(); await model.publish()
         case .reviewError, .reviewOffline: await model.review(); await model.publish()
@@ -72,6 +76,7 @@ struct ComposeEntry: ViewModifier {
 struct ComposeFlowItem: Identifiable {
     let id = UUID()
     let model: PublishModel
+    var startAtAudience = false
 }
 
 extension View {

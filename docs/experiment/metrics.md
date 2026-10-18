@@ -66,3 +66,4 @@ names, emails, tokens.
 | Task | Mode | Where | Notes |
 |---|---|---|---|
 | `T-ANN-PUB` | classic | `Packages/Features/.../PublishModel` via `TaskFlow` (FR-ANN-001) | `confirm_*` fire on Review. Taps count explicit button and picker actions, not text-field focus. `participant_id` is a per-install random uuid until `GET /v1/me/participant` exists. `POST /v1/events` validates and accepts but has no durable sink yet. |
+| `T-ANN-READ` | classic | `Packages/Features/.../FeedModel` via `TaskFlow` (FR-ANN-003) | `task_started` when the feed opens; `task_completed` when the API confirmed the read mark of an opened announcement; a failed or offline open emits `task_error` (`recovered: true`) and no completion. `task_abandoned` is not emitted yet (the feed is a tab, so there is no reliable leave signal). `confirm_*` do not apply. |

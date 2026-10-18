@@ -27,20 +27,21 @@ final class AuthFlowTests: XCTestCase {
     func testSignInShowsNameAndRole() {
         let app = launch("manager")
         signIn(app)
-        XCTAssertTrue(app.staticTexts["home.name"].waitForExistence(timeout: 10))
-        XCTAssertEqual(app.staticTexts["home.name"].label, "Maria Keller")
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
+        tab(app, "More").tap()
+        XCTAssertTrue(app.staticTexts["Maria Keller"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Manager"].exists)
     }
 
     // FR-AUTH-002: manager sees Approvals, employee does not
     func testRoleDrivesTabs() {
         let manager = launch("manager", signedIn: true)
-        XCTAssertTrue(manager.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(manager.tabBars.firstMatch.waitForExistence(timeout: 10))
         XCTAssertTrue(tab(manager, "Approvals").exists)
         manager.terminate()
 
         let employee = launch("employee", signedIn: true)
-        XCTAssertTrue(employee.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(employee.tabBars.firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(tab(employee, "Approvals").exists)
         XCTAssertTrue(tab(employee, "News").exists)
         XCTAssertTrue(tab(employee, "More").exists)
@@ -68,7 +69,7 @@ final class AuthFlowTests: XCTestCase {
     // FR-AUTH-005: sign-out returns to sign-in
     func testSignOut() {
         let app = launch("employee", signedIn: true)
-        XCTAssertTrue(app.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
         tab(app, "More").tap()
         app.buttons["more.signout"].tap()
         let alert = app.alerts.firstMatch
@@ -82,19 +83,19 @@ final class AuthFlowTests: XCTestCase {
     func testExpiredSessionAsksToSignInAgain() {
         let app = launch("expiresAfterSignIn")
         signIn(app)
-        XCTAssertTrue(app.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
         app.buttons["home.refresh"].tap()
         XCTAssertTrue(app.staticTexts["Sign in again"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["reauth.button"].exists)
         app.buttons["reauth.button"].tap()
         XCTAssertTrue(app.buttons["reauth.button"].waitForNonExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["home.name"].exists)
+        XCTAssertTrue(app.tabBars.firstMatch.exists)
     }
 
     // Debug menu: seeding a manager scenario adds the Approvals tab
     func testDebugMenuSeedsManager() {
         let app = launch("employee", signedIn: true)
-        XCTAssertTrue(app.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(tab(app, "Approvals").exists)
         tab(app, "More").tap()
         app.buttons["debug.seed.manager"].tap()

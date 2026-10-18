@@ -25,6 +25,7 @@ public struct AppEnvironment: Sendable {
     public let drafts: DraftStore
     public let mode: ModeStore
     public let announcements: any AnnouncementService
+    public let feedCache: FeedCache
     public let events: any EventSink
     public let taskContext: TaskContext
     #if DEBUG
@@ -33,6 +34,8 @@ public struct AppEnvironment: Sendable {
     public var autoSignIn = false
     /// Screenshots: open the publish flow at launch and drive it to this state.
     public var announcementAutopilot: AnnouncementAutopilot?
+    /// Screenshots: open this announcement in the feed at launch.
+    public var openAnnouncementOnLaunch: String?
     #endif
 
     public init(
@@ -42,6 +45,7 @@ public struct AppEnvironment: Sendable {
         drafts: DraftStore = DraftStore(),
         mode: ModeStore,
         announcements: any AnnouncementService = UnconfiguredAnnouncementService(),
+        feedCache: FeedCache = FeedCache(),
         events: any EventSink = MemoryEventSink(),
         taskContext: TaskContext = TaskContext(participantId: UUID())
     ) {
@@ -51,6 +55,7 @@ public struct AppEnvironment: Sendable {
         self.drafts = drafts
         self.mode = mode
         self.announcements = announcements
+        self.feedCache = feedCache
         self.events = events
         self.taskContext = taskContext
     }
@@ -59,12 +64,16 @@ public struct AppEnvironment: Sendable {
 #if DEBUG
 /// Drives the publish flow without taps so `screenshot.sh` can capture each state.
 public enum AnnouncementAutopilot: String, Sendable {
-    case composeOK, composeValidation, reviewOK, reviewSuccess, reviewError, reviewOffline
+    case composeOK, composeValidation, reviewOK, reviewSuccess, reviewError, reviewOffline, audienceOK
 
     var prefill: AnnouncementDraft {
         switch self {
         case .composeValidation:
             AnnouncementDraft(title: "", body: "Ab Freitag öffnen alle Filialen um 8 Uhr.", language: .de)
+        case .audienceOK:
+            AnnouncementDraft(
+                title: "Früher Start am Freitag", body: "Ab Freitag öffnen alle Filialen um 8 Uhr.", language: .de,
+                audience: AudienceSelection(everyone: false, regions: ["IT"], roles: ["Manager"]))
         default:
             AnnouncementDraft(
                 title: "Früher Start am Freitag",

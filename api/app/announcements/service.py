@@ -9,6 +9,10 @@ from datetime import UTC, datetime, timedelta
 
 from app.announcements.models import (
     ACTION_PUBLISH,
+    ALL,
+    AUDIENCE_DIMENSIONS,
+    AUDIENCE_VALUE_MAX,
+    AUDIENCE_VALUES_MAX,
     BODY_MAX,
     TITLE_MAX,
     Announcement,
@@ -20,7 +24,9 @@ from app.announcements.models import (
 from app.auth.errors import (
     FieldError,
     confirmation_required,
+    empty_audience,
     invalid_confirmation,
+    not_found,
     not_provisioned,
 )
 from app.auth.principal import Principal, Role, authorize
@@ -52,11 +58,33 @@ def validate_draft(title: object, body: object, language: object, audience: obje
         lang = Language(language)
     except ValueError:
         raise FieldError("language", "one of de, fr, it, en") from None
-    try:
-        aud = Audience(audience)
-    except ValueError:
-        raise FieldError("audience", "only 'all' is supported") from None
-    return Draft(title=title, body=body, language=lang, audience=aud)
+    return Draft(title=title, body=body, language=lang, audience=parse_audience(audience))
+
+
+def parse_audience(raw: object) -> Audience:
+    """`"all"` or {regions, stores, roles}; "all" is exclusive (FR-ANN-002.1)."""
+    if raw == ALL:
+        return Audience(everyone=True)
+    if not isinstance(raw, dict):
+        raise FieldError("audience", "'all' or regions/stores/roles")
+    if raw.get(ALL) is True:
+        if any(raw.get(d) for d in AUDIENCE_DIMENSIONS):
+            raise FieldError("audience", "'all' cannot be combined with other criteria")
+        return Audience(everyone=True)
+    unknown = set(raw) - set(AUDIENCE_DIMENSIONS) - {ALL}
+    if unknown:
+        raise FieldError("audience", "unknown criteria")
+    values: dict[str, tuple[str, ...]] = {}
+    for dimension in AUDIENCE_DIMENSIONS:
+        items = raw.get(dimension) or []
+        if (
+            not isinstance(items, list)
+            or len(items) > AUDIENCE_VALUES_MAX
+            or not all(isinstance(i, str) and 1 <= len(i) <= AUDIENCE_VALUE_MAX for i in items)
+        ):
+            raise FieldError("audience", f"{dimension}: list of short strings")
+        values[dimension] = tuple(sorted(set(items)))
+    return Audience(**values)
 
 
 @dataclass(frozen=True)
@@ -87,9 +115,23 @@ class AnnouncementService:
         self._ttl = confirmation_ttl
         self._publish_lock = threading.Lock()
 
+    def resolve(self, audience: Audience) -> list[str]:
+        """Active employees matching the rule now; zero is an error (FR-ANN-002.4)."""
+        oids = [
+            e.oid for e in self._directory.active() if audience.matches(e.region, e.store, e.role)
+        ]
+        if not oids:
+            raise empty_audience()
+        return oids
+
+    def recipient_count(self, principal: Principal, audience: Audience) -> int:
+        authorize(principal, Role.COMMUNICATOR)
+        return len(self.resolve(audience))
+
     def propose(self, principal: Principal, draft: Draft) -> ProposalResult:
         """Dry run of the write: same role and validation checks, stores nothing visible."""
         authorize(principal, Role.COMMUNICATOR)
+        recipients = self.resolve(draft.audience)
         proposal = Proposal(
             id=str(uuid.uuid4()),
             oid=principal.oid,
@@ -98,7 +140,7 @@ class AnnouncementService:
             expires_at=self._clock() + self._ttl,
         )
         self._confirmations.save_proposal(proposal)
-        return ProposalResult(proposal, len(self._directory.active()))
+        return ProposalResult(proposal, len(recipients))
 
     def confirm(self, principal: Principal, proposal_id: str) -> ConfirmationToken:
         """Mint a single-use token for the user's own proposal (the user's tap on Review)."""
@@ -136,7 +178,7 @@ class AnnouncementService:
                     return PublishResult(existing, created=False)
             if token.expires_at <= self._clock():
                 raise invalid_confirmation()
-            recipients = [e.oid for e in self._directory.active()]
+            recipients = self.resolve(draft.audience)
             announcement = Announcement(
                 id=str(uuid.uuid5(_TOKEN_NAMESPACE, token.token)),
                 title=draft.title,
@@ -154,7 +196,33 @@ class AnnouncementService:
             return PublishResult(stored, created=stored is announcement)
 
     def list_for(self, principal: Principal) -> list[tuple[Announcement, InboxItem]]:
+        self._require_employee(principal)
+        return self._announcements.list_for(principal.oid)
+
+    def get_for(self, principal: Principal, announcement_id: str) -> tuple[Announcement, InboxItem]:
+        self._require_employee(principal)
+        found = self._announcements.get_for(principal.oid, announcement_id)
+        if found is None:
+            raise not_found()
+        return found
+
+    def mark_read(self, principal: Principal, announcement_id: str) -> InboxItem:
+        self._require_employee(principal)
+        item = self._announcements.mark_read(principal.oid, announcement_id, self._clock())
+        if item is None:
+            raise not_found()
+        return item
+
+    def audience_options(self, principal: Principal) -> dict[str, list[str]]:
+        authorize(principal, Role.COMMUNICATOR)
+        active = self._directory.active()
+        return {
+            "regions": sorted({e.region for e in active if e.region}),
+            "stores": sorted({e.store for e in active if e.store}),
+            "roles": sorted({e.role for e in active if e.role}),
+        }
+
+    def _require_employee(self, principal: Principal) -> None:
         employee = self._directory.get(principal.oid)
         if employee is None or not employee.active:
             raise not_provisioned()
-        return self._announcements.list_for(principal.oid)

@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.announcements.models import Announcement, InboxItem
-from app.announcements.service import AnnouncementService, validate_draft
+from app.announcements.service import AnnouncementService, parse_audience, validate_draft
 from app.auth.errors import FieldError
 from app.auth.principal import Principal, Role, current_principal, require_roles
 
@@ -35,7 +35,7 @@ def _announcement(a: Announcement) -> dict[str, Any]:
         "title": a.title,
         "body": a.body,
         "language": a.language.value,
-        "audience": a.audience.value,
+        "audience": a.audience.canonical(),
         "author": a.author_name,
         "status": a.status,
         "published_at": a.published_at.isoformat(),
@@ -83,4 +83,37 @@ def list_announcements(
     items: list[tuple[Announcement, InboxItem]] = service.list_for(principal)
     return {
         "items": [{**_announcement(a), "read": inbox.read_at is not None} for a, inbox in items]
+    }
+
+
+@router.get("/announcements/{announcement_id}")
+def get_announcement(
+    announcement_id: str,
+    principal: Annotated[Principal, Depends(current_principal)],
+    service: Service,
+) -> dict[str, Any]:
+    announcement, inbox = service.get_for(principal, announcement_id)
+    return {**_announcement(announcement), "read": inbox.read_at is not None}
+
+
+@router.post("/announcements/{announcement_id}/read")
+def mark_announcement_read(
+    announcement_id: str,
+    principal: Annotated[Principal, Depends(current_principal)],
+    service: Service,
+) -> dict[str, Any]:
+    service.mark_read(principal, announcement_id)
+    return {"id": announcement_id, "read": True}
+
+
+@router.get("/audience/options")
+def audience_options(principal: Publisher, service: Service) -> dict[str, list[str]]:
+    return service.audience_options(principal)
+
+
+@router.post("/audience/resolve")
+def resolve_audience(principal: Publisher, service: Service, body: Body) -> dict[str, int]:
+    """Live recipient count for the picker; stores nothing (FR-ANN-002.2)."""
+    return {
+        "recipient_count": service.recipient_count(principal, parse_audience(body.get("audience")))
     }

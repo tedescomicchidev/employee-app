@@ -55,7 +55,7 @@ final class PublishAnnouncementTests: XCTestCase {
     // FR-ANN-001.4 / FR-AUTH-002: employees have no compose entry
     func testEmployeeHasNoComposeEntry() {
         let app = launch(auth: "employee")
-        XCTAssertTrue(app.staticTexts["home.name"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["announcements.compose"].exists)
     }
 
@@ -68,5 +68,41 @@ final class PublishAnnouncementTests: XCTestCase {
         app.buttons["review.publish"].tap()
         XCTAssertTrue(app.staticTexts["Your draft is kept. Try again in a moment."].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["review.title"].label, "Store hours")
+    }
+
+    private func openAudience(_ app: XCUIApplication) {
+        compose(app)
+        let row = app.buttons["compose.audience"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        XCTAssertTrue(app.switches["audience.all"].waitForExistence(timeout: 5))
+    }
+
+    // FR-ANN-002.1/.2: chips narrow the audience, the live count and the review show the same number
+    func testAudienceChipsShowLiveCountAndReviewMatches() {
+        let app = launch()
+        openAudience(app)
+        app.buttons["audience.region.IT"].tap()
+        XCTAssertTrue(app.staticTexts["3 recipients"].waitForExistence(timeout: 5))
+        app.buttons["audience.role.Manager"].tap()
+        XCTAssertTrue(app.staticTexts["4 recipients"].waitForExistence(timeout: 5))
+        app.buttons["audience.next"].tap()
+        XCTAssertTrue(app.staticTexts["review.title"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["4 recipients"].exists)
+        XCTAssertTrue(app.staticTexts["review.audience"].label.contains("IT"))
+    }
+
+    // FR-ANN-002.1: "All" is exclusive; FR-ANN-002.4: an empty selection cannot go to review
+    func testAllIsExclusiveAndEmptyAudienceBlocksReview() {
+        let app = launch()
+        openAudience(app)
+        app.buttons["audience.region.FR"].tap()
+        XCTAssertTrue(app.staticTexts["2 recipients"].waitForExistence(timeout: 5))
+        app.buttons["audience.region.FR"].tap()
+        XCTAssertTrue(app.staticTexts["No matching recipients"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["audience.next"].isEnabled)
+        app.switches["audience.all"].tap()
+        XCTAssertTrue(app.staticTexts["11 recipients"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["audience.next"].isEnabled)
     }
 }

@@ -35,6 +35,19 @@ private actor FakeService: AnnouncementService {
         if !publishErrors.isEmpty { throw publishErrors.removeFirst() }
         return PublishedAnnouncement(id: "a1", recipientCount: 11)
     }
+
+    var counts: [Result<Int, AnnouncementError>] = []
+    func queueCounts(_ results: [Result<Int, AnnouncementError>]) { counts = results }
+
+    func list(accessToken: String) throws -> [AnnouncementItem] { [] }
+    func markRead(id: String, accessToken: String) throws {}
+    func audienceOptions(accessToken: String) throws -> AudienceOptions {
+        AudienceOptions(regions: ["DE", "IT"], stores: ["HQ"], roles: ["Manager"])
+    }
+    func recipientCount(for audience: AudienceSelection, accessToken: String) throws -> Int {
+        calls.append("count")
+        return try (counts.isEmpty ? .success(11) : counts.removeFirst()).get()
+    }
 }
 
 @MainActor
@@ -203,3 +216,54 @@ private final class Counter: @unchecked Sendable { // test-only, mutated on the 
     func bump() { value += 1 }
 }
 #endif
+
+@MainActor
+@Suite("FR-ANN-002 audience in the publish flow")
+struct AudiencePublishTests {
+    @Test("FR-ANN-002.1: picking a region leaves 'all'; 'all' clears the rest")
+    func exclusivity() async {
+        let model = make(FakeService())
+        model.toggleAudience("IT", in: .region)
+        #expect(!model.draft.audience.everyone && model.draft.audience.regions == ["IT"])
+        model.toggleAudience("Manager", in: .role)
+        #expect(model.draft.audience.roles == ["Manager"])
+        model.setEveryone(true)
+        #expect(model.draft.audience == .all)
+    }
+
+    @Test("FR-ANN-002.2: the live count follows the selection")
+    func liveCount() async {
+        let service = FakeService()
+        await service.queueCounts([.success(3)])
+        let model = make(service)
+        await model.loadAudience()
+        #expect(model.audienceCount == .recipients(3))
+        #expect(model.audienceOptions?.regions == ["DE", "IT"])
+    }
+
+    @Test("FR-ANN-002.4: an empty selection or EMPTY_AUDIENCE shows the empty state and never reaches the API as a publish")
+    func emptyAudience() async {
+        let service = FakeService()
+        let model = make(service)
+        model.setEveryone(false)
+        await model.loadAudience()
+        #expect(model.audienceCount == .empty)
+        #expect(!(await service.calls.contains("count")))
+
+        await service.queueCounts([.failure(.emptyAudience), .failure(.emptyAudience)])
+        model.toggleAudience("Store-Closed", in: .store)
+        await model.loadAudience()
+        #expect(model.audienceCount == .empty)
+        #expect(!(await service.calls.contains("publish")))
+    }
+
+    @Test("FR-ANN-002.4: EMPTY_AUDIENCE from the review dry run marks the audience field and stays on Compose")
+    func emptyAudienceFromReview() async {
+        let service = FakeService()
+        await service.fail(propose: .emptyAudience)
+        let model = make(service)
+        await model.review()
+        #expect(model.phase == .editing)
+        #expect(model.fieldError == .audience)
+    }
+}

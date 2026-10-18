@@ -1,6 +1,6 @@
 import Foundation
 
-/// REST adapter for FR-ANN-001. Sends the user's bearer token; never logs bodies or tokens.
+/// REST adapter for FR-ANN-001/002/003. Sends the user's bearer token; never logs bodies or tokens.
 public struct URLSessionAnnouncementService: AnnouncementService {
     private let baseURL: URL
     private let session: URLSession
@@ -10,10 +10,59 @@ public struct URLSessionAnnouncementService: AnnouncementService {
         self.session = session
     }
 
+    /// `"all"` or `{regions, stores, roles}`, exactly what `api/` hashes for the confirmation token.
+    private enum AudienceBody: Codable {
+        case all
+        case rule(regions: [String], stores: [String], roles: [String])
+
+        init(_ selection: AudienceSelection) {
+            self = selection.everyone
+                ? .all
+                : .rule(regions: selection.values(.region), stores: selection.values(.store),
+                        roles: selection.values(.role))
+        }
+
+        private enum Keys: String, CodingKey { case regions, stores, roles }
+
+        init(from decoder: Decoder) throws {
+            if let single = try? decoder.singleValueContainer().decode(String.self), single == "all" {
+                self = .all
+                return
+            }
+            let c = try decoder.container(keyedBy: Keys.self)
+            self = .rule(
+                regions: try c.decodeIfPresent([String].self, forKey: .regions) ?? [],
+                stores: try c.decodeIfPresent([String].self, forKey: .stores) ?? [],
+                roles: try c.decodeIfPresent([String].self, forKey: .roles) ?? [])
+        }
+
+        func encode(to encoder: Encoder) throws {
+            switch self {
+            case .all:
+                var c = encoder.singleValueContainer()
+                try c.encode("all")
+            case let .rule(regions, stores, roles):
+                var c = encoder.container(keyedBy: Keys.self)
+                try c.encode(regions, forKey: .regions)
+                try c.encode(stores, forKey: .stores)
+                try c.encode(roles, forKey: .roles)
+            }
+        }
+
+        var selection: AudienceSelection {
+            switch self {
+            case .all: .all
+            case let .rule(regions, stores, roles):
+                AudienceSelection(everyone: false, regions: Set(regions), stores: Set(stores), roles: Set(roles))
+            }
+        }
+    }
+
     private struct DraftBody: Codable {
-        let title: String, body: String, language: String, audience: String
+        let title: String, body: String, language: String, audience: AudienceBody
         init(_ draft: AnnouncementDraft) {
-            title = draft.title; body = draft.body; language = draft.language.rawValue; audience = "all"
+            title = draft.title; body = draft.body; language = draft.language.rawValue
+            audience = AudienceBody(draft.audience)
         }
     }
     private struct ProposalResponse: Decodable {
@@ -35,6 +84,23 @@ public struct URLSessionAnnouncementService: AnnouncementService {
         let recipientCount: Int
         enum CodingKeys: String, CodingKey { case id, recipientCount = "recipient_count" }
     }
+    private struct ItemResponse: Decodable {
+        let id: String, title: String, body: String, language: String, author: String
+        let publishedAt: String
+        let read: Bool?
+        let audience: AudienceBody
+        enum CodingKeys: String, CodingKey {
+            case id, title, body, language, author, read, audience
+            case publishedAt = "published_at"
+        }
+    }
+    private struct ListResponse: Decodable { let items: [ItemResponse] }
+    private struct OptionsResponse: Decodable { let regions: [String], stores: [String], roles: [String] }
+    private struct CountResponse: Decodable {
+        let recipientCount: Int
+        enum CodingKeys: String, CodingKey { case recipientCount = "recipient_count" }
+    }
+    private struct Empty: Codable {}
     private struct ErrorBody: Decodable {
         let code: String?
         let field: String?
@@ -42,14 +108,14 @@ public struct URLSessionAnnouncementService: AnnouncementService {
 
     public func propose(_ draft: AnnouncementDraft, accessToken: String) async throws -> AnnouncementProposal {
         let response: ProposalResponse = try await send(
-            "v1/proposals", ["payload": DraftBody(draft)], accessToken: accessToken)
+            "POST", "v1/proposals", ["payload": DraftBody(draft)], accessToken: accessToken)
         return AnnouncementProposal(
             id: response.proposalId, draft: draft, recipientCount: response.recipientCount)
     }
 
     public func confirm(_ proposal: AnnouncementProposal, accessToken: String) async throws -> String {
         let response: TokenResponse = try await send(
-            "v1/confirmations", ["proposal_id": proposal.id], accessToken: accessToken)
+            "POST", "v1/confirmations", ["proposal_id": proposal.id], accessToken: accessToken)
         return response.confirmationToken
     }
 
@@ -60,20 +126,59 @@ public struct URLSessionAnnouncementService: AnnouncementService {
             enum CodingKeys: String, CodingKey { case payload, confirmationToken = "confirmation_token" }
         }
         let response: PublishResponse = try await send(
-            "v1/announcements", Body(payload: DraftBody(draft), confirmationToken: confirmationToken),
-            accessToken: accessToken)
+            "POST", "v1/announcements",
+            Body(payload: DraftBody(draft), confirmationToken: confirmationToken), accessToken: accessToken)
         return PublishedAnnouncement(id: response.id, recipientCount: response.recipientCount)
     }
 
+    public func list(accessToken: String) async throws -> [AnnouncementItem] {
+        let response: ListResponse = try await send(
+            "GET", "v1/announcements", Optional<Empty>.none, accessToken: accessToken)
+        return try response.items.map { raw in
+            guard let language = ContentLanguage(rawValue: raw.language),
+                  let date = Self.parseDate(raw.publishedAt)
+            else { throw AnnouncementError.failed(code: nil, correlationId: nil) }
+            return AnnouncementItem(
+                id: raw.id, title: raw.title, body: raw.body, language: language, author: raw.author,
+                publishedAt: date, read: raw.read ?? false, audience: raw.audience.selection)
+        }
+    }
+
+    public func markRead(id: String, accessToken: String) async throws {
+        let _: Empty = try await send(
+            "POST", "v1/announcements/\(id)/read", Optional<Empty>.none, accessToken: accessToken)
+    }
+
+    public func audienceOptions(accessToken: String) async throws -> AudienceOptions {
+        let response: OptionsResponse = try await send(
+            "GET", "v1/audience/options", Optional<Empty>.none, accessToken: accessToken)
+        return AudienceOptions(regions: response.regions, stores: response.stores, roles: response.roles)
+    }
+
+    public func recipientCount(for audience: AudienceSelection, accessToken: String) async throws -> Int {
+        let response: CountResponse = try await send(
+            "POST", "v1/audience/resolve", ["audience": AudienceBody(audience)], accessToken: accessToken)
+        return response.recipientCount
+    }
+
+    static func parseDate(_ text: String) -> Date? {
+        let withFraction = ISO8601DateFormatter()
+        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        return withFraction.date(from: text) ?? plain.date(from: text)
+    }
+
     private func send<Body: Encodable, Response: Decodable>(
-        _ path: String, _ body: Body, accessToken: String
+        _ method: String, _ path: String, _ body: Body?, accessToken: String
     ) async throws -> Response {
         var request = URLRequest(url: baseURL.appending(path: path))
-        request.httpMethod = "POST"
+        request.httpMethod = method
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.httpBody = try JSONEncoder().encode(body)
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
         let data: Data
         let response: URLResponse
         do {
@@ -101,6 +206,8 @@ public struct URLSessionAnnouncementService: AnnouncementService {
         switch (status, error?.code) {
         case (401, _): .unauthenticated
         case (403, "FORBIDDEN"): .forbidden
+        case (404, _): .notFound
+        case (422, "EMPTY_AUDIENCE"): .emptyAudience
         case (422, "VALIDATION_ERROR"): .validation(error?.field.flatMap(DraftField.init) ?? .payload)
         case (_, "CONFIRMATION_REQUIRED"), (_, "INVALID_CONFIRMATION"): .invalidConfirmation
         default: .failed(code: error?.code, correlationId: correlationId)
