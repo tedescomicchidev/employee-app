@@ -32,3 +32,12 @@ def invalid_confirmation() -> ApiError:
 
 def not_provisioned() -> ApiError:
     return ApiError(403, "NOT_PROVISIONED", "No employee record for this account")
+
+
+def empty_audience() -> ApiError:
+    return ApiError(422, "EMPTY_AUDIENCE", "The audience has no recipients")
+
+
+def not_found() -> ApiError:
+    """One answer for unknown, withdrawn and not-addressed-to-me (FR-ANN-002.3)."""
+    return ApiError(404, "NOT_FOUND", "Not available")

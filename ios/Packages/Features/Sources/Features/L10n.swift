@@ -88,6 +88,66 @@ enum L10n {
     static func annLanguageA11y(_ language: ContentLanguage) -> LocalizedStringResource {
         .init("ann.language.a11y", defaultValue: "Language of the content, \(String(localized: annLanguage(language)))", bundle: bundle)
     }
+    // Feed and detail (FR-ANN-003, FR-ANN-005)
+    static var annFeedEmptyTitle: LocalizedStringResource { .init("ann.feed.empty.title", bundle: bundle) }
+    static var annFeedEmptyMessage: LocalizedStringResource { .init("ann.feed.empty.message", bundle: bundle) }
+    static var annFeedErrorTitle: LocalizedStringResource { .init("ann.feed.error.title", bundle: bundle) }
+    static var annFeedErrorMessage: LocalizedStringResource { .init("ann.feed.error.message", bundle: bundle) }
+    static var annUnread: LocalizedStringResource { .init("ann.unread", bundle: bundle) }
+    static var annRead: LocalizedStringResource { .init("ann.read", bundle: bundle) }
+    static var annDetailUnavailableTitle: LocalizedStringResource { .init("ann.detail.unavailable.title", bundle: bundle) }
+    static var annDetailUnavailableMessage: LocalizedStringResource { .init("ann.detail.unavailable.message", bundle: bundle) }
+    static var annDetailLinks: LocalizedStringResource { .init("ann.detail.links", bundle: bundle) }
+    static var annDetailLinkHint: LocalizedStringResource { .init("ann.detail.link.hint", bundle: bundle) }
+    static func annFeedNew(_ count: Int) -> LocalizedStringResource {
+        .init("ann.feed.new", defaultValue: "\(count) new", bundle: bundle)
+    }
+    static func annFeedOffline(_ asOf: String) -> LocalizedStringResource {
+        .init("ann.feed.offline", defaultValue: "Offline. Last updated \(asOf)", bundle: bundle)
+    }
+    static func annDetailOpenLink(_ link: String) -> LocalizedStringResource {
+        .init("ann.detail.link.open", defaultValue: "Open link \(link)", bundle: bundle)
+    }
+
+    // Audience (FR-ANN-002)
+    static var annAudienceTitle: LocalizedStringResource { .init("ann.audience.title", bundle: bundle) }
+    static var annAudienceAllSubtitle: LocalizedStringResource { .init("ann.audience.all.subtitle", bundle: bundle) }
+    static var annAudienceHint: LocalizedStringResource { .init("ann.audience.hint", bundle: bundle) }
+    static var annAudienceCounting: LocalizedStringResource { .init("ann.audience.counting", bundle: bundle) }
+    static var annAudienceEmptyTitle: LocalizedStringResource { .init("ann.audience.empty.title", bundle: bundle) }
+    static var annAudienceEmptyMessage: LocalizedStringResource { .init("ann.audience.empty.message", bundle: bundle) }
+    static var annAudienceOptionsError: LocalizedStringResource { .init("ann.audience.options.error", bundle: bundle) }
+    static var annAudienceNext: LocalizedStringResource { .init("ann.audience.next", bundle: bundle) }
+    static var annAudienceChange: LocalizedStringResource { .init("ann.audience.change", bundle: bundle) }
+    static func annAudienceDimension(_ dimension: AudienceDimension) -> LocalizedStringResource {
+        switch dimension {
+        case .region: .init("ann.audience.region", bundle: bundle)
+        case .store: .init("ann.audience.store", bundle: bundle)
+        case .role: .init("ann.audience.role", bundle: bundle)
+        }
+    }
+
+    /// "All employees", or the stored rule as "Region IT, FR · Role Manager". Values come from the API.
+    static func annAudienceSummary(_ audience: AudienceSelection) -> String {
+        if audience.everyone { return String(localized: annAudienceAll) }
+        return AudienceDimension.allCases.compactMap { dimension -> String? in
+            let values = audience.values(dimension).map { audienceValue($0, dimension) }
+            guard !values.isEmpty else { return nil }
+            return "\(String(localized: annAudienceDimension(dimension))) \(values.joined(separator: ", "))"
+        }.joined(separator: " · ")
+    }
+
+    /// Roles arrive as the API's names (Publisher, Manager, Employee); show them in the UI language.
+    static func audienceValue(_ value: String, _ dimension: AudienceDimension) -> String {
+        guard dimension == .role else { return value }
+        switch value {
+        case "Publisher": return String(localized: role(.communicator))
+        case "Manager": return String(localized: role(.manager))
+        case "Employee": return String(localized: role(.employee))
+        default: return value
+        }
+    }
+
     static func annLanguage(_ language: ContentLanguage) -> LocalizedStringResource {
         switch language {
         case .de: .init("ann.lang.de", bundle: bundle)

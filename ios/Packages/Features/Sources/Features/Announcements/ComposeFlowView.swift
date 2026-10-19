@@ -3,19 +3,29 @@ import SwiftUI
 
 /// Compose, Review and Success for FR-ANN-001 (CLASSIC). Switches on the model's phase.
 struct ComposeFlowView: View {
+    enum Route: Hashable { case audience }
+
     let model: PublishModel
     let dismiss: () -> Void
+    /// Owned here so moving on to Review can pop the picker (the root view changes underneath it).
+    @State private var path: [Route]
+
+    init(model: PublishModel, startAtAudience: Bool = false, dismiss: @escaping () -> Void) {
+        self.model = model
+        self.dismiss = dismiss
+        _path = State(initialValue: startAtAudience ? [.audience] : [])
+    }
 
     private var isPublished: Bool {
         if case .published = model.phase { true } else { false }
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 switch model.phase {
                 case .editing, .checking:
-                    ComposeView(model: model)
+                    ComposeView(model: model) { path.append(.audience) }
                 case .reviewing, .publishing:
                     ReviewView(model: model)
                 case let .published(result):
@@ -23,6 +33,10 @@ struct ComposeFlowView: View {
                 }
             }
             .background(DSColor.bg)
+            .navigationDestination(for: Route.self) { _ in AudiencePickerView(model: model) }
+            .onChange(of: model.phase) { _, phase in
+                if case .reviewing = phase { path.removeAll() }
+            }
             .toolbar {
                 if !isPublished {
                     ToolbarItem(placement: .cancellationAction) {
@@ -40,6 +54,7 @@ struct ComposeFlowView: View {
 
 struct ComposeView: View {
     let model: PublishModel
+    let openAudience: () -> Void
 
     var body: some View {
         @Bindable var model = model
@@ -152,22 +167,176 @@ struct ComposeView: View {
     }
 
     private var audienceRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack {
-                Text(L10n.annComposeAudience).font(DSFont.body)
-                Spacer(minLength: DSSpacing.xs)
-                Text(L10n.annAudienceAll).font(DSFont.body).foregroundStyle(DSColor.ink2)
+        VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+            Button { model.openedAudience(); openAudience() } label: {
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        Text(L10n.annComposeAudience).font(DSFont.body)
+                        Spacer(minLength: DSSpacing.xs)
+                        summary
+                        chevron
+                    }
+                    VStack(alignment: .leading, spacing: DSSpacing.xxs) {
+                        Text(L10n.annComposeAudience).font(DSFont.body)
+                        summary
+                    }
+                }
+                .foregroundStyle(DSColor.ink)
+                .padding(DSSpacing.s)
+                .frame(minHeight: DSSize.touch, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(DSColor.card, in: RoundedRectangle(cornerRadius: DSRadius.chip + 4))
+                .overlay(RoundedRectangle(cornerRadius: DSRadius.chip + 4)
+                    .stroke(model.fieldError == .audience ? DSColor.red : Color.clear, lineWidth: 2))
             }
-            VStack(alignment: .leading, spacing: DSSpacing.xxs) {
-                Text(L10n.annComposeAudience).font(DSFont.body)
-                Text(L10n.annAudienceAll).font(DSFont.body).foregroundStyle(DSColor.ink2)
+            .buttonStyle(.plain)
+            .accessibilityHint(Text(L10n.annAudienceChange))
+            .accessibilityIdentifier("compose.audience")
+            if model.fieldError == .audience {
+                Label { Text(L10n.annAudienceEmptyTitle) } icon: { Image(systemName: "exclamationmark.circle.fill") }
+                    .font(DSFont.caption).foregroundStyle(DSColor.red)
             }
         }
+    }
+
+    private var summary: some View {
+        Text(verbatim: model.draft.audience.isEmpty
+             ? String(localized: L10n.annAudienceEmptyTitle) : L10n.annAudienceSummary(model.draft.audience))
+            .font(DSFont.body).foregroundStyle(DSColor.ink2).multilineTextAlignment(.trailing)
+    }
+
+    private var chevron: some View {
+        Image(systemName: "chevron.right").font(DSFont.caption.weight(.semibold))
+            .foregroundStyle(DSColor.placeholder).accessibilityHidden(true)
+    }
+}
+
+/// FR-ANN-002: chips per region / store / role, "All" exclusive, live recipient count before review.
+struct AudiencePickerView: View {
+    let model: PublishModel
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DSSpacing.m) {
+                DSToggleRow(
+                    title: Text(L10n.annAudienceAll), subtitle: Text(L10n.annAudienceAllSubtitle),
+                    isOn: Binding(get: { model.draft.audience.everyone }, set: model.setEveryone(_:)))
+                    .background(DSColor.card, in: RoundedRectangle(cornerRadius: DSRadius.card))
+                    .accessibilityIdentifier("audience.all")
+                options
+                Text(L10n.annAudienceHint).font(DSFont.caption).foregroundStyle(DSColor.ink2)
+                countCard
+                DSButton(L10n.annAudienceNext, isBusy: model.isBusy) { Task { await model.review() } }
+                    .disabled(model.audienceCount == .empty || model.draft.audience.isEmpty)
+                    .accessibilityIdentifier("audience.next")
+            }
+            .padding(DSSpacing.gutter)
+        }
+        .background(DSColor.bg)
+        .navigationTitle(Text(L10n.annAudienceTitle))
+        .inlineAudienceTitle()
+        .task { await model.loadAudience() }
+    }
+
+    @ViewBuilder private var options: some View {
+        if let options = model.audienceOptions {
+            ForEach(AudienceDimension.allCases, id: \.self) { dimension in
+                VStack(alignment: .leading, spacing: DSSpacing.xs) {
+                    Text(L10n.annAudienceDimension(dimension)).font(DSFont.sectionHeader)
+                        .foregroundStyle(DSColor.ink2).accessibilityAddTraits(.isHeader)
+                    FlowLayout(spacing: DSSpacing.xs) {
+                        ForEach(options.values(dimension), id: \.self) { value in
+                            DSPickChip(
+                                Text(verbatim: L10n.audienceValue(value, dimension)),
+                                isSelected: model.draft.audience.contains(value, in: dimension)
+                            ) { model.toggleAudience(value, in: dimension) }
+                            .accessibilityIdentifier("audience.\(dimension.rawValue).\(value)")
+                        }
+                    }
+                }
+            }
+        } else if model.audienceOptionsFailed {
+            DSBanner(.error, message: Text(L10n.annAudienceOptionsError), actionTitle: L10n.annRetry) {
+                Task { await model.loadAudience() }
+            }
+        } else {
+            DSSkeleton(rows: 2)
+        }
+    }
+
+    @ViewBuilder private var countCard: some View {
+        HStack(spacing: DSSpacing.s) {
+            Image(systemName: model.audienceCount == .empty ? "person.crop.circle.badge.exclamationmark" : "person.2")
+                .foregroundStyle(model.audienceCount == .empty ? DSColor.red : DSColor.tint)
+                .frame(width: DSSize.avatar, height: DSSize.avatar)
+                .background(model.audienceCount == .empty ? DSColor.redSoft : DSColor.tintSoft, in: Circle())
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                switch model.audienceCount {
+                case .loading: Text(L10n.annAudienceCounting).font(DSFont.body)
+                case let .recipients(count): Text(L10n.annRecipients(count)).font(DSFont.cardTitle)
+                case .empty:
+                    Text(L10n.annAudienceEmptyTitle).font(DSFont.cardTitle)
+                    Text(L10n.annAudienceEmptyMessage).font(DSFont.secondary).foregroundStyle(DSColor.ink2)
+                case .failed: Text(L10n.annFailedMessage).font(DSFont.body)
+                }
+                if case .recipients = model.audienceCount, !model.draft.audience.everyone {
+                    Text(verbatim: L10n.annAudienceSummary(model.draft.audience))
+                        .font(DSFont.secondary).foregroundStyle(DSColor.ink2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
         .padding(DSSpacing.s)
-        .frame(minHeight: DSSize.touch, alignment: .leading)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DSColor.card, in: RoundedRectangle(cornerRadius: DSRadius.chip + 4))
+        .background(DSColor.card, in: RoundedRectangle(cornerRadius: DSRadius.card))
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("audience.count")
+    }
+}
+
+/// Wraps chips onto several lines at any Dynamic Type size.
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (index, origin) in result.origins.enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.init(width: width, height: nil))
+            if x > 0, x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            maxX = max(maxX, x - spacing)
+        }
+        return (CGSize(width: min(maxX, width), height: y + rowHeight), origins)
+    }
+}
+
+private extension View {
+    @ViewBuilder func inlineAudienceTitle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
     }
 }
 
@@ -216,7 +385,9 @@ struct ReviewView: View {
     @ViewBuilder private func chips(_ proposal: AnnouncementProposal, wrapping: Bool) -> some View {
         chip(DSStatusChip(.neutral, label: Text(L10n.annLanguage(proposal.draft.language)), symbol: "globe"),
              wrapping)
-        chip(DSStatusChip(.info, label: Text(L10n.annAudienceAll), symbol: "person.3"), wrapping)
+        chip(DSStatusChip(.info, label: Text(verbatim: L10n.annAudienceSummary(proposal.draft.audience)), symbol: "person.3"),
+             wrapping)
+            .accessibilityIdentifier("review.audience")
         chip(DSStatusChip(.neutral, label: Text(L10n.annRecipients(proposal.recipientCount)), symbol: "number"),
              wrapping)
             .accessibilityIdentifier("review.recipients")

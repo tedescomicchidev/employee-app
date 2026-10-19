@@ -13,6 +13,14 @@ public final class PublishModel {
         case published(PublishedAnnouncement)
     }
 
+    /// Live recipient count in the audience picker (FR-ANN-002.2).
+    public enum AudienceCount: Equatable {
+        case loading
+        case recipients(Int)
+        case empty
+        case failed
+    }
+
     public enum Failure: Equatable {
         case offline
         case forbidden
@@ -27,6 +35,9 @@ public final class PublishModel {
     /// Set by the API's `VALIDATION_ERROR`; cleared when that field is edited.
     public private(set) var fieldError: DraftField?
     public private(set) var failure: Failure?
+    public private(set) var audienceOptions: AudienceOptions?
+    public private(set) var audienceOptionsFailed = false
+    public private(set) var audienceCount: AudienceCount = .loading
 
     private let service: any AnnouncementService
     private let accessToken: @Sendable () async throws -> String
@@ -37,6 +48,7 @@ public final class PublishModel {
     /// Kept across retries so a replayed publish is idempotent (FR-ANN-001.5).
     private var confirmationToken: String?
     private var shownForProposal: String?
+    private var countTask: Task<Void, Never>?
 
     public init(
         service: any AnnouncementService,
@@ -81,6 +93,61 @@ public final class PublishModel {
         guard language != draft.language else { return }
         flow.tap()
         edit(.language) { $0.language = language }
+    }
+
+    // MARK: Audience (FR-ANN-002)
+
+    public func loadAudience() async {
+        audienceOptionsFailed = false
+        do {
+            audienceOptions = try await call { token in try await service.audienceOptions(accessToken: token) }
+        } catch {
+            audienceOptionsFailed = true
+        }
+        await refreshCount()
+    }
+
+    /// Opening the picker is an explicit tap on the way to a recipient choice.
+    public func openedAudience() { flow.tap() }
+
+    public func toggleAudience(_ value: String, in dimension: AudienceDimension) {
+        flow.tap()
+        edit(.audience) { $0.audience.toggle(value, in: dimension) }
+        scheduleCount()
+    }
+
+    public func setEveryone(_ on: Bool) {
+        flow.tap()
+        edit(.audience) { $0.audience.setEveryone(on) }
+        scheduleCount()
+    }
+
+    private func scheduleCount() {
+        countTask?.cancel()
+        audienceCount = .loading
+        countTask = Task { await refreshCount() }
+    }
+
+    private func refreshCount() async {
+        let audience = draft.audience
+        if audience.isEmpty {
+            audienceCount = .empty
+            return
+        }
+        audienceCount = .loading
+        do {
+            let count = try await call { token in
+                try await service.recipientCount(for: audience, accessToken: token)
+            }
+            guard !Task.isCancelled, audience == draft.audience else { return }
+            audienceCount = .recipients(count)
+        } catch AnnouncementError.emptyAudience {
+            guard !Task.isCancelled, audience == draft.audience else { return }
+            audienceCount = .empty
+        } catch {
+            guard !Task.isCancelled, audience == draft.audience else { return }
+            audienceCount = .failed
+        }
     }
 
     /// "Review": dry run on the API. Nothing is visible to anyone yet (FR-ANN-001.3).
@@ -195,6 +262,8 @@ public final class PublishModel {
         case .invalidConfirmation:
             confirmationToken = nil
             failure = .invalidConfirmation
+        case .emptyAudience: fieldError = .audience
+        case .notFound: failure = .failed(code: error.code, correlationId: nil)
         case let .failed(code, correlationId): failure = .failed(code: code, correlationId: correlationId)
         }
     }
