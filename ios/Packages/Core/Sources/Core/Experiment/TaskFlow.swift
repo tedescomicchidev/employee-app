@@ -98,6 +98,9 @@ public final class TaskFlow {
     }
 
     public var taskRunId: UUID { runId }
+    /// The run id REST calls are tagged with (EXP-005): nil once the flow finished, so later background
+    /// calls (badge refresh, pull-to-refresh) are not attributed to a completed task.
+    public var activeRunId: UUID? { finished ? nil : runId }
     public var tapCount: Int { taps }
     public var isFinished: Bool { finished }
 

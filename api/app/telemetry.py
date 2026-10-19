@@ -5,7 +5,7 @@ Content-free by construction: only the route template, status, latency and the c
 """
 
 import time
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
@@ -24,11 +24,17 @@ class ApiCall:
     latency_ms: int
 
 
-class ApiCallLog:
-    """In-memory until the events container lands (ADR-009), like the event sink."""
+MAX_CALLS = 50_000
 
-    def __init__(self) -> None:
-        self.calls: list[ApiCall] = []
+
+class ApiCallLog:
+    """In-memory until the events container lands (ADR-009), like the event sink.
+
+    Bounded: the oldest records go first, so sent run ids cannot grow memory forever.
+    """
+
+    def __init__(self, limit: int = MAX_CALLS) -> None:
+        self.calls: deque[ApiCall] = deque(maxlen=limit)
 
     def record(self, call: ApiCall) -> None:
         self.calls.append(call)
@@ -55,7 +61,13 @@ async def record_api_call(
     started = time.perf_counter()
     response = await call_next(request)
     route = request.scope.get("route")
-    if run_id is not None and route is not None and route.path != "/v1/events":
+    # Unauthenticated calls are never recorded: anyone could otherwise attach noise to a run id.
+    if (
+        run_id is not None
+        and route is not None
+        and route.path != "/v1/events"
+        and response.status_code != 401
+    ):
         request.app.state.api_call_log.record(
             ApiCall(
                 task_run_id=run_id,

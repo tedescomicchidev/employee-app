@@ -32,7 +32,7 @@ public final class ManagerInboxModel {
         self.access = access
         self.makeFlow = makeFlow
         self.now = now
-        self.access.runId = { [weak self] in self?.flow?.taskRunId }
+        self.access.runId = { [weak self] in self?.flow?.activeRunId }
     }
 
     public convenience init(

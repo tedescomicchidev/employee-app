@@ -102,13 +102,31 @@ def test_exp_005_failed_calls_are_recorded_and_bad_run_ids_are_ignored(env: Env)
     assert [(c.endpoint, c.status) for c in log.calls] == [("/v1/vacation/inbox", 403)]
 
 
+def test_exp_005_unauthenticated_calls_are_not_recorded(env: Env) -> None:
+    env.client.get("/v1/vacation/balance", headers={"X-Task-Run-Id": RUN})
+    env.client.get(
+        "/v1/vacation/balance",
+        headers={"X-Task-Run-Id": RUN, "Authorization": "Bearer not-a-token"},
+    )
+    assert len(calls(env).calls) == 0
+
+
+def test_exp_005_the_log_is_bounded() -> None:
+    from app.telemetry import ApiCall, ApiCallLog
+
+    log = ApiCallLog(limit=3)
+    for i in range(10):
+        log.record(ApiCall(UUID(RUN), "GET", "/x", 200, i))
+    assert [c.latency_ms for c in log.calls] == [7, 8, 9]
+
+
 def test_exp_005_the_event_endpoint_itself_is_not_counted(env: Env) -> None:
     env.client.post(
         "/v1/events",
         json={"events": [event(code="X", recovered=False)]},
         headers=env.headers("emp1") | {"X-Task-Run-Id": RUN},
     )
-    assert calls(env).calls == []
+    assert len(calls(env).calls) == 0
 
 
 # PRIV-008 --------------------------------------------------------------------------------

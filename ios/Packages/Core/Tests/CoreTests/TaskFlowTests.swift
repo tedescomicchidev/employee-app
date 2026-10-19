@@ -10,6 +10,15 @@ struct TaskFlowTests {
                  context: TaskContext(participantId: UUID()), sink: sink)
     }
 
+    @Test("EXP-005: calls are tagged with the run only while the flow is running")
+    func activeRunId() {
+        let flow = flow(MemoryEventSink())
+        #expect(flow.activeRunId == flow.taskRunId)
+        flow.start()
+        flow.complete(outcomeValid: true)
+        #expect(flow.activeRunId == nil)
+    }
+
     @Test("EXP-001: exactly one terminal event; later events are dropped")
     func oneTerminal() async throws {
         let sink = MemoryEventSink()

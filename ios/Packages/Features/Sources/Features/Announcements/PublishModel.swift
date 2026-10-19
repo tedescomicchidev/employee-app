@@ -44,6 +44,8 @@ public final class PublishModel {
     private let onReauthNeeded: @MainActor () -> Void
     private let drafts: DraftStore
     private let draftKey: String
+    /// The latest draft write; awaited before the draft is removed so a late save cannot resurrect it.
+    private var pendingSave: Task<Void, Never>?
     private let flow: TaskFlow
     /// Kept across retries so a replayed publish is idempotent (FR-ANN-001.5).
     private var confirmationToken: String?
@@ -226,7 +228,8 @@ public final class PublishModel {
             }
             phase = .published(result)
             flow.complete(outcomeValid: true)
-            await drafts.clear()
+            await pendingSave?.value
+            await drafts.remove(key: draftKey)
         } catch let error as AnnouncementError {
             phase = .reviewing(proposal)
             handle(error, recovered: false)
@@ -248,7 +251,7 @@ public final class PublishModel {
         } catch {
             throw AnnouncementError.failed(code: "AUTH", correlationId: nil)
         }
-        let runId = flow.taskRunId
+        let runId = flow.activeRunId
         return try await TaskRun.$current.withValue(runId) { try await work(token) }
     }
 
@@ -279,6 +282,10 @@ public final class PublishModel {
     private func persistDraft() {
         let fields = ["title": draft.title, "body": draft.body, "language": draft.language.rawValue]
         let store = drafts, key = draftKey
-        Task { await store.save(fields, key: key) }
+        let previous = pendingSave
+        pendingSave = Task {
+            await previous?.value
+            await store.save(fields, key: key)
+        }
     }
 }

@@ -171,6 +171,18 @@ struct PublishModelTests {
         Issue.record("must not publish")
     }
 
+    @Test("FR-AUTH-005: publishing removes the announcement draft only, not other drafts")
+    func publishKeepsOtherDrafts() async {
+        let drafts = DraftStore()
+        await drafts.save(["start": "2026-11-23", "end": "2026-11-25"], key: "vacation.request.u1")
+        let model = make(FakeService(), drafts: drafts)
+        model.editedTitle("Store hours")
+        await model.review()
+        await model.publish()
+        #expect(await drafts.draft(key: "announcements.compose.u1") == nil)
+        #expect(await drafts.draft(key: "vacation.request.u1") != nil)
+    }
+
     @Test("FR-AUTH-005: draft is stored for re-sign-in and restored")
     func draftPreserved() async {
         let drafts = DraftStore()

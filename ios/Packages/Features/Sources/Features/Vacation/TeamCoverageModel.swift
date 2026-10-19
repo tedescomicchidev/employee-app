@@ -56,7 +56,7 @@ public final class TeamCoverageModel {
         self.now = now
         start = today
         end = today.addingDays(Self.defaultDays - 1)
-        self.access.runId = { [weak self] in self?.flow?.taskRunId }
+        self.access.runId = { [weak self] in self?.flow?.activeRunId }
     }
 
     public convenience init(

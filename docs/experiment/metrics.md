@@ -43,7 +43,7 @@ All events are pseudonymous and content-free. Timestamps are UTC ISO-8601; busin
 `task_run_id`) on REST calls made for a task (`TaskRun` in `Packages/Core`); `api/app/telemetry.py` records
 method, route template (never ids or query), status and latency per run in an in-memory `ApiCallLog`, with
 count and summed latency per run. Calls without the header, with an invalid one, or to `/v1/events` are not
-recorded. Not implemented: durable storage (same gap as the event sink, ADR-009), `agent_run` and
+recorded; neither are calls answered 401, and the log keeps the newest 50000 records. The run id is a client-supplied uuid and is not bound to the caller, so an authenticated participant could add calls to another run (accepted for the PoC, same trust as the events themselves). The app tags calls only while a flow is running, so a badge refresh after a finished run is not attributed to it. Not implemented: durable storage (same gap as the event sink, ADR-009), `agent_run` and
 `safety_counter` (AGENT, phase 6), and a separate `outcome_check` record (`outcome_valid` already travels
 on `task_completed`, and nothing verifies it server-side yet).
 

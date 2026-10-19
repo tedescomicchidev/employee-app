@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Every requirement ID in docs/product/requirements.md needs a test that names it (unit, UI, api or
-# agent eval), or an entry with a reason in docs/product/traceability-waivers.md. A waiver for an ID
+# agent eval), or an entry with a reason in docs/product/traceability-waivers.md. This is a mention
+# check: it proves an ID is named in test code, not that the test asserts it. Review the mapping in
+# docs/product/test-cases.md for substance. Write each ID out (A11Y-002, A11Y-003); "A11Y-002/003" only
+# matches the first. A waiver for an ID
 # that has a test is stale and fails too. IDs match as FR-VAC-002, fr_vac_002 or FR-VAC-002.3.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -30,5 +33,5 @@ for id in $waived; do
   echo "$ids" | grep -qx "$id" || { echo "waiver for unknown id: $id"; fail=1; }
 done
 
-[ "$fail" = 0 ] && echo "traceability: every requirement id has a test or a reviewed waiver"
+[ "$fail" = 0 ] && echo "traceability: every requirement id is named by a test or has a reviewed waiver (mention check)"
 exit "$fail"

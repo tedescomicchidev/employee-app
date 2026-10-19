@@ -87,7 +87,7 @@ public final class FeedModel {
             return
         }
         do {
-            let fetched = try await TaskRun.$current.withValue(flow?.taskRunId) {
+            let fetched = try await TaskRun.$current.withValue(flow?.activeRunId) {
                 try await service.list(accessToken: token)
             }
             offlineAsOf = nil
@@ -137,7 +137,7 @@ public final class FeedModel {
             return
         }
         do {
-            try await TaskRun.$current.withValue(flow?.taskRunId) {
+            try await TaskRun.$current.withValue(flow?.activeRunId) {
                 try await service.markRead(id: id, accessToken: token)
             }
             markLocallyRead(id)

@@ -33,7 +33,7 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 
 ## Verified by a check that does not name the ID, or by a human
 
-- NFR-001: `ci-check.sh` infra section rejects any literal location other than switzerlandnorth.
+- NFR-001: `ci-check.sh` rejects literal `location: '...'` values other than switzerlandnorth in Bicep. Narrow: a parameter default or variable is not checked; Foundry exceptions need an ADR.
 - NFR-002: whole-system `azd` deployment; human-only action, verified in the release runbook.
 - NFR-003: iOS 17+ and Swift 6 strict concurrency are enforced by `project.yml` (`SWIFT_VERSION 6.0`, `SWIFT_STRICT_CONCURRENCY complete`, deployment target) and the build; MSAL is the only external package (`project.yml`).
 - NFR-004: Custom App distribution; App Store Connect, human-only.
@@ -42,5 +42,5 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 - A11Y-004: Reduce Motion, Bold Text, Increase Contrast and Reduce Transparency are not asserted by an automated test and have not been checked by hand in this phase; the high-contrast colour sets exist and are covered by the DesignSystem colour test.
 - A11Y-006: chat accessibility; AGENT mode only (phase 6).
 - A11Y-007: localised labels come from the same catalogs as NFR-009 (tested); the release-metadata claims half is phase 11.
-- NFR-014: `ci-check.sh` infra section rejects key-based access in Bicep; no secret scanner on code yet.
+- NFR-014: `ci-check.sh` greps Bicep for four key-based-access patterns (`listKeys`, `listSecrets`, `adminUserEnabled: true`, `disableLocalAuth: false`). Not a general secret check; there is no secret scanner on code, plist or logs yet.
 - PRIV-001: `docs/privacy/data-inventory.yml` is maintained by hand in each PR; no automated diff check yet.

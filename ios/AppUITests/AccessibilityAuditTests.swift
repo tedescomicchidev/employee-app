@@ -30,7 +30,7 @@ final class AccessibilityAuditTests: XCTestCase {
         switch (screen, issue.auditType) {
         case ("News", .contrast): return isLanguageChip  // F1
         case ("News", .dynamicType): return isLanguageChip || label.contains(" · ")  // F2
-        case ("News", .textClipped): return label.hasPrefix("Liebe Kolleginnen") || label.isEmpty  // F3
+        case ("News", .textClipped): return label.hasPrefix("Liebe Kolleginnen") || issue.element == nil  // F3
         case ("Vacation", .contrast): return label == "My requests"  // F4
         case ("More", .contrast): return label == "AM" || issue.element?.identifier == "debug.expire"  // F5
         default: return false
@@ -45,7 +45,7 @@ final class AccessibilityAuditTests: XCTestCase {
         }
     }
 
-    // A11Y-001/002/003/005
+    // A11Y-001, A11Y-002, A11Y-003, A11Y-005
     func testEmployeeScreensPassTheAudit() throws {
         let app = launch(auth: "employee")
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 10))
@@ -57,7 +57,7 @@ final class AccessibilityAuditTests: XCTestCase {
         }
     }
 
-    // A11Y-001/003: the manager's inbox
+    // A11Y-001, A11Y-003: the manager's inbox
     func testApprovalsPassTheAudit() throws {
         let app = launch(auth: "manager")
         let tab = app.tabBars.buttons["Approvals"]

@@ -56,6 +56,7 @@ public final class VacationRequestModel {
     /// Non-sensitive picks (the two dates) survive a re-sign-in or a closed sheet (FR-AUTH-005, NFR-007).
     private let drafts: DraftStore?
     private let draftKey: String
+    private var pendingSave: Task<Void, Never>?
     private var selectingEnd = false
     /// Kept across retries so a replayed submit is idempotent (FR-VAC-002.4).
     private var confirmationToken: String?
@@ -68,7 +69,7 @@ public final class VacationRequestModel {
     ) {
         self.service = service
         var access = access
-        access.runId = { flow.taskRunId }
+        access.runId = { flow.activeRunId }
         self.access = access
         self.flow = flow
         self.today = today
@@ -153,7 +154,11 @@ public final class VacationRequestModel {
     private func persistDraft() {
         guard let drafts, let start, let end else { return }
         let key = draftKey, fields = ["start": start.iso, "end": end.iso]
-        Task { await drafts.save(fields, key: key) }
+        let previous = pendingSave
+        pendingSave = Task {
+            await previous?.value
+            await drafts.save(fields, key: key)
+        }
     }
 
     private func loadHolidays() async {
@@ -289,6 +294,7 @@ public final class VacationRequestModel {
             }
             phase = .submitted(request)
             flow.complete(outcomeValid: true)
+            await pendingSave?.value
             await drafts?.remove(key: draftKey)
         } catch let error as VacationError {
             flow.error(code: error.code, recovered: false)

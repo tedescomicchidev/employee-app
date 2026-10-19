@@ -35,7 +35,7 @@ public final class VacationOverviewModel {
         self.userKey = userKey
         self.makeFlow = makeFlow
         self.now = now
-        self.access.runId = { [weak self] in self?.flow?.taskRunId }
+        self.access.runId = { [weak self] in self?.flow?.activeRunId }
     }
 
     public convenience init(
