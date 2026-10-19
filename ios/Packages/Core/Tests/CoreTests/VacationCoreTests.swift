@@ -84,6 +84,22 @@ struct VacationRESTTests {
         #expect(balance == VacationBalance(year: 2026, entitlement: 25, carriedOver: 3, approved: 11, pending: 4, remaining: 13))
     }
 
+    @Test("FR-VAC-007.1: status, decision date and rejection reason are decoded")
+    func history() async throws {
+        let body = """
+        {"items":[{"id":"a","status":"rejected","start":"2026-03-02","end":"2026-03-04","counted_days":3,
+        "approver":"Maria Keller","owner_name":"Anna Meier","decided_at":"2026-02-20T09:00:00+00:00",
+        "reason":"Inventory week","per_year":{"2026":3},"excluded":[]},
+        {"id":"b","status":"pending","start":"2026-12-28","end":"2026-12-30","counted_days":3,
+        "approver":"Maria Keller","decided_at":null,"reason":null}]}
+        """
+        let items = try await service(200, body).requests(accessToken: "t")
+        #expect(items.map(\.status) == [.rejected, .pending])
+        #expect(items[0].reason == "Inventory week" && items[0].ownerName == "Anna Meier")
+        #expect(items[0].decidedAt == Date(timeIntervalSince1970: 1_771_578_000))
+        #expect(items[1].decidedAt == nil && items[1].reason == nil)
+    }
+
     @Test("FR-VAC-002.2: every failing code arrives in order, with the blocked review")
     func rules() async throws {
         let body = """

@@ -100,3 +100,7 @@ class VacationRequest:
     canton: str  # canton used for counting; later canton changes never touch it (FR-VAC-006.4)
     created_at: datetime
     status: str = "pending"
+    owner_name: str = ""
+    decided_at: datetime | None = None  # approve, reject or cancel time
+    decided_by: str | None = None
+    decision_reason: str | None = None  # rejection reason, <= 500 chars (FR-VAC-004.1)

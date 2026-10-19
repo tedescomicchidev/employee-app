@@ -101,7 +101,7 @@ public enum AnnouncementAutopilot: String, Sendable {
 #if DEBUG
 /// Drives the vacation flow without taps so `screenshot.sh` can capture each state (FR-VAC-001/002/006).
 public enum VacationAutopilot: String, Sendable {
-    case requestOK, requestOverlap, reviewOK, reviewInsufficient, reviewSuccess, holidays
+    case requestOK, requestOverlap, reviewOK, reviewInsufficient, reviewSuccess, holidays, mine
 
     /// The dates the autopilot selects, as ISO strings.
     var range: (String, String)? {
@@ -109,7 +109,7 @@ public enum VacationAutopilot: String, Sendable {
         case .requestOK, .reviewOK, .reviewSuccess: ("2026-12-28", "2027-01-05")
         case .requestOverlap: ("2026-11-11", "2026-11-13")
         case .reviewInsufficient: ("2026-11-23", "2026-12-11")
-        case .holidays: nil
+        case .holidays, .mine: nil
         }
     }
 }

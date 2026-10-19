@@ -132,8 +132,10 @@ class VacationService:
         return self._balance(principal.oid, self.today().year)
 
     def requests(self, principal: Principal) -> list[VacationRequest]:
+        """Own requests of the current and the previous year (FR-VAC-007.1)."""
         self._employee(principal)
-        return self._store.for_owner(principal.oid)
+        first = self.today().year - 1
+        return [r for r in self._store.for_owner(principal.oid) if r.end.year >= first]
 
     def inbox(self, principal: Principal) -> list[VacationRequest]:
         """Pending requests assigned to the caller as approver (FR-VAC-002.5)."""
@@ -212,6 +214,7 @@ class VacationService:
                 excluded=review.count.excluded,
                 canton=review.canton,
                 created_at=self._clock(),
+                owner_name=employee.name,
             )
             stored = self._store.add(request)
             token.request_id = stored.id
@@ -310,6 +313,10 @@ class VacationService:
                     canton=owner.canton,
                     created_at=datetime(2026, 1, 1, tzinfo=UTC),
                     status=seed.status,
+                    owner_name=owner.name,
+                    decided_at=seed.decided_at,
+                    decided_by=owner.manager_oid if seed.decided_at else None,
+                    decision_reason=seed.reason,
                 )
             )
 

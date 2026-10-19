@@ -1,7 +1,7 @@
 import json
 import threading
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -49,6 +49,8 @@ class SeedRequest:
     start: date
     end: date
     status: str
+    decided_at: datetime | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,8 @@ class VacationConfig:
                     date.fromisoformat(r["start"]),
                     date.fromisoformat(r["end"]),
                     r["status"],
+                    datetime.fromisoformat(r["decided_at"]) if r.get("decided_at") else None,
+                    r.get("reason"),
                 )
                 for r in policy["requests"]
             ),

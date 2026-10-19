@@ -50,9 +50,12 @@ public struct URLSessionVacationService: VacationService {
     private struct RequestResponse: Decodable {
         let id: String, status: String, start: String, end: String, approver: String
         let countedDays: Int
+        let ownerName: String?
+        let decidedAt: String?
+        let reason: String?
         enum CodingKeys: String, CodingKey {
-            case id, status, start, end, approver
-            case countedDays = "counted_days"
+            case id, status, start, end, approver, reason
+            case countedDays = "counted_days", ownerName = "owner_name", decidedAt = "decided_at"
         }
     }
     private struct RequestsResponse: Decodable { let items: [RequestResponse] }
@@ -159,7 +162,9 @@ public struct URLSessionVacationService: VacationService {
               let end = CalendarDay(iso: r.end)
         else { throw VacationError.failed(code: nil, correlationId: nil) }
         return VacationRequestSummary(
-            id: r.id, status: status, start: start, end: end, countedDays: r.countedDays, approver: r.approver)
+            id: r.id, status: status, start: start, end: end, countedDays: r.countedDays, approver: r.approver,
+            ownerName: r.ownerName ?? "", decidedAt: r.decidedAt.flatMap { try? Date($0, strategy: .iso8601) },
+            reason: r.reason)
     }
 
     private static func review(_ r: ReviewResponse) -> VacationReview {

@@ -6,6 +6,8 @@ public enum VacationStubScenario: String, Sendable, CaseIterable {
     case ok
     /// Mockup numbers: 25 + 3 carried - 11 approved - 4 pending = 13, one pending request.
     case populated
+    /// The "My requests" mockup: one pending, two approved, one rejected with a reason (FR-VAC-007).
+    case history
     case loading, offline, error, cantonMissing, submitFails, submitOffline
 }
 
@@ -25,7 +27,7 @@ public actor StubVacationService: VacationService {
 
     public init(scenario: VacationStubScenario = .ok) {
         self.scenario = scenario
-        if scenario == .populated {
+        if scenario == .populated || scenario == .history {
             carriedOver = 3
             approved = 11
             pending = 4
@@ -34,6 +36,7 @@ public actor StubVacationService: VacationService {
                     id: "r1", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 9),
                     end: CalendarDay(year: 2026, month: 11, day: 12), countedDays: 4, approver: "Marco Rossi")
             ]
+            if scenario == .history { existing += Self.decidedHistory }
         } else {
             carriedOver = 0
             approved = 0
@@ -41,6 +44,25 @@ public actor StubVacationService: VacationService {
             existing = []
         }
     }
+
+    private static func decided(_ month: Int, _ day: Int) -> Date {
+        Calendar.zurich.date(from: DateComponents(year: 2026, month: month, day: day, hour: 9)) ?? Date()
+    }
+
+    private static let decidedHistory: [VacationRequestSummary] = [
+        VacationRequestSummary(
+            id: "h1", status: .approved, start: CalendarDay(year: 2026, month: 7, day: 13),
+            end: CalendarDay(year: 2026, month: 7, day: 24), countedDays: 10, approver: "Marco Rossi",
+            decidedAt: decided(6, 2)),
+        VacationRequestSummary(
+            id: "h2", status: .approved, start: CalendarDay(year: 2026, month: 9, day: 18),
+            end: CalendarDay(year: 2026, month: 9, day: 18), countedDays: 1, approver: "Marco Rossi",
+            decidedAt: decided(9, 9)),
+        VacationRequestSummary(
+            id: "h3", status: .rejected, start: CalendarDay(year: 2026, month: 10, day: 5),
+            end: CalendarDay(year: 2026, month: 10, day: 9), countedDays: 5, approver: "Marco Rossi",
+            decidedAt: decided(9, 22), reason: "Team-Engpass in KW 41"),
+    ]
 
     /// What the "populated" scenario last fetched, to seed the offline overview.
     public static func populatedSnapshot(userKey: String, fetchedAt: Date) -> VacationSnapshot {

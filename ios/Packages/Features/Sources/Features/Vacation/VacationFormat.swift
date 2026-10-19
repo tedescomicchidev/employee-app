@@ -24,6 +24,11 @@ enum VacationFormat {
         day.date().formatted(style.day().month(.abbreviated).year())
     }
 
+    /// "2. Jun." for "decided on" lines.
+    static func shortMonth(_ day: CalendarDay) -> String {
+        day.date().formatted(style.day().month(.abbreviated))
+    }
+
     /// "Mo 9. – Do 12. Nov." within a month, with both months otherwise; one day when start == end.
     static func range(_ start: CalendarDay, _ end: CalendarDay, long useLong: Bool = false) -> String {
         if start == end { return useLong ? long(start) : short(start) }

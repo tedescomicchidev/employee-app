@@ -91,14 +91,26 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
     public let end: CalendarDay
     public let countedDays: Int
     public let approver: String
+    /// Set for a manager's view of a report's request (FR-VAC-004); empty for the owner's own.
+    public let ownerName: String
+    /// When the request was approved, rejected or cancelled; nil while pending.
+    public let decidedAt: Date?
+    /// The rejection reason, shown to the owner (FR-VAC-007.1). Never logged.
+    public let reason: String?
 
-    public init(id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String) {
+    public init(
+        id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String,
+        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil
+    ) {
         self.id = id
         self.status = status
         self.start = start
         self.end = end
         self.countedDays = countedDays
         self.approver = approver
+        self.ownerName = ownerName
+        self.decidedAt = decidedAt
+        self.reason = reason
     }
 }
 

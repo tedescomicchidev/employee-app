@@ -56,6 +56,21 @@ extension L10n {
         .init("vac.workdays", defaultValue: "\(count) working days", bundle: bundle)
     }
 
+    // My requests (FR-VAC-007)
+    static var vacMineTitle: LocalizedStringResource { .init("vac.mine.title", bundle: bundle) }
+    static var vacMineGroupPending: LocalizedStringResource { .init("vac.mine.group.pending", bundle: bundle) }
+    static var vacMineEmptyTitle: LocalizedStringResource { .init("vac.mine.empty.title", bundle: bundle) }
+    static var vacMineEmptyMessage: LocalizedStringResource { .init("vac.mine.empty.message", bundle: bundle) }
+    static func vacMineGroupDecided(_ year: Int) -> LocalizedStringResource {
+        .init("vac.mine.group.decided", defaultValue: "Decided · \(String(year))", bundle: bundle)
+    }
+    static func vacMineDecidedOn(_ date: String) -> LocalizedStringResource {
+        .init("vac.mine.decided.on", defaultValue: "decided on \(date)", bundle: bundle)
+    }
+    static func vacMineReason(_ reason: String) -> LocalizedStringResource {
+        .init("vac.mine.reason", defaultValue: "Reason: “\(reason)”", bundle: bundle)
+    }
+
     // Holidays (FR-VAC-006)
     static var vacHolidaysNote: LocalizedStringResource { .init("vac.holidays.note", bundle: bundle) }
     static var vacHolidaysEmptyTitle: LocalizedStringResource { .init("vac.holidays.empty.title", bundle: bundle) }

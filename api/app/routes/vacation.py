@@ -40,7 +40,10 @@ def _request(r: VacationRequest) -> dict[str, Any]:
         **count_json(DayCount(r.counted_days, r.per_year, r.excluded)),
         "approver": r.approver_name,
         "owner_oid": r.owner_oid,
+        "owner_name": r.owner_name,
         "created_at": r.created_at.isoformat(),
+        "decided_at": r.decided_at.isoformat() if r.decided_at else None,
+        "reason": r.decision_reason,
     }
 
 

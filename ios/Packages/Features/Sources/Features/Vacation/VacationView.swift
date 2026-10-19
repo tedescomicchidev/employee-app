@@ -8,7 +8,7 @@ private struct RequestFlowItem: Identifiable {
 
 /// Vacation tab: the five numbers (FR-VAC-001), the next request, holidays (FR-VAC-006) and the request entry.
 struct VacationView: View {
-    enum Route: Hashable { case holidays }
+    enum Route: Hashable { case holidays, mine }
 
     let model: AppModel
     let environment: AppEnvironment
@@ -31,8 +31,11 @@ struct VacationView: View {
             }
             .background(DSColor.bg)
             .navigationTitle(Text(title))
-            .navigationDestination(for: Route.self) { _ in
-                HolidaysView(model: makeHolidays())
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .holidays: HolidaysView(model: makeHolidays())
+                case .mine: if let overview { MyRequestsView(overview: overview) }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -103,8 +106,8 @@ struct VacationView: View {
     @MainActor private func runAutopilot() {
         guard !autopilotRan, let autopilot = environment.vacationAutopilot else { return }
         autopilotRan = true
-        if autopilot == .holidays {
-            path = [.holidays]
+        if autopilot == .holidays || autopilot == .mine {
+            path = [autopilot == .mine ? .mine : .holidays]
             return
         }
         let request = present()
@@ -147,6 +150,7 @@ private struct VacationContent: View {
                     Balance(balance: balance)
                     Composition(balance: balance)
                     UpcomingSection(next: overview.next(today: today), isEmpty: requests.isEmpty)
+                    historyLink
                     holidaysLink
                 case .notProvisioned:
                     DSEmptyState(symbol: "person.crop.circle.badge.questionmark",
@@ -162,6 +166,18 @@ private struct VacationContent: View {
             .padding(DSSpacing.gutter)
         }
         .refreshable { await overview.refresh() }
+    }
+
+    private var historyLink: some View {
+        DSGroupedSection {
+            NavigationLink(value: VacationView.Route.mine) {
+                DSListRow(
+                    title: Text(L10n.vacMineTitle),
+                    leading: .icon(systemName: "tray.full", tint: DSColor.orange), showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("vacation.mine")
+        }
     }
 
     private var holidaysLink: some View {
