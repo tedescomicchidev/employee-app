@@ -52,7 +52,7 @@ Implemented as decided (point 3 stays as written, not the literal OBO to `ai.azu
   The roles `Communicator`, `Manager`, `Employee` must also be defined and assigned on `employee-tools`
   because the MCP server reads `roles` from the Tools.Invoke token (same `authorize()` as REST).
 - S-3: still open. The API forwards T-tools in `x-client-api-access-token`, and the toolbox connection is declared
-  `UserEntraToken` with audience `api://employee-tools` (agents/toolboxes/tools-conn.yaml). Which of the two the
+  `UserEntraToken` with audience `api://employee-tools` (`tools-conn` in azure.yaml). Which of the two the
   `FoundryToolbox` client actually presents to `/mcp` is unverified: nothing has run against a deployed Foundry.
   If neither reaches the MCP call, the ADR-005 fallback applies (api/ attaches the token itself). The confirmation
   token is not affected: the turn endpoint adds it, with the stored draft, as a fixed-format user message.
