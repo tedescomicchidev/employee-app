@@ -71,6 +71,28 @@ extension L10n {
         .init("vac.mine.reason", defaultValue: "Reason: “\(reason)”", bundle: bundle)
     }
 
+    // Request detail and cancel (FR-VAC-003)
+    static var vacDetailTitle: LocalizedStringResource { .init("vac.detail.title", bundle: bundle) }
+    static var vacDetailOverview: LocalizedStringResource { .init("vac.detail.overview", bundle: bundle) }
+    static var vacDetailPeriod: LocalizedStringResource { .init("vac.detail.period", bundle: bundle) }
+    static var vacDetailCounted: LocalizedStringResource { .init("vac.detail.counted", bundle: bundle) }
+    static var vacDetailStatus: LocalizedStringResource { .init("vac.detail.status", bundle: bundle) }
+    static var vacDetailApprover: LocalizedStringResource { .init("vac.detail.approver", bundle: bundle) }
+    static var vacDetailSubmitted: LocalizedStringResource { .init("vac.detail.submitted", bundle: bundle) }
+    static var vacDetailDecided: LocalizedStringResource { .init("vac.detail.decided", bundle: bundle) }
+    static var vacDetailReason: LocalizedStringResource { .init("vac.detail.reason", bundle: bundle) }
+    static var vacDetailInvalidState: LocalizedStringResource { .init("vac.detail.invalidstate", bundle: bundle) }
+    static var vacDetailNotFoundTitle: LocalizedStringResource { .init("vac.detail.notfound.title", bundle: bundle) }
+    static var vacDetailNotFoundMessage: LocalizedStringResource { .init("vac.detail.notfound.message", bundle: bundle) }
+    static var vacDetailOfflineActions: LocalizedStringResource { .init("vac.detail.offline.actions", bundle: bundle) }
+    static var vacCancelButton: LocalizedStringResource { .init("vac.cancel.button", bundle: bundle) }
+    static var vacCancelTitle: LocalizedStringResource { .init("vac.cancel.title", bundle: bundle) }
+    static var vacCancelKeep: LocalizedStringResource { .init("vac.cancel.keep", bundle: bundle) }
+    static var vacCancelFailed: LocalizedStringResource { .init("vac.cancel.failed", bundle: bundle) }
+    static func vacCancelMessage(days: Int, approver: String) -> LocalizedStringResource {
+        .init("vac.cancel.message", defaultValue: "The \(days) reserved days will be released. \(approver) will no longer see the request.", bundle: bundle)
+    }
+
     // Holidays (FR-VAC-006)
     static var vacHolidaysNote: LocalizedStringResource { .init("vac.holidays.note", bundle: bundle) }
     static var vacHolidaysEmptyTitle: LocalizedStringResource { .init("vac.holidays.empty.title", bundle: bundle) }

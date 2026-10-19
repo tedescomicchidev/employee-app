@@ -8,7 +8,7 @@ import Foundation
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline>
-///   -vacationStub <ok|populated|history|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
+///   -vacationStub <ok|populated|history|cancelFails|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -43,6 +43,8 @@ enum StubLaunch {
         "vacation-overview-error": (.employee, true),
         "vacation-my_requests-ok": (.employee, true),
         "vacation-my_requests-empty": (.employee, true),
+        "vacation-request_detail-ok": (.employee, true),
+        "vacation-request_detail-cancel_dialog": (.employee, true),
         "vacation-holidays-ok": (.employee, true),
         "vacation-holidays-canton_missing": (.employee, true),
         "vacation-request-ok": (.employee, true),
@@ -61,6 +63,8 @@ enum StubLaunch {
         "vacation-overview-error": (.error, nil),
         "vacation-my_requests-ok": (.history, .mine),
         "vacation-my_requests-empty": (.ok, .mine),
+        "vacation-request_detail-ok": (.history, .detail),
+        "vacation-request_detail-cancel_dialog": (.history, .cancelDialog),
         "vacation-holidays-ok": (.populated, .holidays),
         "vacation-holidays-canton_missing": (.cantonMissing, .holidays),
         "vacation-request-ok": (.populated, .requestOK),

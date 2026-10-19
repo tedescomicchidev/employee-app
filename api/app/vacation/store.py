@@ -17,6 +17,10 @@ class VacationStore(Protocol):
     def get(self, request_id: str) -> VacationRequest | None: ...
     def for_owner(self, oid: str) -> list[VacationRequest]: ...
     def pending_for_approver(self, oid: str) -> list[VacationRequest]: ...
+    def replace_if_status(
+        self, request: VacationRequest, expected_status: str
+    ) -> VacationRequest | None:
+        """Atomic transition: stores `request` only while the stored status is `expected_status`."""
 
 
 @dataclass
@@ -30,6 +34,16 @@ class InMemoryVacationStore:
 
     def get(self, request_id: str) -> VacationRequest | None:
         return self._requests.get(request_id)
+
+    def replace_if_status(
+        self, request: VacationRequest, expected_status: str
+    ) -> VacationRequest | None:
+        with self._lock:
+            current = self._requests.get(request.id)
+            if current is None or current.status != expected_status:
+                return None
+            self._requests[request.id] = request
+            return request
 
     def for_owner(self, oid: str) -> list[VacationRequest]:
         mine = [r for r in self._requests.values() if r.owner_oid == oid]

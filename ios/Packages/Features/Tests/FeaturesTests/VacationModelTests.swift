@@ -24,6 +24,12 @@ private actor FakeVacation: VacationService {
         VacationHolidays(year: 2026, canton: "ZH", items: [VacationHoliday(day: day("2026-11-11"), name: "Fixture Day ZH")]))
     var proposeResults: [Result<VacationProposal, VacationError>] = []
     var submitErrors: [VacationError] = []
+    var requestResult: Result<VacationRequestSummary, VacationError> = .success(
+        VacationRequestSummary(
+            id: "r1", status: .pending, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller"))
+    var cancelErrors: [VacationError] = []
+    var cancelTokens: [String] = []
     private var minted = 0
 
     func set(balance result: Result<VacationBalance, VacationError>) { balanceResult = result }
@@ -31,6 +37,8 @@ private actor FakeVacation: VacationService {
     func set(holidays result: Result<VacationHolidays, VacationError>) { holidaysResult = result }
     func queue(propose results: [Result<VacationProposal, VacationError>]) { proposeResults = results }
     func failSubmit(_ errors: [VacationError]) { submitErrors = errors }
+    func set(request result: Result<VacationRequestSummary, VacationError>) { requestResult = result }
+    func failCancel(_ errors: [VacationError]) { cancelErrors = errors }
 
     func balance(accessToken: String) throws -> VacationBalance {
         calls.append("balance")
@@ -62,6 +70,29 @@ private actor FakeVacation: VacationService {
         if !submitErrors.isEmpty { throw submitErrors.removeFirst() }
         return VacationRequestSummary(
             id: "r1", status: .pending, start: start, end: end, countedDays: 3, approver: "Maria Keller")
+    }
+}
+
+extension FakeVacation {
+    func request(id: String, accessToken: String) throws -> VacationRequestSummary {
+        calls.append("request")
+        return try requestResult.get()
+    }
+    func confirmCancel(id: String, accessToken: String) -> String {
+        calls.append("confirmCancel")
+        minted += 1
+        return "cancel-token-\(minted)"
+    }
+    func cancel(id: String, confirmationToken: String, accessToken: String) throws -> VacationRequestSummary {
+        calls.append("cancel")
+        cancelTokens.append(confirmationToken)
+        if !cancelErrors.isEmpty { throw cancelErrors.removeFirst() }
+        guard case let .success(current) = requestResult else { throw VacationError.notFound }
+        let done = VacationRequestSummary(
+            id: current.id, status: .cancelled, start: current.start, end: current.end,
+            countedDays: current.countedDays, approver: current.approver)
+        requestResult = .success(done)
+        return done
     }
 }
 
@@ -484,3 +515,88 @@ struct VacationStringsTests {
     }
 }
 #endif
+
+@MainActor
+@Suite("FR-VAC-003 cancel")
+struct RequestDetailModelTests {
+    private func detail(_ service: FakeVacation, seed: VacationRequestSummary? = nil, changed: @escaping @MainActor () -> Void = {})
+        -> RequestDetailModel
+    {
+        RequestDetailModel(id: "r1", seed: seed, service: service, access: access(), onChanged: changed)
+    }
+
+    @Test("FR-VAC-003.1: confirming cancels once, shows cancelled and tells the list to refresh")
+    func cancels() async {
+        let service = FakeVacation()
+        var changed = 0
+        let model = detail(service, changed: { changed += 1 })
+        await model.load()
+        #expect(model.canCancel)
+        model.askToCancel()
+        #expect(model.isConfirmingCancel)
+        await model.confirmCancel()
+        #expect(model.request?.status == .cancelled && !model.canCancel && changed == 1)
+        #expect(await service.calls == ["request", "confirmCancel", "cancel"])
+    }
+
+    @Test("FR-VAC-003.3: a failed attempt keeps the token, so the retry is the same idempotent call")
+    func retryReusesToken() async {
+        let service = FakeVacation()
+        await service.failCancel([.failed(code: "INTERNAL", correlationId: nil)])
+        let model = detail(service)
+        await model.load()
+        await model.confirmCancel()
+        #expect(model.notice == .cancelFailed && model.request?.status == .pending)
+        await model.confirmCancel()
+        #expect(model.request?.status == .cancelled && model.notice == nil)
+        #expect(await service.cancelTokens == ["cancel-token-1", "cancel-token-1"])
+        #expect(await service.calls.filter { $0 == "confirmCancel" }.count == 1)
+    }
+
+    @Test("FR-VAC-003.2: a request that was decided meanwhile says so and offers no cancel")
+    func invalidState() async {
+        let service = FakeVacation()
+        let model = detail(service)
+        await model.load()
+        let decided = VacationRequestSummary(
+            id: "r1", status: .approved, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller")
+        await service.failCancel([.invalidState])
+        await service.set(request: .success(decided))
+        await model.confirmCancel()
+        #expect(model.notice == .alreadyDecided && model.request?.status == .approved && !model.canCancel)
+    }
+
+    @Test("FR-VAC-003: only a pending request can be cancelled")
+    func onlyPending() async {
+        let service = FakeVacation()
+        await service.set(request: .success(VacationRequestSummary(
+            id: "r1", status: .rejected, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller", reason: "Inventory week")))
+        let model = detail(service)
+        await model.load()
+        model.askToCancel()
+        #expect(!model.canCancel && !model.isConfirmingCancel)
+    }
+
+    @Test("FR-VAC-003 (OFF): offline keeps the seed visible with the cancel disabled")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(request: .failure(.offline))
+        let seed = VacationRequestSummary(
+            id: "r1", status: .pending, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller")
+        let model = detail(service, seed: seed)
+        await model.load()
+        #expect(model.isOffline && model.request == seed && !model.canCancel)
+    }
+
+    @Test("FR-VAC-003 (403/404): someone else's request is not found")
+    func notFound() async {
+        let service = FakeVacation()
+        await service.set(request: .failure(.notFound))
+        let model = detail(service)
+        await model.load()
+        #expect(model.state == .notFound)
+    }
+}

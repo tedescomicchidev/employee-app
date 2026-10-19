@@ -97,10 +97,11 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
     public let decidedAt: Date?
     /// The rejection reason, shown to the owner (FR-VAC-007.1). Never logged.
     public let reason: String?
+    public let submittedAt: Date?
 
     public init(
         id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String,
-        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil
+        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil, submittedAt: Date? = nil
     ) {
         self.id = id
         self.status = status
@@ -111,6 +112,7 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
         self.ownerName = ownerName
         self.decidedAt = decidedAt
         self.reason = reason
+        self.submittedAt = submittedAt
     }
 }
 
@@ -224,6 +226,10 @@ public enum VacationError: Error, Sendable, Equatable {
     /// `CANTON_MISSING`: "Ask HR to set your canton".
     case cantonMissing
     case noApprover
+    /// `NOT_FOUND`: unknown or not yours (FR-VAC-003, 004).
+    case notFound
+    /// `INVALID_STATE`: the request is no longer pending (FR-VAC-003.2, 004.3).
+    case invalidState
     /// R5-R8: every failing code, first by precedence, plus what a blocked review still shows.
     case rules([VacationViolation], review: VacationReview?)
     case invalidConfirmation
@@ -239,6 +245,8 @@ public enum VacationError: Error, Sendable, Equatable {
         case .notProvisioned: "NOT_PROVISIONED"
         case .cantonMissing: "CANTON_MISSING"
         case .noApprover: "NO_APPROVER"
+        case .notFound: "NOT_FOUND"
+        case .invalidState: "INVALID_STATE"
         case let .rules(violations, _): violations.first?.code ?? "RULE"
         case .invalidConfirmation: "INVALID_CONFIRMATION"
         case .validation: "VALIDATION_ERROR"
@@ -259,6 +267,12 @@ public protocol VacationService: Sendable {
     func submit(
         start: CalendarDay, end: CalendarDay, confirmationToken: String, accessToken: String
     ) async throws -> VacationRequestSummary
+    /// One request, for its owner or its approver (`NOT_FOUND` for anyone else).
+    func request(id: String, accessToken: String) async throws -> VacationRequestSummary
+    /// Dry run and confirmation of a cancel in one step; call it after the user confirmed (FR-VAC-003.3).
+    func confirmCancel(id: String, accessToken: String) async throws -> String
+    /// Idempotent on the confirmation token; `INVALID_STATE` unless the request is pending (FR-VAC-003.2).
+    func cancel(id: String, confirmationToken: String, accessToken: String) async throws -> VacationRequestSummary
 }
 
 /// Last good overview for offline display with an "as of" time (NFR-007).
@@ -324,5 +338,9 @@ public struct UnconfiguredVacationService: VacationService {
     public func submit(
         start: CalendarDay, end: CalendarDay, confirmationToken: String, accessToken: String
     ) async throws -> VacationRequestSummary { throw Self.failure }
+    public func request(id: String, accessToken: String) async throws -> VacationRequestSummary { throw Self.failure }
+    public func confirmCancel(id: String, accessToken: String) async throws -> String { throw Self.failure }
+    public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
+        -> VacationRequestSummary { throw Self.failure }
     private static var failure: VacationError { .failed(code: "NOT_CONFIGURED", correlationId: nil) }
 }

@@ -89,6 +89,19 @@ def create_request(principal: Caller, service: Service, body: Body, response: Re
     return {**_request(result.request), "created": result.created}
 
 
+@router.get("/requests/{request_id}")
+def get_request(request_id: str, principal: Caller, service: Service) -> dict[str, Any]:
+    return _request(service.get_request(principal, request_id))
+
+
+@router.post("/requests/{request_id}/cancel")
+def cancel_request(request_id: str, principal: Caller, service: Service, body: Body) -> Any:
+    token = body.get("confirmation_token")
+    return _request(
+        service.cancel(principal, request_id, token if isinstance(token, str) else None)
+    )
+
+
 @router.get("/inbox")
 def get_inbox(principal: Caller, service: Service) -> dict[str, Any]:
     return {"items": [_request(r) for r in service.inbox(principal)]}

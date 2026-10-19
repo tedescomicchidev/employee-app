@@ -4,7 +4,7 @@ import secrets
 import threading
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -13,7 +13,9 @@ from app.auth.errors import (
     canton_missing,
     confirmation_required,
     invalid_confirmation,
+    invalid_state,
     no_approver,
+    not_found,
     not_provisioned,
     rule_violation,
     self_approval,
@@ -28,8 +30,10 @@ from app.repositories import (
 )
 from app.vacation import rules
 from app.vacation.models import (
+    ACTION_CANCEL,
     ACTION_REQUEST,
     Balance,
+    CancelDraft,
     DayCount,
     Holiday,
     VacationDraft,
@@ -88,6 +92,12 @@ class ProposalResult:
 class CreateResult:
     request: VacationRequest
     created: bool
+
+
+@dataclass(frozen=True)
+class CancelProposal:
+    proposal: Proposal
+    request: VacationRequest
 
 
 class VacationService:
@@ -157,22 +167,24 @@ class VacationService:
         self._confirmations.save_proposal(proposal)
         return ProposalResult(proposal, review)
 
-    def confirm(self, principal: Principal, proposal_id: str) -> ConfirmationToken:
-        """Single-use token for the user's own proposal (the tap on Submit)."""
+    def confirm(
+        self, principal: Principal, proposal_id: str, action: str = ACTION_REQUEST
+    ) -> ConfirmationToken:
+        """Single-use token for the user's own proposal (the tap on Submit, Cancel, Approve)."""
         self._employee(principal)
         proposal = self._confirmations.get_proposal(proposal_id)
         now = self._clock()
         if (
             proposal is None
             or proposal.oid != principal.oid
-            or proposal.action != ACTION_REQUEST
+            or proposal.action != action
             or proposal.expires_at <= now
         ):
             raise invalid_confirmation()
         token = ConfirmationToken(
             token=secrets.token_urlsafe(32),
             oid=principal.oid,
-            action=ACTION_REQUEST,
+            action=action,
             payload_hash=proposal.draft.payload_hash(),
             expires_at=now + self._ttl,
         )
@@ -220,6 +232,78 @@ class VacationService:
             token.request_id = stored.id
             log.info("vacation request created id=%s days=%d", stored.id, stored.counted_days)
             return CreateResult(stored, created=stored is request)
+
+    # FR-VAC-003 ---------------------------------------------------------------------------
+
+    def get_request(self, principal: Principal, request_id: str) -> VacationRequest:
+        """Detail for the owner or the assigned approver; anyone else gets NOT_FOUND (A-14)."""
+        self._employee(principal)
+        request = self._store.get(request_id)
+        if request is None or principal.oid not in (request.owner_oid, request.approver_oid):
+            raise not_found()
+        return request
+
+    def propose_cancel(self, principal: Principal, request_id: str) -> CancelProposal:
+        """Dry run: only the owner can cancel, and only while pending (R11)."""
+        request = self._own_pending(principal, request_id)
+        draft = CancelDraft(request_id)
+        proposal = Proposal(
+            id=str(uuid.uuid4()),
+            oid=principal.oid,
+            action=ACTION_CANCEL,
+            draft=draft,
+            expires_at=self._clock() + self._ttl,
+        )
+        self._confirmations.save_proposal(proposal)
+        return CancelProposal(proposal, request)
+
+    def cancel(
+        self, principal: Principal, request_id: str, token_value: str | None
+    ) -> VacationRequest:
+        """Pending -> cancelled; releases the reserved days and leaves the approver's inbox.
+
+        Idempotent on the confirmation token: a replay returns the cancelled request.
+        """
+        self._employee(principal)
+        if not token_value:
+            raise confirmation_required()
+        with self._write_lock:
+            token = self._confirmations.get_token(token_value)
+            if (
+                token is None
+                or token.oid != principal.oid
+                or token.action != ACTION_CANCEL
+                or not hmac.compare_digest(
+                    token.payload_hash, CancelDraft(request_id).payload_hash()
+                )
+            ):
+                raise invalid_confirmation()
+            if token.request_id == request_id:
+                done = self._store.get(request_id)
+                if done is not None:
+                    return done
+            if token.expires_at <= self._clock():
+                raise invalid_confirmation()
+            request = self._own_pending(principal, request_id)
+            now = self._clock()
+            cancelled = self._store.replace_if_status(
+                replace(request, status="cancelled", decided_at=now, decided_by=principal.oid),
+                "pending",
+            )
+            if cancelled is None:
+                raise invalid_state()
+            token.request_id = request_id
+            log.info("vacation request cancelled id=%s", request_id)
+            return cancelled
+
+    def _own_pending(self, principal: Principal, request_id: str) -> VacationRequest:
+        self._employee(principal)
+        request = self._store.get(request_id)
+        if request is None or request.owner_oid != principal.oid:
+            raise not_found()  # unknown and someone else's look the same
+        if request.status != "pending":
+            raise invalid_state()
+        return request
 
     # internals ----------------------------------------------------------------------------
 

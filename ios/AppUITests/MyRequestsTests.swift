@@ -47,3 +47,56 @@ final class MyRequestsTests: XCTestCase {
         XCTAssertTrue(element(app, "mine.empty").waitForExistence(timeout: 5))
     }
 }
+
+final class CancelRequestTests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    private func openPendingDetail(api: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-authStub", "employee", "-signedIn", "YES", "-vacationStub", api,
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+        ]
+        app.launch()
+        let link = app.descendants(matching: .any)["vacation.mine"].firstMatch
+        XCTAssertTrue(link.waitForExistence(timeout: 10))
+        link.tap()
+        let row = app.descendants(matching: .any)["mine.row.r1"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.tap()
+        return app
+    }
+
+    // FR-VAC-003.1/.3: Cancel request -> confirmation dialog -> cancelled, button gone
+    func testCancelPendingRequestAfterConfirmation() {
+        let app = openPendingDetail(api: "history")
+        let cancel = app.buttons["detail.cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Keep"].tap()
+        XCTAssertTrue(cancel.exists, "keeping leaves the request pending")
+        cancel.tap()
+        XCTAssertTrue(app.alerts.firstMatch.waitForExistence(timeout: 5))
+        app.alerts.firstMatch.buttons["Cancel request"].tap()
+        let status = app.descendants(matching: .any)["detail.status"].firstMatch
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline, !status.label.contains("Cancelled") {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertTrue(status.label.contains("Cancelled"))
+        XCTAssertFalse(app.buttons["detail.cancel"].exists)
+    }
+
+    // FR-VAC-003 (ERR): a failed cancel keeps the request pending and says so
+    func testFailedCancelShowsMessage() {
+        let app = openPendingDetail(api: "cancelFails")
+        app.buttons["detail.cancel"].tap()
+        app.alerts.firstMatch.buttons["Cancel request"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["detail.cancel_failed"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["detail.cancel"].exists)
+    }
+}

@@ -53,9 +53,11 @@ public struct URLSessionVacationService: VacationService {
         let ownerName: String?
         let decidedAt: String?
         let reason: String?
+        let createdAt: String?
         enum CodingKeys: String, CodingKey {
             case id, status, start, end, approver, reason
             case countedDays = "counted_days", ownerName = "owner_name", decidedAt = "decided_at"
+            case createdAt = "created_at"
         }
     }
     private struct RequestsResponse: Decodable { let items: [RequestResponse] }
@@ -95,6 +97,27 @@ public struct URLSessionVacationService: VacationService {
     private struct SubmitBody: Encodable {
         let start: String, end: String, confirmationToken: String
         enum CodingKeys: String, CodingKey { case start, end, confirmationToken = "confirmation_token" }
+    }
+    private struct CancelProposalBody: Encodable {
+        struct Payload: Encodable {
+            let requestId: String
+            enum CodingKeys: String, CodingKey { case requestId = "request_id" }
+        }
+        let type = "vacation_cancel"
+        let payload: Payload
+    }
+    private struct CancelConfirmBody: Encodable {
+        let type = "vacation_cancel"
+        let proposalId: String
+        enum CodingKeys: String, CodingKey { case type, proposalId = "proposal_id" }
+    }
+    private struct CancelBody: Encodable {
+        let confirmationToken: String
+        enum CodingKeys: String, CodingKey { case confirmationToken = "confirmation_token" }
+    }
+    private struct ProposalIdResponse: Decodable {
+        let proposalId: String
+        enum CodingKeys: String, CodingKey { case proposalId = "proposal_id" }
     }
     private struct Empty: Codable {}
 
@@ -145,6 +168,29 @@ public struct URLSessionVacationService: VacationService {
         return try Self.summary(r)
     }
 
+    public func request(id: String, accessToken: String) async throws -> VacationRequestSummary {
+        let r: RequestResponse = try await send(
+            "GET", "v1/vacation/requests/\(id)", Optional<Empty>.none, accessToken)
+        return try Self.summary(r)
+    }
+
+    public func confirmCancel(id: String, accessToken: String) async throws -> String {
+        let proposal: ProposalIdResponse = try await send(
+            "POST", "v1/proposals", CancelProposalBody(payload: .init(requestId: id)), accessToken)
+        let token: TokenResponse = try await send(
+            "POST", "v1/confirmations", CancelConfirmBody(proposalId: proposal.proposalId), accessToken)
+        return token.confirmationToken
+    }
+
+    public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
+        -> VacationRequestSummary
+    {
+        let r: RequestResponse = try await send(
+            "POST", "v1/vacation/requests/\(id)/cancel", CancelBody(confirmationToken: confirmationToken),
+            accessToken)
+        return try Self.summary(r)
+    }
+
     // MARK: Mapping
 
     private static var languageCode: String {
@@ -164,7 +210,7 @@ public struct URLSessionVacationService: VacationService {
         return VacationRequestSummary(
             id: r.id, status: status, start: start, end: end, countedDays: r.countedDays, approver: r.approver,
             ownerName: r.ownerName ?? "", decidedAt: r.decidedAt.flatMap { try? Date($0, strategy: .iso8601) },
-            reason: r.reason)
+            reason: r.reason, submittedAt: r.createdAt.flatMap { try? Date($0, strategy: .iso8601) })
     }
 
     private static func review(_ r: ReviewResponse) -> VacationReview {
@@ -194,6 +240,8 @@ public struct URLSessionVacationService: VacationService {
         case (401, _): return .unauthenticated
         case (403, "NOT_PROVISIONED"): return .notProvisioned
         case (403, _): return .forbidden
+        case (404, _): return .notFound
+        case (409, "INVALID_STATE"): return .invalidState
         case (422, "CANTON_MISSING"): return .cantonMissing
         case (422, "NO_APPROVER"): return .noApprover
         case (422, "VALIDATION_ERROR"): return .validation

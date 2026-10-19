@@ -8,6 +8,8 @@ public enum VacationStubScenario: String, Sendable, CaseIterable {
     case populated
     /// The "My requests" mockup: one pending, two approved, one rejected with a reason (FR-VAC-007).
     case history
+    /// A pending request whose cancel fails on the server (error state of the cancel dialog).
+    case cancelFails
     case loading, offline, error, cantonMissing, submitFails, submitOffline
 }
 
@@ -27,14 +29,15 @@ public actor StubVacationService: VacationService {
 
     public init(scenario: VacationStubScenario = .ok) {
         self.scenario = scenario
-        if scenario == .populated || scenario == .history {
+        if scenario == .populated || scenario == .history || scenario == .cancelFails {
             carriedOver = 3
             approved = 11
             pending = 4
             existing = [
                 VacationRequestSummary(
                     id: "r1", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 9),
-                    end: CalendarDay(year: 2026, month: 11, day: 12), countedDays: 4, approver: "Marco Rossi")
+                    end: CalendarDay(year: 2026, month: 11, day: 12), countedDays: 4, approver: "Marco Rossi",
+                    submittedAt: Self.decided(10, 12))
             ]
             if scenario == .history { existing += Self.decidedHistory }
         } else {
@@ -135,6 +138,39 @@ public actor StubVacationService: VacationService {
         pending += counted
         return request
     }
+
+    public func request(id: String, accessToken: String) async throws -> VacationRequestSummary {
+        try await gate()
+        guard let found = existing.first(where: { $0.id == id }) else { throw VacationError.notFound }
+        return found
+    }
+
+    public func confirmCancel(id: String, accessToken: String) async throws -> String {
+        try await gate()
+        if scenario == .cancelFails { throw VacationError.failed(code: "INTERNAL", correlationId: "stub-corr-9012") }
+        guard let found = existing.first(where: { $0.id == id }) else { throw VacationError.notFound }
+        if found.status != .pending { throw VacationError.invalidState }
+        return "stub-cancel-\(id)"
+    }
+
+    public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
+        -> VacationRequestSummary
+    {
+        try await gate()
+        guard let index = existing.firstIndex(where: { $0.id == id }) else { throw VacationError.notFound }
+        let current = existing[index]
+        if current.status == .cancelled { return current }  // idempotent on the token
+        if current.status != .pending { throw VacationError.invalidState }
+        let cancelled = VacationRequestSummary(
+            id: current.id, status: .cancelled, start: current.start, end: current.end,
+            countedDays: current.countedDays, approver: current.approver, decidedAt: Self.fixtureNow)
+        existing[index] = cancelled
+        pending -= current.countedDays
+        return cancelled
+    }
+
+    private static let fixtureNow = Calendar.zurich.date(
+        from: DateComponents(year: 2026, month: 10, day: 19, hour: 8)) ?? Date()
 
     // MARK: Stub rules (fixture data only)
 

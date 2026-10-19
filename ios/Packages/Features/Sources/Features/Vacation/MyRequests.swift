@@ -78,7 +78,10 @@ struct MyRequestsView: View {
         }
         return DSGroupedSection(header: header) {
             ForEach(Array(group.items.enumerated()), id: \.element.id) { index, item in
-                MyRequestRow(item: item)
+                NavigationLink(value: VacationView.Route.detail(item.id)) {
+                    MyRequestRow(item: item)
+                }
+                .buttonStyle(.plain)
                 if index < group.items.count - 1 { DSRowDivider() }
             }
         }

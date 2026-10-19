@@ -44,7 +44,8 @@ class Env:
 
     def headers(self, who: str) -> dict[str, str]:
         oid = OIDS.get(who, who)
-        return {"Authorization": f"Bearer {self._make_token(oid=oid)}"}
+        roles = ["Manager", "Employee"] if who in ("ceo", "mgr1", "mgr2") else ["Employee"]
+        return {"Authorization": f"Bearer {self._make_token(oid=oid, roles=roles)}"}
 
     def get(self, who: str, path: str) -> Any:
         return self.client.get(f"/v1/vacation{path}", headers=self.headers(who))

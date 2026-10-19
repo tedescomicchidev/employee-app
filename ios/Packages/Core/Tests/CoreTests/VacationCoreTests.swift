@@ -100,6 +100,20 @@ struct VacationRESTTests {
         #expect(items[1].decidedAt == nil && items[1].reason == nil)
     }
 
+    @Test("FR-VAC-003.2: INVALID_STATE and NOT_FOUND map to their own cases")
+    func cancelErrors() async {
+        func error(_ status: Int, _ code: String) async -> VacationError? {
+            do {
+                _ = try await service(status, #"{"code":"\#(code)","message":"x"}"#)
+                    .cancel(id: "a", confirmationToken: "t", accessToken: "t")
+                return nil
+            } catch { return error as? VacationError }
+        }
+        #expect(await error(409, "INVALID_STATE") == .invalidState)
+        #expect(await error(404, "NOT_FOUND") == .notFound)
+        #expect(await error(409, "INVALID_CONFIRMATION") == .invalidConfirmation)
+    }
+
     @Test("FR-VAC-002.2: every failing code arrives in order, with the blocked review")
     func rules() async throws {
         let body = """

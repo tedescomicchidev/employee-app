@@ -5,6 +5,7 @@ from datetime import date, datetime
 from typing import Any
 
 ACTION_REQUEST = "create_vacation_request"
+ACTION_CANCEL = "cancel_vacation_request"
 CANTONS = "AG AI AR BE BL BS FR GE GL GR JU LU NE NW OW SG SH SO SZ TG TI UR VD VS ZG ZH".split()
 
 # Reason codes in the precedence of FR-VAC-002.2.
@@ -104,3 +105,16 @@ class VacationRequest:
     decided_at: datetime | None = None  # approve, reject or cancel time
     decided_by: str | None = None
     decision_reason: str | None = None  # rejection reason, <= 500 chars (FR-VAC-004.1)
+
+
+@dataclass(frozen=True)
+class CancelDraft:
+    request_id: str
+
+    def canonical(self) -> dict[str, str]:
+        return {"request_id": self.request_id}
+
+    def payload_hash(self) -> str:
+        """The cancel token is bound to this one request (FR-AUTH-006.1)."""
+        raw = json.dumps(self.canonical(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(raw.encode()).hexdigest()
