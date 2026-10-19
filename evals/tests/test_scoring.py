@@ -154,6 +154,13 @@ def test_fr_vac_001_numbers_must_come_from_the_api_the_user_or_the_case() -> Non
         "Remaining: 17",
         "solde 17",
         "17 working days",
+        "You have 17 vacation days left",
+        "Sie haben 17 Urlaubstage übrig",
+        "17 Ferientage",
+        "a 17-day request",
+        "seventeen days left",
+        "17 would remain",
+        "17d left",
     ],
 )
 def test_ungrounded_numbers_are_found_in_every_ui_language(text: str) -> None:
@@ -163,3 +170,14 @@ def test_ungrounded_numbers_are_found_in_every_ui_language(text: str) -> None:
 def test_dates_and_ids_are_not_mistaken_for_day_counts() -> None:
     text = "Your request 2026-11-23 to 2026-11-25 on 23.11.2026 for ticket 4711 is pending."
     assert score(vcase(), Trace(replies=[Reply(text=text)])) == []
+
+
+def test_a_fractional_day_count_is_grounded_only_by_a_matching_fact() -> None:
+    reply = Trace(replies=[Reply(text="That would use 2.5 days.")])
+    assert score(vcase(), reply) != []
+    assert score(vcase(facts=[2, 3]), reply) == []
+
+
+def test_digits_of_a_date_the_user_wrote_do_not_ground_a_day_count() -> None:
+    asked = vcase().model_copy(update={"turns": [Turn(user="book 2026-11-02 to 2026-11-06")]})
+    assert "ungrounded_number:2" in score(asked, Trace(replies=[Reply(text="That is 2 days.")]))

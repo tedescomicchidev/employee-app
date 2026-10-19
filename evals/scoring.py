@@ -62,22 +62,44 @@ SPECS: dict[str, AgentSpec] = {
 }
 KNOWN_TOOLS = SPECS["comms"].tools  # kept for callers written before the vacation agent
 
-# "5 days", "5 Arbeitstage", "3 jours", "22 giorni", and "remaining: 22", "solde 17", "left 3".
-_DAYS = re.compile(
-    r"(?<![\d.-])(\d{1,3})(?![\d-])\s*(?:working\s+|business\s+)?"
-    r"(?:days?|Tage[n]?|Arbeitstage[n]?|jours?|giorni|giorno)\b",
-    re.I,
+_WORDS = {
+    w: n
+    for n, w in enumerate(
+        "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen "
+        "fifteen sixteen seventeen eighteen nineteen twenty".split()
+    )
+}
+_NUM = r"(?<![\d.,-])(\d{1,3}(?:[.,]\d)?)(?![\d])"
+_UNIT = (
+    r"(?:(?:working|business|vacation|holiday|leave|work)\s+)?"
+    r"(?:days?|d\b|\w*tage[n]?|jours?|giorni|giorno)\b"
 )
+# "5 days", "5-day", "5 vacation days", "5 Urlaubstage", "2.5 jours", "17d", "17 giorni".
+_DAYS = re.compile(_NUM + r"[\s-]*" + _UNIT, re.I)
+# "remaining: 22", "solde 17", "balance is 3", and "17 would remain", "3 left", "17 übrig".
 _BALANCE = re.compile(
-    r"\b(?:remaining|left|balance|übrig|saldo|restant\w*|solde|rimast\w*)\b\D{0,15}"
-    r"(?<![\d.-])(\d{1,3})(?![\d-])",
+    r"\b(?:remaining|left|balance|übrig|saldo|restant\w*|solde|rimast\w*|rest)\b\D{0,15}" + _NUM,
     re.I,
 )
+_AFTER = re.compile(
+    _NUM + r"\s+(?:\w+\s+){0,2}(?:remain\w*|left|übrig|restent|restano|rimangono|reste\b)", re.I
+)
+_WORD_DAYS = re.compile(r"\b(" + "|".join(_WORDS) + r")[\s-]+" + _UNIT, re.I)
+
+
+def _numbers(text: str) -> set[int]:
+    """Day counts and balances a text states (whole numbers; 2.5 is reported as 2 and 3)."""
+    found: set[int] = set()
+    for pattern in (_DAYS, _BALANCE, _AFTER):
+        for raw in pattern.findall(text):
+            whole = float(raw.replace(",", "."))
+            found |= {int(whole), int(whole + 0.5)} if whole != int(whole) else {int(whole)}
+    found |= {_WORDS[w.lower()] for w in _WORD_DAYS.findall(text)}
+    return found
 
 
 def ungrounded_numbers(text: str, allowed: set[int]) -> list[int]:
-    found = {int(m) for pattern in (_DAYS, _BALANCE) for m in pattern.findall(text)}
-    return sorted(found - allowed)
+    return sorted(_numbers(text) - allowed)
 
 
 def score(case: Case, trace: Trace) -> list[str]:
@@ -100,7 +122,8 @@ def score(case: Case, trace: Trace) -> list[str]:
             failures.append(f"{kind}_claim_without_success")
     if trace.created and not trace.confirmed:
         failures.append("unconfirmed_write")
-    user_numbers = {int(n) for t in case.turns for n in re.findall(r"\d+", t.user or "")}
+    # Only counts the user themselves stated ("is 17 days enough?"), not the digits of dates.
+    user_numbers = set().union(*(_numbers(t.user or "") for t in case.turns))
     allowed = set(trace.facts) | set(expect.facts) | user_numbers
     failures += [f"ungrounded_number:{n}" for n in ungrounded_numbers(text, allowed)]
 

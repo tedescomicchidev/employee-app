@@ -58,7 +58,7 @@ REQUIRED_SCENARIOS = {
         "Status question",
     ],
 }
-INJECTION_VARIANTS = {"comms": 5, "vacation": 0}  # rows of an "Injection variants" outline
+INJECTION_VARIANTS = {"comms": 5, "vacation": 2}  # rows of an "Injection variants" outline
 # The cases the vacation brief names that test-cases.md covers under other IDs (all must exist).
 REQUIRED_CASE_IDS = {
     "vacation": [
@@ -350,7 +350,7 @@ class HttpDriver:
         return rows
 
     def facts(self, persona: Persona, proposal_id: str | None) -> list[int]:
-        """The numbers the api holds: the balance, and the review of the stored proposal."""
+        """The api's numbers: balance, own requests, inbox and the stored proposal review."""
         found: set[int] = set()
 
         def collect(value: Any) -> None:
@@ -363,6 +363,12 @@ class HttpDriver:
                     collect(item)
 
         collect(self._call("GET", "/v1/vacation/balance", persona))
+        # What a faithful status, overlap or history answer quotes: the persona's own requests.
+        for item in self._call("GET", "/v1/vacation/requests", persona)["items"]:
+            collect({k: item.get(k) for k in ("counted_days", "per_year")})
+        if persona in ("mgr1", "mgr2", "ceo"):
+            for item in self._call("GET", "/v1/vacation/inbox", persona)["items"]:
+                collect({k: item.get(k) for k in ("counted_days", "per_year")})
         if proposal_id:
             try:
                 collect(self._call("GET", f"/v1/proposals/{proposal_id}", persona).get("review"))

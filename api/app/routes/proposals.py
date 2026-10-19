@@ -5,7 +5,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 
 from app.announcements.service import AnnouncementService
-from app.auth.errors import ApiError, FieldError
+from app.auth.errors import FieldError
 from app.auth.principal import Principal, Role, authorize, current_principal
 from app.repositories import Proposal
 from app.routes.announcements import Body, _draft
@@ -87,11 +87,8 @@ def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[
     The proposal's own action says which domain it belongs to; announcements stay the default.
     """
     vacation: VacationService = request.app.state.vacation_service
-    try:
-        proposal = vacation.get_proposal(principal, proposal_id)
-    except ApiError:
-        proposal = None
-    if proposal is not None:
+    if vacation.find_proposal(proposal_id) is not None:
+        proposal = vacation.get_proposal(principal, proposal_id)  # owner-only, else NOT_FOUND
         return vacation_card(vacation, principal, proposal)
     announcements: AnnouncementService = request.app.state.announcement_service
     result = announcements.get_proposal(principal, proposal_id)

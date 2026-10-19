@@ -367,13 +367,15 @@ def build_mcp_server(app: FastAPI) -> FastMCP:
         def run(p: Principal) -> dict[str, Any]:
             draft = parse_draft({"start": start, "end": end})
             result = vacation().propose(p, draft)
-            return {
-                "status": "awaiting_user_confirmation",
-                "proposal_id": result.proposal.id,
-                "payload": draft.canonical(),
-                "review": review_json(result.review),
-                "expires_at": result.proposal.expires_at.isoformat(),
-            }
+            return _untrusted(
+                {
+                    "status": "awaiting_user_confirmation",
+                    "proposal_id": result.proposal.id,
+                    "payload": draft.canonical(),
+                    "review": review_json(result.review),
+                    "expires_at": result.proposal.expires_at.isoformat(),
+                }
+            )
 
         return audited("propose_vacation_request", run)
 
@@ -403,12 +405,14 @@ def build_mcp_server(app: FastAPI) -> FastMCP:
 
         def run(p: Principal) -> dict[str, Any]:
             result = vacation().propose_cancel(p, request_id)
-            return {
-                "status": "awaiting_user_confirmation",
-                "proposal_id": result.proposal.id,
-                "request": request_json(result.request),
-                "expires_at": result.proposal.expires_at.isoformat(),
-            }
+            return _untrusted(
+                {
+                    "status": "awaiting_user_confirmation",
+                    "proposal_id": result.proposal.id,
+                    "request": request_json(result.request),
+                    "expires_at": result.proposal.expires_at.isoformat(),
+                }
+            )
 
         return audited("propose_cancel", run)
 
@@ -418,7 +422,7 @@ def build_mcp_server(app: FastAPI) -> FastMCP:
 
         def run(p: Principal) -> dict[str, Any]:
             cancelled = vacation().cancel(p, request_id, confirmation_token or None)
-            return {"status": "cancelled", **request_json(cancelled)}
+            return _untrusted({"status": "cancelled", **request_json(cancelled)})
 
         return audited("cancel_vacation_request", run)
 

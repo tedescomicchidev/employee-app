@@ -65,9 +65,9 @@ def test_vacation_confirm_card_is_server_rendered_and_owner_only(env: VacEnv) ->
     assert body["type"] == "vacation" and body["payload"] == RANGE
     assert body["review"] == proposal["review"]
     assert card(env, EMP1, proposal["proposal_id"]).json() == body  # stable
-    # Not the owner: the same answer as an unknown id (here the announcement lookup's 403).
+    # Not the owner: the same answer as an unknown id.
     other = card(env, "00000000-0000-0000-0000-000000000012", proposal["proposal_id"])
-    assert other.status_code == 403
+    assert other.status_code == 404
 
 
 def test_vacation_cancel_and_decision_cards_show_the_request(env: VacEnv) -> None:
@@ -81,7 +81,7 @@ def test_vacation_cancel_and_decision_cards_show_the_request(env: VacEnv) -> Non
     )
     shown = card(env, MGR1, decision["proposal_id"]).json()
     assert shown["type"] == "vacation_decision" and shown["payload"]["decision"] == "approve"
-    assert card(env, EMP1, decision["proposal_id"]).status_code == 403  # not the approver's card
+    assert card(env, EMP1, decision["proposal_id"]).status_code == 404  # not the approver's card
 
 
 def test_vacation_confirmation_reaches_the_agent_with_the_stored_draft(env: VacEnv) -> None:
@@ -141,18 +141,52 @@ def test_a_claimed_write_is_only_believed_after_the_tool_succeeded(
     assert turn(env, EMP1).json()["reply"]["kind"] == kind
 
 
-def test_vacation_reply_shapes(env: VacEnv) -> None:
-    """FR-VAC-002 @agent-eval: proposals and options carry ids and dates, never numbers."""
+def test_vacation_reply_shapes_are_grounded_in_the_callers_stored_proposals(env: VacEnv) -> None:
+    """FR-VAC-002 @agent-eval: ids must be the caller's own, and option dates come from the api."""
     foundry: FakeFoundry = env.foundry  # type: ignore[attr-defined]
-    foundry.response = reply({"kind": "proposal", "text": "Review", "proposal_id": PROPOSAL})
-    assert turn(env, EMP1).json()["reply"]["proposal_id"] == PROPOSAL
+    emp2 = "00000000-0000-0000-0000-000000000012"  # 20 days left; emp1 has 3
+    _, mon = env.tool(emp2, "propose_vacation_request", RANGE)
+    _, fri = env.tool(
+        emp2, "propose_vacation_request", {"start": "2026-11-23", "end": "2026-11-27"}
+    )
+    _, theirs = env.tool(
+        EMP1, "propose_vacation_request", {"start": "2026-12-01", "end": "2026-12-02"}
+    )
+    mine, other = mon["proposal_id"], theirs["proposal_id"]
+
+    foundry.response = reply({"kind": "proposal", "text": "Review", "proposal_id": mine})
+    assert turn(env, emp2).json()["reply"]["proposal_id"] == mine
+    for bad in (PROPOSAL, other):  # unknown, and another user's
+        foundry.response = reply({"kind": "proposal", "text": "Review", "proposal_id": bad})
+        assert turn(env, emp2).json()["reply"]["kind"] == "message"
     foundry.response = reply({"kind": "proposal", "text": "no id"})
-    assert turn(env, EMP1).json()["reply"]["kind"] == "message"
-    options = [{"proposal_id": PROPOSAL, "start": "2026-11-23", "end": "2026-11-25", "days": 99}]
-    foundry.response = reply({"kind": "options", "text": "Two choices", "options": options})
-    (option,) = turn(env, EMP1).json()["reply"]["options"]
-    assert option == {"proposal_id": PROPOSAL, "start": "2026-11-23", "end": "2026-11-25"}
+    assert turn(env, emp2).json()["reply"]["kind"] == "message"
+
+    # The model labels the Mon-Fri id as Mon-Wed (and adds a number); the api corrects the dates.
+    lies = [
+        {"proposal_id": mine, "start": "2026-11-23", "end": "2026-11-25", "days": 99},
+        {"proposal_id": fri["proposal_id"], "start": "2026-11-23", "end": "2026-11-25"},
+        {"proposal_id": other, "start": "2026-12-01", "end": "2026-12-02"},
+    ]
+    foundry.response = reply({"kind": "options", "text": "Choices", "options": lies})
+    options = turn(env, emp2).json()["reply"]["options"]
+    assert options == [
+        {"proposal_id": mine, "start": "2026-11-23", "end": "2026-11-25"},
+        {"proposal_id": fri["proposal_id"], "start": "2026-11-23", "end": "2026-11-27"},
+    ]  # the foreign id is dropped
+    foundry.response = reply({"kind": "options", "text": "none", "options": lies[2:]})
+    assert turn(env, emp2).json()["reply"]["kind"] == "message"
     foundry.response = reply({"kind": "options", "text": "none", "options": []})
-    assert turn(env, EMP1).json()["reply"]["kind"] == "message"
+    assert turn(env, emp2).json()["reply"]["kind"] == "message"
     foundry.response = reply({"kind": "published", "text": "comms kind"})
-    assert turn(env, EMP1).json()["reply"]["kind"] == "message"  # not a vacation kind
+    assert turn(env, emp2).json()["reply"]["kind"] == "message"  # not a vacation kind
+
+
+def test_an_options_id_must_be_a_vacation_request_proposal(env: VacEnv) -> None:
+    """A cancel proposal id cannot be offered as a range option."""
+    request = env.book(EMP1, RANGE["start"], RANGE["end"])
+    _, cancel = env.tool(EMP1, "propose_cancel", {"request_id": request["id"]})
+    option = {"proposal_id": cancel["proposal_id"], "start": "2026-11-23", "end": "2026-11-25"}
+    foundry: FakeFoundry = env.foundry  # type: ignore[attr-defined]
+    foundry.response = reply({"kind": "options", "text": "x", "options": [option]})
+    assert turn(env, EMP1).json()["reply"]["kind"] == "message"

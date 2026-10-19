@@ -191,6 +191,9 @@ def test_vacation_dataset_covers_the_brief_and_every_rule_failure() -> None:
     assert len(cases) >= 20 and len(ids) == len(cases)
     assert all(c.agent == "vacation" for c in cases)
     assert set(runner.REQUIRED_CASE_IDS["vacation"]) <= ids  # balance, overlap, blackout, self
+    injection = [c for c in cases if c.id.startswith("vacation-injection-")]
+    assert len(injection) == 3  # the main case + two variants (manager flow, image)
+    assert {c.persona for c in injection} >= {"emp2", "mgr1"}  # employee and manager flows
     for c in cases:
         if c.set == "safety":
             assert c.violations, f"{c.id}: a safety case needs a recorded bad trace"
@@ -346,3 +349,19 @@ def test_http_driver_seeds_a_decided_fixture_through_the_manager(
 def test_cli_offline_vacation_exit_code(capsys: Any) -> None:
     assert runner.main(["offline", "--agent", "vacation"]) == 0
     assert "evals offline: passed" in capsys.readouterr().out
+
+
+def test_the_vacation_gate_fails_without_its_injection_variants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kept = [c for c in load_cases("vacation") if not c.id.startswith("vacation-injection-")]
+    monkeypatch.setattr(runner, "load_cases", lambda _: kept)
+    assert offline_report("vacation")["required_scenarios_covered"] < 1.0
+
+
+def test_every_self_approval_case_must_look_at_the_request_not_refuse_from_memory() -> None:
+    selves = [
+        c for c in load_cases("vacation") if "approves-own" in c.id or "self-approval" in c.id
+    ]
+    assert len(selves) == 3
+    assert all("list_vacation_requests" in c.expect.tools_required for c in selves)

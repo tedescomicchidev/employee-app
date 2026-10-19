@@ -203,6 +203,17 @@ class VacationService:
         self._confirmations.save_proposal(proposal)
         return ProposalResult(proposal, review)
 
+    def find_proposal(self, proposal_id: str) -> Proposal | None:
+        """The stored proposal if it is a vacation one (any owner); callers still authorize."""
+        proposal = self._confirmations.get_proposal(proposal_id)
+        if proposal is not None and proposal.action in (
+            ACTION_REQUEST,
+            ACTION_CANCEL,
+            ACTION_DECIDE,
+        ):
+            return proposal
+        return None
+
     def get_proposal(self, principal: Principal, proposal_id: str) -> Proposal:
         """What the confirm card shows: the caller's own unexpired proposal, else NOT_FOUND."""
         self._employee(principal)

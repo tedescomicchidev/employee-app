@@ -15,6 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.vacation.models import ACTION_REQUEST
+
 PUBLISH_TOOL = "publish_announcement"
 # A reply kind that claims a write is believed only if this turn really made that tool call.
 CLAIM_TOOLS: dict[str, dict[str, str]] = {
@@ -170,6 +172,43 @@ def parse_reply(response: dict[str, Any], agent: str = "comms") -> AgentReply | 
         return model(kind="message", text=reply.text)
     if isinstance(reply, VacationReply) and reply.kind == "options" and not reply.options:
         return VacationReply(kind="message", text=reply.text)
+    return reply
+
+
+def ground_vacation_reply(reply: VacationReply, service: Any, principal: Any) -> VacationReply:
+    """Tie the reply to what the api stored for this user (FR-VAC-002).
+
+    A proposal id must be the caller's own, unexpired proposal. Option dates are copied from the
+    stored draft, never from the model, so a chooser cannot show one range over another's id.
+    Anything that does not resolve downgrades the reply to a plain message.
+    """
+
+    def stored(proposal_id: UUID | None, action: str | None = None) -> Any:
+        if proposal_id is None:
+            return None
+        try:
+            proposal = service.get_proposal(principal, str(proposal_id))
+        except Exception:  # ApiError: unknown, someone else's or expired look the same
+            return None
+        return proposal if action is None or proposal.action == action else None
+
+    if reply.kind == "proposal" and stored(reply.proposal_id) is None:
+        return VacationReply(kind="message", text=reply.text)
+    if reply.kind == "options":
+        grounded = []
+        for option in reply.options:
+            proposal = stored(option.proposal_id, ACTION_REQUEST)
+            if proposal is not None:
+                grounded.append(
+                    VacationOption(
+                        proposal_id=option.proposal_id,
+                        start=proposal.draft.start,
+                        end=proposal.draft.end,
+                    )
+                )
+        if not grounded:
+            return VacationReply(kind="message", text=reply.text)
+        return reply.model_copy(update={"options": grounded})
     return reply
 
 

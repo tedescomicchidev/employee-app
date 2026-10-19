@@ -10,6 +10,8 @@ from app.agents.turns import (
     AgentRunLog,
     TurnRateLimiter,
     TurnRequest,
+    VacationReply,
+    ground_vacation_reply,
     parse_reply,
     run_record,
     tool_trace,
@@ -78,7 +80,10 @@ def agent_turn(
         raise ApiError(status, "AGENT_UNAVAILABLE", "The assistant could not be reached") from exc
     log: AgentRunLog = state.agent_runs
     log.runs.append(run_record(response, run_id, round((time.perf_counter() - started) * 1000)))
+    reply = parse_reply(response, agent)
+    if isinstance(reply, VacationReply):
+        reply = ground_vacation_reply(reply, state.vacation_service, principal)
     return {
-        "reply": parse_reply(response, agent).model_dump(mode="json"),
+        "reply": reply.model_dump(mode="json"),
         "tool_calls": tool_trace(response),
     }
