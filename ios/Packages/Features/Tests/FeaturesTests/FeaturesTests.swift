@@ -114,6 +114,39 @@ struct AppModelTests {
         await #expect(throws: AuthError.interactionRequired) { try await stub.accessToken() }
     }
 
+    @Test("FR-AUTH-005: returning to the foreground with a dead refresh token opens re-sign-in")
+    func foregroundCheck() async {
+        let (model, stub) = makeModel(.employee, signedIn: true)
+        await model.start()
+        await model.checkSession()
+        #expect(!model.needsReauth)
+        await stub.expireSession()
+        await model.checkSession()
+        #expect(model.needsReauth)
+        #expect(model.session != nil)
+    }
+
+    @Test("FR-AUTH-005: sign-out clears local state even when removing the account fails, and says so")
+    func signOutFailureStillClears() async {
+        struct FailingSignOut: AuthService {
+            func hasCachedAccount() async -> Bool { true }
+            func signIn() async throws {}
+            func accessToken() async throws -> String { "t" }
+            func signOut() async throws { throw AuthError.failed(.generic) }
+        }
+        let stub = StubAuthService(scenario: .employee, signedIn: true)
+        let drafts = DraftStore()
+        let cleaner = SessionCleaner()
+        await cleaner.register { await drafts.clear() }
+        await drafts.save(["title": "x"], key: "k")
+        let model = AppModel(auth: FailingSignOut(), me: stub, cleaner: cleaner)
+        await model.start()
+        await model.signOut()
+        #expect(model.phase == .signedOut)
+        #expect(model.issue == .failed)
+        #expect(await drafts.draft(key: "k") == nil)
+    }
+
     @Test("FR-AUTH-005: offline reload keeps the cached session and flags offline")
     func offlineReload() async {
         actor FlakyMe: MeService {

@@ -158,6 +158,19 @@ struct PublishModelTests {
         #expect(model.draft.title == "Store hours")
     }
 
+    @Test("FR-AUTH-005: a 401 from the API (revoked token) opens re-sign-in and keeps the draft")
+    func revokedToken() async {
+        let service = FakeService()
+        await service.fail(propose: .unauthenticated)
+        let counter = Counter()
+        let model = make(service, reauth: { counter.bump() })
+        await model.review()
+        #expect(counter.value == 1)
+        #expect(model.draft.title == "Store hours")
+        guard case .published = model.phase else { return }
+        Issue.record("must not publish")
+    }
+
     @Test("FR-AUTH-005: draft is stored for re-sign-in and restored")
     func draftPreserved() async {
         let drafts = DraftStore()

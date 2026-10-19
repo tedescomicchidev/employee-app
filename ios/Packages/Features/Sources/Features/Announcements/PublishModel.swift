@@ -242,8 +242,7 @@ public final class PublishModel {
         do {
             token = try await accessToken()
         } catch AuthError.interactionRequired {
-            onReauthNeeded()
-            throw AnnouncementError.unauthenticated
+            throw AnnouncementError.unauthenticated  // handle() opens the sheet
         } catch AuthError.offline {
             throw AnnouncementError.offline
         } catch {
@@ -257,7 +256,10 @@ public final class PublishModel {
         switch error {
         case .offline: failure = .offline
         case .forbidden: failure = .forbidden
-        case .unauthenticated: failure = nil
+        case .unauthenticated:
+            // A 401 from the API (revoked token) behaves like a failed silent refresh; the draft stays.
+            failure = nil
+            onReauthNeeded()
         case let .validation(field): fieldError = field
         case .invalidConfirmation:
             confirmationToken = nil
