@@ -105,7 +105,7 @@ public enum AnnouncementAutopilot: String, Sendable {
 public enum VacationAutopilot: String, Sendable {
     case requestOK, requestOverlap, reviewOK, reviewInsufficient, reviewSuccess, holidays, mine, detail, cancelDialog
     /// Manager screens: the inbox, a decision, the reject sheet, an approval that fails.
-    case inbox, decision, rejectReason, approveConfirmed
+    case inbox, decision, rejectReason, approveConfirmed, team
 
     /// The dates the autopilot selects, as ISO strings.
     var range: (String, String)? {
@@ -113,7 +113,7 @@ public enum VacationAutopilot: String, Sendable {
         case .requestOK, .reviewOK, .reviewSuccess: ("2026-12-28", "2027-01-05")
         case .requestOverlap: ("2026-11-11", "2026-11-13")
         case .reviewInsufficient: ("2026-11-23", "2026-12-11")
-        case .holidays, .mine, .detail, .cancelDialog, .inbox, .decision, .rejectReason, .approveConfirmed: nil
+        case .holidays, .mine, .detail, .cancelDialog, .inbox, .decision, .rejectReason, .approveConfirmed, .team: nil
         }
     }
 }

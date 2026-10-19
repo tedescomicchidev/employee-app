@@ -140,6 +140,24 @@ struct VacationRESTTests {
             code: "BLACKOUT", range: DayRange(start: CalendarDay(iso: "2026-11-10")!, end: CalendarDay(iso: "2026-11-13")!))], review: nil))
     }
 
+    @Test("FR-VAC-005: coverage days, absences and their requests are decoded; FORBIDDEN maps")
+    func coverage() async throws {
+        let body = """
+        {"start":"2026-11-02","end":"2026-11-06","days":[{"date":"2026-11-04","present":2,"total":4,
+        "absent":[{"request_id":"a","name":"Lena Meier","status":"approved","start":"2026-11-02","end":"2026-11-06"},
+        {"request_id":"b","name":"Tim Berger","status":"pending","start":"2026-11-04","end":"2026-11-04"}]}]}
+        """
+        let days = try await service(200, body).coverage(
+            start: CalendarDay(iso: "2026-11-02"), end: CalendarDay(iso: "2026-11-06"), accessToken: "t")
+        #expect(days.count == 1 && days[0].present == 2 && days[0].total == 4)
+        #expect(days[0].absent.map(\.status) == [.approved, .pending] && days[0].absent[1].name == "Tim Berger")
+        do {
+            _ = try await service(403, #"{"code":"FORBIDDEN","message":"x"}"#)
+                .coverage(start: nil, end: nil, accessToken: "t")
+            Issue.record("expected FORBIDDEN")
+        } catch { #expect(error as? VacationError == .forbidden) }
+    }
+
     @Test("FR-VAC-002.2: every failing code arrives in order, with the blocked review")
     func rules() async throws {
         let body = """

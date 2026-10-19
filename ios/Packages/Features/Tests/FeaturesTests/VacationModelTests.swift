@@ -34,6 +34,8 @@ private actor FakeVacation: VacationService {
     var confirmDecisionErrors: [VacationError] = []
     var decideErrors: [VacationError] = []
     var decisions: [(decision: VacationDecision, reason: String?, token: String)] = []
+    var coverageResult: Result<[CoverageDay], VacationError> = .success([])
+    var coverageCalls: [(CalendarDay?, CalendarDay?)] = []
     var minted = 0
 
     func set(balance result: Result<VacationBalance, VacationError>) { balanceResult = result }
@@ -44,6 +46,7 @@ private actor FakeVacation: VacationService {
     func set(request result: Result<VacationRequestSummary, VacationError>) { requestResult = result }
     func failCancel(_ errors: [VacationError]) { cancelErrors = errors }
     func set(inbox result: Result<[VacationRequestSummary], VacationError>) { inboxResult = result }
+    func set(coverage result: Result<[CoverageDay], VacationError>) { coverageResult = result }
     func failConfirmDecision(_ errors: [VacationError]) { confirmDecisionErrors = errors }
     func failDecide(_ errors: [VacationError]) { decideErrors = errors }
 
@@ -104,6 +107,11 @@ extension FakeVacation {
 }
 
 extension FakeVacation {
+    func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) throws -> [CoverageDay] {
+        calls.append("coverage")
+        coverageCalls.append((start, end))
+        return try coverageResult.get()
+    }
     func inbox(accessToken: String) throws -> [VacationRequestSummary] {
         calls.append("inbox")
         return try inboxResult.get()
@@ -670,7 +678,7 @@ struct DecisionModelTests {
         #expect(model.isConfirmingApprove)
         await model.confirmApprove()
         #expect(model.request?.status == .approved && model.notice == .decided(.approved) && !model.canDecide)
-        #expect(await service.calls == ["request", "confirmDecision", "decide"] && changed == 1)
+        #expect(await service.calls == ["request", "coverage", "confirmDecision", "decide"] && changed == 1)
         try await flush()
         let events = await sink.events
         #expect(events.map(\.event) == [.taskStarted, .confirmShown, .confirmAccepted, .taskCompleted])
@@ -885,5 +893,161 @@ struct ManagerInboxModelTests {
         try await flush()
         let names = await sink.events.map(\.event)
         #expect(names == [.taskStarted, .taskCompleted, .taskStarted])
+    }
+}
+
+private func absence(_ id: String, _ name: String, _ status: VacationStatus, _ start: String, _ end: String)
+    -> CoverageAbsence
+{
+    CoverageAbsence(requestId: id, name: name, status: status, start: day(start), end: day(end))
+}
+
+private func coverageDay(_ iso: String, present: Int = 6, absent: [CoverageAbsence] = []) -> CoverageDay {
+    CoverageDay(day: day(iso), present: present, total: 6, absent: absent)
+}
+
+@MainActor
+private func team(_ service: FakeVacation, sink: MemoryEventSink = MemoryEventSink()) -> TeamCoverageModel {
+    TeamCoverageModel(
+        service: service, access: access(), today: day("2026-10-19"),
+        makeFlow: {
+            TaskFlow(
+                taskId: "T-VAC-COV", feature: "vac", mode: .classic, context: TaskContext(participantId: UUID()),
+                sink: sink)
+        }, now: { fixtureNow })
+}
+
+@MainActor
+@Suite("FR-VAC-005 team coverage")
+struct TeamCoverageModelTests {
+    private let lena = absence("a", "Lena Meier", .pending, "2026-11-09", "2026-11-12")
+    private let tim = absence("b", "Tim Berger", .approved, "2026-11-11", "2026-11-13")
+
+    @Test("FR-VAC-005.1: the default range is the next four weeks, asked of the API as such")
+    func defaultRange() async {
+        let service = FakeVacation()
+        let model = team(service)
+        #expect(model.start == day("2026-10-19") && model.end == day("2026-11-15"))
+        await model.begin()
+        let call = await service.coverageCalls.first
+        #expect(call?.0 == day("2026-10-19") && call?.1 == day("2026-11-15"))
+    }
+
+    @Test("FR-VAC-005.1: days are grouped per ISO week; each absence is listed once per week")
+    func weeks() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([
+            coverageDay("2026-11-09", present: 5, absent: [lena]),
+            coverageDay("2026-11-10", present: 5, absent: [lena]),
+            coverageDay("2026-11-11", present: 4, absent: [lena, tim]),
+            coverageDay("2026-11-12", present: 4, absent: [lena, tim]),
+            coverageDay("2026-11-13", present: 5, absent: [tim]),
+            coverageDay("2026-11-16"),
+        ]))
+        let model = team(service)
+        await model.begin()
+        #expect(model.weeks.map(\.number) == [46, 47])
+        #expect(model.weeks[0].days.count == 5 && model.weeks[0].absences.map(\.name) == ["Lena Meier", "Tim Berger"])
+        #expect(model.weeks[1].absences.isEmpty && !model.isEmpty)
+    }
+
+    @Test("FR-VAC-005 (E): no absence in the range is the empty state")
+    func empty() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([coverageDay("2026-11-09"), coverageDay("2026-11-10")]))
+        let model = team(service)
+        await model.begin()
+        #expect(model.isEmpty)
+    }
+
+    @Test("FR-VAC-005.1: a chosen range is asked as chosen, capped at the API's 93 days, never reversed")
+    func rangeChange() async {
+        let service = FakeVacation()
+        let model = team(service)
+        await model.begin()
+        await model.setRange(start: day("2026-11-09"), end: day("2026-11-27"))
+        #expect(model.start == day("2026-11-09") && model.end == day("2026-11-27"))
+        await model.setRange(start: day("2026-11-09"), end: day("2026-01-01"))
+        #expect(model.end == model.start)
+        await model.setRange(start: day("2026-11-09"), end: day("2028-01-01"))
+        #expect(model.end == day("2026-11-09").addingDays(92))
+        #expect(await service.coverageCalls.count == 4)
+    }
+
+    @Test("FR-VAC-005.2 (403): a non-manager gets the forbidden state and the error is reported")
+    func forbidden() async throws {
+        let service = FakeVacation()
+        await service.set(coverage: .failure(.forbidden))
+        let sink = MemoryEventSink()
+        let model = team(service, sink: sink)
+        await model.begin()
+        #expect(model.state == .forbidden)
+        try await flush()
+        let events = await sink.events
+        #expect(events.map(\.event) == [.taskStarted, .taskError] && events.last?.code == "FORBIDDEN")
+    }
+
+    @Test("FR-VAC-005 (OFF): offline keeps the last result with an as-of time; none at all is an error")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([coverageDay("2026-11-09", present: 5, absent: [lena])]))
+        let model = team(service)
+        await model.begin()
+        await service.set(coverage: .failure(.offline))
+        await model.refresh()
+        #expect(model.days.count == 1 && model.offlineAsOf == fixtureNow)
+
+        let cold = FakeVacation()
+        await cold.set(coverage: .failure(.offline))
+        let first = team(cold)
+        await first.begin()
+        #expect(first.state == .error(code: "OFFLINE", correlationId: nil))
+    }
+
+    @Test("T-VAC-COV: started on open, completed once the API's numbers are shown, taps counted")
+    func events() async throws {
+        let sink = MemoryEventSink()
+        let model = team(FakeVacation(), sink: sink)
+        await model.begin()
+        try await flush()
+        let events = await sink.events
+        #expect(events.map(\.event) == [.taskStarted, .taskCompleted])
+        #expect(events.allSatisfy { $0.taskId == "T-VAC-COV" && $0.feature == "vac" })
+        #expect(events.last?.outcomeValid == true)
+    }
+
+    @Test("FR-VAC-005.3: the approver's detail shows the team on the request's days, without the request itself")
+    func presenceInDetail() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.set(coverage: .success([
+            coverageDay("2026-11-09", present: 5, absent: [absence("r1", "Lena Meier", .pending, "2026-11-09", "2026-11-12")]),
+            coverageDay("2026-11-11", present: 4, absent: [
+                absence("r1", "Lena Meier", .pending, "2026-11-09", "2026-11-12"), tim,
+            ]),
+        ]))
+        let (model, _) = approver(service)
+        await model.load()
+        #expect(model.presence.count == 2 && model.otherAbsences.map(\.name) == ["Tim Berger"])
+        let call = await service.coverageCalls.first
+        #expect(call?.0 == waiting.start && call?.1 == waiting.end)
+    }
+
+    @Test("FR-VAC-005.3: no coverage (error) leaves the strip out and the decision possible")
+    func presenceFailureIsHarmless() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.set(coverage: .failure(.failed(code: "INTERNAL", correlationId: nil)))
+        let (model, _) = approver(service)
+        await model.load()
+        #expect(model.presence.isEmpty && model.canDecide)
+    }
+
+    @Test("FR-VAC-005.2: the owner's own detail never asks for team data")
+    func ownerNeverLoadsCoverage() async {
+        let service = FakeVacation()
+        let model = RequestDetailModel(id: "r1", seed: nil, service: service, access: access())
+        await model.load()
+        #expect(await service.calls == ["request"] && model.presence.isEmpty)
     }
 }

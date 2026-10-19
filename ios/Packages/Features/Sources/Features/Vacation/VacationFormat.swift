@@ -12,6 +12,10 @@ enum VacationFormat {
         day.date().formatted(style.weekday(.abbreviated).day())
     }
 
+    static func weekday(_ day: CalendarDay) -> String {
+        day.date().formatted(style.weekday(.abbreviated))
+    }
+
     static func short(_ day: CalendarDay) -> String {
         day.date().formatted(style.weekday(.abbreviated).day().month(.abbreviated))
     }

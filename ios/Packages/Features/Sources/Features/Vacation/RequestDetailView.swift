@@ -202,6 +202,25 @@ struct RequestDetailView: View {
                 .accessibilityIdentifier("detail.owner_balance")
             }
         }
+        if !model.presence.isEmpty {
+            DSGroupedSection(header: L10n.vacTeamPresenceHeader) {
+                VStack(alignment: .leading, spacing: DSSpacing.s) {
+                    CoverageChips(days: model.presence)
+                    if !model.otherAbsences.isEmpty {
+                        Text(L10n.vacTeamPresenceAlso(
+                            model.otherAbsences.map {
+                                L10n.vacTeamAlso(
+                                    name: $0.name, status: $0.status, range: VacationFormat.range($0.start, $0.end))
+                            }.joined(separator: " · ")))
+                            .font(DSFont.secondary).foregroundStyle(DSColor.ink2)
+                            .accessibilityIdentifier("detail.presence.also")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(DSSpacing.s)
+                .accessibilityIdentifier("detail.presence")
+            }
+        }
         if let reason = request.reason, !reason.isEmpty {
             DSGroupedSection {
                 field(L10n.vacDetailReason, reason, id: "reason")

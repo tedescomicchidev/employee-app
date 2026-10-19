@@ -124,6 +124,39 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
     }
 }
 
+/// One direct report's pending or approved request that covers a day (FR-VAC-005).
+public struct CoverageAbsence: Sendable, Equatable, Codable {
+    public let requestId: String
+    public let name: String
+    public let status: VacationStatus
+    public let start: CalendarDay
+    public let end: CalendarDay
+
+    public init(requestId: String, name: String, status: VacationStatus, start: CalendarDay, end: CalendarDay) {
+        self.requestId = requestId
+        self.name = name
+        self.status = status
+        self.start = start
+        self.end = end
+    }
+}
+
+/// A working day of the team: how many direct reports are present and who is not (FR-VAC-005.1).
+public struct CoverageDay: Sendable, Equatable, Codable, Identifiable {
+    public var id: CalendarDay { day }
+    public let day: CalendarDay
+    public let present: Int
+    public let total: Int
+    public let absent: [CoverageAbsence]
+
+    public init(day: CalendarDay, present: Int, total: Int, absent: [CoverageAbsence]) {
+        self.day = day
+        self.present = present
+        self.total = total
+        self.absent = absent
+    }
+}
+
 public struct VacationHoliday: Sendable, Equatable, Codable, Identifiable {
     public var id: CalendarDay { day }
     public let day: CalendarDay
@@ -291,6 +324,9 @@ public protocol VacationService: Sendable {
     func confirmDecision(
         id: String, decision: VacationDecision, reason: String?, accessToken: String
     ) async throws -> String
+    /// Present and absent direct reports per working day; `forbidden` for non-managers (FR-VAC-005).
+    /// A nil bound means the API default: from today for four weeks.
+    func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay]
     /// Final and idempotent on the confirmation token (FR-VAC-004.3).
     func decide(
         id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
@@ -365,6 +401,9 @@ public struct UnconfiguredVacationService: VacationService {
     public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
         -> VacationRequestSummary { throw Self.failure }
     public func inbox(accessToken: String) async throws -> [VacationRequestSummary] { throw Self.failure }
+    public func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay] {
+        throw Self.failure
+    }
     public func confirmDecision(
         id: String, decision: VacationDecision, reason: String?, accessToken: String
     ) async throws -> String { throw Self.failure }

@@ -19,6 +19,9 @@ public enum VacationStubScenario: String, Sendable, CaseIterable {
     case managerBlocked
     case managerForbidden
     case decideFails
+    /// The team coverage mockup: 6 direct reports, three weeks (FR-VAC-005).
+    case team
+    case teamEmpty
     case loading, offline, error, cantonMissing, submitFails, submitOffline
 }
 
@@ -58,7 +61,7 @@ public actor StubVacationService: VacationService {
             existing = []
         }
         switch scenario {
-        case .manager, .managerDecided, .managerBlocked, .decideFails: waiting = Self.managerInbox
+        case .manager, .managerDecided, .managerBlocked, .decideFails, .team: waiting = Self.managerInbox
         default: break
         }
     }
@@ -184,6 +187,40 @@ public actor StubVacationService: VacationService {
         }
         return found
     }
+
+    public func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay] {
+        try await gate()
+        if scenario == .managerForbidden { throw VacationError.forbidden }
+        let first = start ?? Self.today
+        let last = end ?? first.addingDays(27)
+        let absences: [CoverageAbsence] = scenario == .teamEmpty ? [] : Self.teamAbsences
+        var days: [CoverageDay] = []
+        var day = first
+        while day <= last, days.count < 100 {
+            if Calendar.zurich.component(.weekday, from: day.date()) % 7 > 1 {
+                let out = absences.filter { $0.start <= day && day <= $0.end }
+                days.append(CoverageDay(day: day, present: 6 - Set(out.map(\.name)).count, total: 6, absent: out))
+            }
+            day = day.addingDays(1)
+        }
+        return days
+    }
+
+    /// Mockup data: Lena (pending) and Tim (approved) in week 46, Anna in 47, Jonas Thu and Fri in 48.
+    private static let teamAbsences: [CoverageAbsence] = [
+        CoverageAbsence(
+            requestId: "m1", name: "Lena Meier", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 9),
+            end: CalendarDay(year: 2026, month: 11, day: 12)),
+        CoverageAbsence(
+            requestId: "t1", name: "Tim Berger", status: .approved, start: CalendarDay(year: 2026, month: 11, day: 11),
+            end: CalendarDay(year: 2026, month: 11, day: 13)),
+        CoverageAbsence(
+            requestId: "m2", name: "Anna Keller", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 16),
+            end: CalendarDay(year: 2026, month: 11, day: 20)),
+        CoverageAbsence(
+            requestId: "m3", name: "Jonas Brunner", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 26),
+            end: CalendarDay(year: 2026, month: 11, day: 27)),
+    ]
 
     public func inbox(accessToken: String) async throws -> [VacationRequestSummary] {
         try await gate()

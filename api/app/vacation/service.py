@@ -21,7 +21,7 @@ from app.auth.errors import (
     rule_violation,
     self_approval,
 )
-from app.auth.principal import Principal
+from app.auth.principal import Principal, Role, authorize
 from app.repositories import (
     ConfirmationStore,
     ConfirmationToken,
@@ -38,8 +38,10 @@ from app.vacation.models import (
     INSUFFICIENT_BALANCE,
     MAX_REASON,
     OVERLAP,
+    Absence,
     Balance,
     CancelDraft,
+    CoverageDay,
     DayCount,
     DecisionDraft,
     Holiday,
@@ -53,6 +55,8 @@ from app.vacation.store import VacationConfig, VacationStore
 log = logging.getLogger("app.vacation")
 _TOKEN_NAMESPACE = uuid.UUID("0b7c6f3e-8f0a-4b8e-9d57-5a7e2f4c9a11")
 ZURICH = ZoneInfo("Europe/Zurich")
+DEFAULT_COVERAGE_DAYS = 28  # next 4 weeks (FR-VAC-005.1)
+MAX_COVERAGE_DAYS = 93
 
 Clock = Callable[[], datetime]
 
@@ -327,6 +331,41 @@ class VacationService:
             token.request_id = request_id
             log.info("vacation request cancelled id=%s", request_id)
             return cancelled
+
+    # FR-VAC-005 ---------------------------------------------------------------------------
+
+    def coverage(
+        self, principal: Principal, start: date | None = None, end: date | None = None
+    ) -> list[CoverageDay]:
+        """Who is out per working day, for the caller's direct reports only (AC 1-2).
+
+        Same request data as FR-VAC-002/004: pending and approved requests count as absent,
+        pending ones are marked. No sick leave or health data exists in this model.
+        """
+        authorize(principal, Role.MANAGER)
+        self._employee(principal)
+        start = start or self.today()
+        end = end or start + timedelta(days=DEFAULT_COVERAGE_DAYS - 1)
+        if end < start:
+            raise FieldError("end", "not before start")
+        if (end - start).days >= MAX_COVERAGE_DAYS:
+            raise FieldError("end", f"at most {MAX_COVERAGE_DAYS} days")
+        reports = [e for e in self._directory.active() if e.manager_oid == principal.oid]
+        absences = [
+            (Absence(r.id, e.name, r.status, r.start, r.end), r)
+            for e in sorted(reports, key=lambda e: e.name)
+            for r in self._store.for_owner(e.oid)
+            if r.status in rules.BLOCKING and r.start <= end and start <= r.end
+        ]
+        days: list[CoverageDay] = []
+        day = start
+        while day <= end:
+            if day.weekday() < 5:
+                out = tuple(a for a, r in absences if r.start <= day <= r.end)
+                present = len(reports) - len({a.name for a in out})
+                days.append(CoverageDay(day, present, len(reports), out))
+            day += timedelta(days=1)
+        return days
 
     # FR-VAC-004 ---------------------------------------------------------------------------
 

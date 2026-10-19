@@ -8,7 +8,7 @@ import Foundation
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline>
-///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
+///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|team|teamEmpty|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -52,6 +52,9 @@ enum StubLaunch {
         "vacation-request_decision-reject_reason": (.manager, true),
         "vacation-request_decision-invalid_state": (.manager, true),
         "vacation-request_decision-blocked": (.manager, true),
+        "vacation-team_coverage-ok": (.manager, true),
+        "vacation-team_coverage-empty": (.manager, true),
+        "vacation-team_coverage-forbidden": (.manager, true),
         "vacation-holidays-ok": (.employee, true),
         "vacation-holidays-canton_missing": (.employee, true),
         "vacation-request-ok": (.employee, true),
@@ -79,6 +82,9 @@ enum StubLaunch {
         "vacation-request_decision-reject_reason": (.manager, .rejectReason),
         "vacation-request_decision-invalid_state": (.managerDecided, .approveConfirmed),
         "vacation-request_decision-blocked": (.managerBlocked, .approveConfirmed),
+        "vacation-team_coverage-ok": (.team, .team),
+        "vacation-team_coverage-empty": (.teamEmpty, .team),
+        "vacation-team_coverage-forbidden": (.managerForbidden, .team),
         "vacation-holidays-ok": (.populated, .holidays),
         "vacation-holidays-canton_missing": (.cantonMissing, .holidays),
         "vacation-request-ok": (.populated, .requestOK),
@@ -148,7 +154,7 @@ enum StubLaunch {
             vacation: StubVacationService(scenario: vacationFlow?.0 ?? vacationArgument ?? .ok),
             vacationCache: vacationCache, clock: { fixtureNow })
         environment.vacationAutopilot = vacationFlow?.1
-        let approvalAutopilots: [VacationAutopilot] = [.inbox, .decision, .rejectReason, .approveConfirmed]
+        let approvalAutopilots: [VacationAutopilot] = [.inbox, .decision, .rejectReason, .approveConfirmed, .team]
         let startOnApprovals = vacationFlow?.1.map(approvalAutopilots.contains) ?? false
             || argument("-startOnApprovals") == "YES"
         environment.startOnApprovals = startOnApprovals

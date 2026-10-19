@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from app.auth.principal import Principal, Role, authorize, current_principal
 from app.vacation.models import DayCount, VacationRequest
 from app.vacation.serialize import count_json, holiday_json
-from app.vacation.service import Review, VacationService, parse_draft
+from app.vacation.service import Review, VacationService, parse_date, parse_draft
 
 router = APIRouter(prefix="/v1/vacation")
 
@@ -132,6 +132,40 @@ def cancel_request(request_id: str, principal: Caller, service: Service, body: B
 def get_inbox(principal: Caller, service: Service) -> dict[str, Any]:
     authorize(principal, Role.MANAGER)
     return {"items": [_request(r) for r in service.inbox(principal)]}
+
+
+@router.get("/coverage")
+def get_coverage(
+    principal: Caller,
+    service: Service,
+    start: Annotated[str | None, Query()] = None,
+    end: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    first = parse_date("start", start) if start else None
+    last = parse_date("end", end) if end else None
+    days = service.coverage(principal, first, last)
+    return {
+        "start": (first or service.today()).isoformat(),
+        "end": days[-1].date.isoformat() if days else None,
+        "days": [
+            {
+                "date": d.date.isoformat(),
+                "present": d.present,
+                "total": d.total,
+                "absent": [
+                    {
+                        "request_id": a.request_id,
+                        "name": a.name,
+                        "status": a.status,
+                        "start": a.start.isoformat(),
+                        "end": a.end.isoformat(),
+                    }
+                    for a in d.absent
+                ],
+            }
+            for d in days
+        ],
+    }
 
 
 @router.get("/decisions")

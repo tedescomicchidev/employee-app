@@ -141,6 +141,19 @@ public struct URLSessionVacationService: VacationService {
         let proposalId: String
         enum CodingKeys: String, CodingKey { case proposalId = "proposal_id" }
     }
+    private struct AbsenceResponse: Decodable {
+        let requestId: String, name: String, status: String, start: String, end: String
+        enum CodingKeys: String, CodingKey {
+            case name, status, start, end
+            case requestId = "request_id"
+        }
+    }
+    private struct CoverageDayResponse: Decodable {
+        let date: String
+        let present: Int, total: Int
+        let absent: [AbsenceResponse]
+    }
+    private struct CoverageResponse: Decodable { let days: [CoverageDayResponse] }
     private struct Empty: Codable {}
 
     // MARK: VacationService
@@ -216,6 +229,24 @@ public struct URLSessionVacationService: VacationService {
     public func inbox(accessToken: String) async throws -> [VacationRequestSummary] {
         let r: RequestsResponse = try await send("GET", "v1/vacation/inbox", Optional<Empty>.none, accessToken)
         return try r.items.map(Self.summary)
+    }
+
+    public func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay] {
+        var query: [String] = []
+        if let start { query.append("start=\(start.iso)") }
+        if let end { query.append("end=\(end.iso)") }
+        let path = "v1/vacation/coverage" + (query.isEmpty ? "" : "?" + query.joined(separator: "&"))
+        let r: CoverageResponse = try await send("GET", path, Optional<Empty>.none, accessToken)
+        return try r.days.map { raw in
+            guard let day = CalendarDay(iso: raw.date) else { throw VacationError.failed(code: nil, correlationId: nil) }
+            let absent = try raw.absent.map { a -> CoverageAbsence in
+                guard let status = VacationStatus(rawValue: a.status), let from = CalendarDay(iso: a.start),
+                      let to = CalendarDay(iso: a.end)
+                else { throw VacationError.failed(code: nil, correlationId: nil) }
+                return CoverageAbsence(requestId: a.requestId, name: a.name, status: status, start: from, end: to)
+            }
+            return CoverageDay(day: day, present: raw.present, total: raw.total, absent: absent)
+        }
     }
 
     public func confirmDecision(

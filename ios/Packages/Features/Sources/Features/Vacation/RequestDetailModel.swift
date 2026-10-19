@@ -36,6 +36,8 @@ public final class RequestDetailModel {
     public private(set) var isCancelling = false
     public private(set) var isDeciding = false
     public private(set) var notice: Notice?
+    /// Team presence on the request's days, for the approver (FR-VAC-005.3); empty if unavailable.
+    public private(set) var presence: [CoverageDay] = []
     /// Drives the confirmation dialogs and the reject sheet.
     public var isConfirmingCancel = false
     public var isConfirmingApprove = false
@@ -96,11 +98,18 @@ public final class RequestDetailModel {
 
     public var reasonTooLong: Bool { reason.count > Self.maxReason }
 
+    /// Other direct reports' absences on these days, each request once, without this request.
+    public var otherAbsences: [CoverageAbsence] {
+        var seen = Set<String>([id])
+        return presence.flatMap(\.absent).filter { seen.insert($0.requestId).inserted }
+    }
+
     public func load() async {
         do {
             let fresh = try await access.call { [id] token in try await service.request(id: id, accessToken: token) }
             isOffline = false
             state = .content(fresh)
+            if role == .approver { await loadPresence(fresh) }
         } catch VacationError.notFound {
             state = .notFound
         } catch VacationError.offline {
@@ -116,6 +125,14 @@ public final class RequestDetailModel {
             if case .content = state { return }
             state = .error(code: nil, correlationId: nil)
         }
+    }
+
+    /// Same data as the team view (FR-VAC-005.3). It is context, not part of the decision: a failure
+    /// just leaves the strip out.
+    private func loadPresence(_ request: VacationRequestSummary) async {
+        presence = (try? await access.call { token in
+            try await service.coverage(start: request.start, end: request.end, accessToken: token)
+        }) ?? []
     }
 
     // MARK: Cancel (owner, FR-VAC-003)

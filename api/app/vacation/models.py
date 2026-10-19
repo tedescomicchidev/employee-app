@@ -135,3 +135,22 @@ class DecisionDraft:
         """The decide token is bound to the request, the decision and the reason (FR-AUTH-006.1)."""
         raw = json.dumps(self.canonical(), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class Absence:
+    """One direct report's pending or approved request that covers a day (FR-VAC-005.1)."""
+
+    request_id: str
+    name: str
+    status: str  # approved | pending
+    start: date
+    end: date
+
+
+@dataclass(frozen=True)
+class CoverageDay:
+    date: date
+    present: int
+    total: int
+    absent: tuple[Absence, ...]

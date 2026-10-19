@@ -188,6 +188,36 @@ final class ManagerDecisionTests: XCTestCase {
         XCTAssertTrue(approve.isEnabled)
     }
 
+    // FR-VAC-005.1: the Team segment shows present of total per day, absences named, pending marked
+    func testTeamCoverageShowsDaysAndAbsences() {
+        let app = launch(api: "team")
+        let segment = app.segmentedControls["approvals.segment"]
+        XCTAssertTrue(segment.waitForExistence(timeout: 10))
+        segment.buttons["Team"].tap()
+        let day = element(app, "team.day.2026-11-09")
+        XCTAssertTrue(day.waitForExistence(timeout: 10))
+        XCTAssertTrue(day.label.contains("5") && day.label.contains("6"))
+        XCTAssertTrue(element(app, "team.range").exists)
+    }
+
+    // FR-VAC-005.2 (403): a non-manager that reaches the team view gets the forbidden state
+    func testTeamCoverageForbidden() {
+        let app = launch(api: "managerForbidden")
+        app.segmentedControls["approvals.segment"].buttons["Team"].tap()
+        XCTAssertTrue(element(app, "team.forbidden").waitForExistence(timeout: 10))
+    }
+
+    // FR-VAC-005.3: the approval detail shows the team on the request's days and the other absences
+    func testDecisionDetailShowsTeamPresence() {
+        let app = launch(api: "team")
+        element(app, "inbox.row.m1").tap()
+        let presence = element(app, "detail.presence")
+        XCTAssertTrue(presence.waitForExistence(timeout: 10))
+        let also = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Tim Berger'")).firstMatch
+        XCTAssertTrue(also.waitForExistence(timeout: 5))
+        XCTAssertFalse(also.label.contains("Lena"), "the request itself is not listed as another absence")
+    }
+
     // FR-VAC-004 (E): nothing waiting
     func testEmptyInbox() {
         let app = launch(api: "managerEmpty")

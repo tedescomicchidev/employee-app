@@ -314,3 +314,84 @@ def test_fr_vac_004_detail_for_the_approver_includes_the_balance_only_for_them(e
     assert "owner_balance" not in env.get("emp2", f"/requests/{request_id}").json()
     assert env.get("mgr2", f"/requests/{request_id}").status_code == 404
     assert env.get("emp1", f"/requests/{request_id}").status_code == 404
+
+
+# FR-VAC-005 ------------------------------------------------------------------------------
+
+
+def day_row(body: dict[str, Any], iso: str) -> dict[str, Any]:
+    return next(d for d in body["days"] if d["date"] == iso)
+
+
+def test_fr_vac_005_manager_sees_direct_reports_only(env: Env) -> None:
+    """FR-VAC-005.1/.2 @api: emp2 approved 02-06, emp8 pending 04; counts cover mgr1's 4 reports."""
+    r = env.get("mgr1", "/coverage?start=2026-11-02&end=2026-11-06")
+    assert r.status_code == 200
+    body = r.json()
+    assert [d["date"] for d in body["days"]] == [f"2026-11-0{n}" for n in (2, 3, 4, 5, 6)]
+    assert {d["total"] for d in body["days"]} == {4}  # emp1, emp2, emp3, emp8
+    names = {d["date"]: sorted((a["name"], a["status"]) for a in d["absent"]) for d in body["days"]}
+    emp2 = env.directory.get(OIDS["emp2"]).name
+    emp8 = env.directory.get("00000000-0000-0000-0000-000000000018").name
+    assert names["2026-11-02"] == [(emp2, "approved")]
+    assert names["2026-11-04"] == sorted([(emp2, "approved"), (emp8, "pending")])
+    assert day_row(body, "2026-11-02")["present"] == 3
+    assert day_row(body, "2026-11-04")["present"] == 2
+    # nobody from another team (emp4, emp5 report to mgr2) ever appears
+    assert env.directory.get(OIDS["emp4"]).name not in str(body)
+
+
+def test_fr_vac_005_employee_cannot_view_coverage(env: Env) -> None:
+    """FR-VAC-005.2 @adversarial: a non-manager gets FORBIDDEN."""
+    r = env.get("emp1", "/coverage?start=2026-11-02&end=2026-11-06")
+    assert (r.status_code, r.json()["code"]) == (403, "FORBIDDEN")
+
+
+def test_fr_vac_005_other_team_is_not_visible(env: Env) -> None:
+    """FR-VAC-005 @adversarial: mgr2 does not see mgr1's reports' absences."""
+    body = env.get("mgr2", "/coverage?start=2026-11-02&end=2026-11-06").json()
+    assert all(d["absent"] == [] for d in body["days"])
+    assert env.directory.get(OIDS["emp2"]).name not in str(body)
+
+
+def test_fr_vac_005_default_range_is_the_next_four_weeks_of_working_days(env: Env) -> None:
+    """FR-VAC-005.1: default 4 weeks from today; weekends are not days of work."""
+    body = env.get("mgr1", "/coverage").json()
+    assert body["start"] == "2026-10-19" and len(body["days"]) == 20
+    assert body["days"][0]["date"] == "2026-10-19" and body["days"][-1]["date"] == "2026-11-13"
+
+
+def test_fr_vac_005_range_is_validated(env: Env) -> None:
+    """FR-VAC-005.1: bad or reversed ranges are validation errors."""
+    assert env.get("mgr1", "/coverage?start=2026-11-06&end=2026-11-02").status_code == 422
+    assert env.get("mgr1", "/coverage?start=nope").status_code == 422
+    assert env.get("mgr1", "/coverage?start=2026-01-01&end=2027-12-31").status_code == 422
+
+
+def test_fr_vac_005_uses_the_same_request_data_as_decisions(env: Env) -> None:
+    """FR-VAC-005.3: a request the manager just rejected or an employee cancelled drops out."""
+    request_id = book_pending(env)  # emp2, 2026-11-23..25
+    before = day_row(
+        env.get("mgr1", "/coverage?start=2026-11-23&end=2026-11-25").json(), "2026-11-24"
+    )
+    assert [a["status"] for a in before["absent"]] == ["pending"] and before["present"] == 3
+    decide(
+        env,
+        "mgr1",
+        request_id,
+        decision_token(env, "mgr1", request_id, "reject"),
+        "reject",
+    )
+    after = day_row(
+        env.get("mgr1", "/coverage?start=2026-11-23&end=2026-11-25").json(), "2026-11-24"
+    )
+    assert after["absent"] == [] and after["present"] == 4
+
+
+def test_fr_vac_005_entries_carry_the_request_for_the_overlap_strip(env: Env) -> None:
+    """FR-VAC-005.3: each absence names its request and range for the overlap strip."""
+    body = env.get("mgr1", "/coverage?start=2026-11-04&end=2026-11-04").json()
+    ids = {a["request_id"] for a in body["days"][0]["absent"]}
+    assert ids == {"seed-emp2-nov", "seed-emp8-nov-pending"}
+    entry = next(a for a in body["days"][0]["absent"] if a["request_id"] == "seed-emp2-nov")
+    assert (entry["start"], entry["end"]) == ("2026-11-02", "2026-11-06")

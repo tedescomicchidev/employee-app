@@ -39,6 +39,7 @@ struct MainTabView: View {
     let environment: AppEnvironment
     @State private var selection: AppTab
     @State private var inbox: ManagerInboxModel?
+    @State private var team: TeamCoverageModel?
 
     init(model: AppModel, environment: AppEnvironment) {
         self.model = model
@@ -59,10 +60,10 @@ struct MainTabView: View {
         case .more: MoreView(model: model, environment: environment)
         case .vacation: VacationView(model: model, environment: environment, title: tab.title)
         case .approvals:
-            if let inbox {
+            if let inbox, let team {
                 ManagerInboxView(
-                    inbox: inbox, makeDetail: makeDecisionDetail, autopilot: approvalsAutopilot,
-                    opensFirst: opensFirstApproval)
+                    inbox: inbox, team: team, makeDetail: makeDecisionDetail, autopilot: approvalsAutopilot,
+                    opensFirst: opensFirstApproval, opensTeam: opensTeamCoverage)
             } else {
                 PlaceholderTab(title: tab.title, symbol: tab.symbol)
             }
@@ -91,9 +92,11 @@ struct MainTabView: View {
         .task(id: session?.oid) {
             guard session?.has(.manager) == true else {
                 inbox = nil
+                team = nil
                 return
             }
             if inbox == nil { inbox = makeInbox() }
+            if team == nil { team = makeTeam() }
             await inbox?.loadQuietly()  // the badge, before the tab is opened
         }
     }
@@ -110,6 +113,28 @@ struct MainTabView: View {
                     taskId: "T-VAC-APR", feature: "vac", mode: .classic, context: context, sink: events,
                     confirmAction: .decide)
             })
+    }
+
+    @MainActor private func makeTeam() -> TeamCoverageModel {
+        let auth = environment.auth
+        let events = environment.events, context = environment.taskContext
+        return TeamCoverageModel(
+            service: environment.vacation,
+            accessToken: { try await auth.accessToken() },
+            onReauthNeeded: { [model] in model.needsReauth = true },
+            today: CalendarDay(date: environment.clock()),
+            makeFlow: {
+                TaskFlow(taskId: "T-VAC-COV", feature: "vac", mode: .classic, context: context, sink: events)
+            },
+            now: environment.clock)
+    }
+
+    private var opensTeamCoverage: Bool {
+        #if DEBUG
+        environment.vacationAutopilot == .team
+        #else
+        false
+        #endif
     }
 
     @MainActor private func makeDecisionDetail(_ seed: VacationRequestSummary) -> RequestDetailModel {
