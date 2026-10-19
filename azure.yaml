@@ -16,17 +16,33 @@ services:
   ai-project:
     host: azure.ai.project
     endpoint: ${AZURE_AI_PROJECT_ENDPOINT}
+  # Connection from the Foundry project to the api/ MCP server (ADR-005).
+  # UserEntraToken: Foundry supplies an Entra token for the signed-in user and this audience, which
+  # api/ validates as Tools.Invoke (ADR-002). No key, secret or app-only credential is involved.
   tools-conn:
     host: azure.ai.connection
     uses:
       - ai-project
-    $ref: ./agents/toolboxes/tools-conn.yaml
+    category: RemoteTool
+    target: ${AZURE_API_URL}/mcp
+    authType: UserEntraToken
+    audience: api://${TOOLS_CLIENT_ID}
+  # Shared toolbox (overview.md section 5): one MCP endpoint in front of api/'s /mcp server. Each
+  # agent's instructions limit it to its domain; the role checks in api/ are the real boundary.
   core-tools:
     host: azure.ai.toolbox
     uses:
       - ai-project
       - tools-conn
-    $ref: ./agents/toolboxes/core-tools.yaml
+    description: Employee app tools served by api/ (acting as the calling user).
+    tools:
+      - type: mcp
+        server_label: employee-api
+        server_url: ${AZURE_API_URL}/mcp
+        connection: tools-conn
+        # Writes are guarded by the confirmation_token from the app's confirm card (FR-AUTH-006),
+        # which a model-side approval prompt cannot replace.
+        require_approval: never
   comms:
     host: azure.ai.agent
     project: ./agents/comms
