@@ -30,10 +30,18 @@ services:
   comms:
     host: azure.ai.agent
     project: ./agents/comms
-    language: docker
+    language: python
     kind: hosted
     name: comms
     description: Announcements assistant (FR-ANN-001..005 AGENT). Acts only through api/ MCP tools.
+    # Source-code deploy: azd zips agents/comms and Foundry installs requirements.txt remotely.
+    # No Docker, no ACR build, and the upload is a few KB.
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint:
+        - python
+        - main.py
+      dependencyResolution: remote_build
     uses:
       - ai-project
       - core-tools
@@ -46,7 +54,7 @@ services:
       AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
       TOOLBOX_NAME: core-tools
       COMMS_INSTRUCTIONS_VERSION: v1
-    startupCommand: python -m comms.main
+    startupCommand: python main.py
     container:
       resources:
         cpu: "0.5"

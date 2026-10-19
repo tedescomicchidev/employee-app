@@ -1,5 +1,8 @@
 """Comms hosted agent (Microsoft Agent Framework, Responses protocol, Foundry toolbox tools).
 
+Deployed as source code (azd codeConfiguration, entry point `python main.py`): the folder is zipped flat,
+so modules sit next to this file and import each other by plain name.
+
 Docs: learn.microsoft.com/agent-framework/hosting/foundry-hosted-agent (ResponsesHostServer),
 learn.microsoft.com/agent-framework/integrations/by-component/tools/foundry-toolbox (FoundryToolbox),
 learn.microsoft.com/azure/foundry/agents/how-to/tools/use-toolbox-hosted-agent.
@@ -11,8 +14,8 @@ api/ MCP server. The role checks, the confirmation token and the audit trail liv
 import os
 from typing import Any
 
-from comms.instructions import load_instructions
-from comms.schemas import AgentReply
+from comms_instructions import load_instructions
+from comms_schemas import AgentReply
 
 TOOLBOX_NAME_DEFAULT = "core-tools"
 

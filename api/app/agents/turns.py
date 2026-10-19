@@ -50,7 +50,7 @@ class TurnRequest(BaseModel):
 
 
 class AgentReply(BaseModel):
-    """Mirror of agents/comms/schemas.py: what the hosted agent returns as its final output."""
+    """Mirror of agents/comms/comms_schemas.py: the hosted agent's final output."""
 
     model_config = ConfigDict(extra="ignore")
     kind: Literal["message", "clarification", "proposal", "published"] = "message"

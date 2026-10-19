@@ -1,6 +1,6 @@
 """Structured output of the comms agent: the contract with api/ and the app.
 
-Mirror of `api/app/agents/turns.py::AgentReply`; tests/test_comms_contract.py keeps them in step.
+Mirror of `api/app/agents/turns.py::AgentReply`; agents/tests/test_comms_agent.py keeps them in step.
 The reply never carries draft content for the confirm card: the app renders the card from
 `GET /v1/proposals/{proposal_id}` so what the user confirms is what the server stored.
 """

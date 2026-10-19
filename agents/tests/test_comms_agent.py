@@ -4,10 +4,9 @@ import json
 from pathlib import Path
 
 import pytest
+from comms_instructions import available_versions, load_instructions
+from comms_schemas import AgentReply
 from pydantic import ValidationError
-
-from comms.instructions import available_versions, load_instructions
-from comms.schemas import AgentReply
 
 PROPOSAL = "6f0c2f6e-2f0e-4d7e-8f55-0a3d5d9c1c11"
 
@@ -67,8 +66,7 @@ def test_agent_wiring_uses_toolbox_structured_output_and_no_server_side_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from agent_framework.foundry import FoundryToolbox
-
-    from comms.main import build_agent
+    from main import build_agent
 
     monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://x.test/api/projects/p")
     monkeypatch.delenv("TOOLBOX_ENDPOINT", raising=False)
@@ -90,7 +88,7 @@ def test_agent_wiring_uses_toolbox_structured_output_and_no_server_side_history(
 
 
 def test_contract_matches_the_api_reply_model() -> None:
-    """agents/comms/schemas.py and api/app/agents/turns.py describe the same reply."""
+    """agents/comms/comms_schemas.py and api/app/agents/turns.py describe the same reply."""
     api_source = (Path(__file__).parents[2] / "api/app/agents/turns.py").read_text()
     for field, annotation in (
         ("kind", 'Literal["message", "clarification", "proposal", "published"]'),
@@ -98,3 +96,20 @@ def test_contract_matches_the_api_reply_model() -> None:
     ):
         assert field in api_source and annotation in api_source
     assert json.dumps(sorted(AgentReply.model_fields)) == '["kind", "proposal_id", "text"]'
+
+
+def test_code_deploy_layout_is_flat_and_dependencies_are_minimal() -> None:
+    """azd code mode zips agents/comms with main.py at the root; Foundry installs requirements.txt."""
+    folder = Path(__file__).parents[1] / "comms"
+    assert (folder / "main.py").is_file() and (folder / "prompts" / "v1.md").is_file()
+    assert not (folder / "__init__.py").exists()  # a package wrapper would break the flat imports
+    requirements = (folder / "requirements.txt").read_text()
+    names = {
+        line.split("==")[0].split(">=")[0].strip()
+        for line in requirements.splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    assert names == {
+        "agent-framework-foundry", "agent-framework-foundry-hosting", "azure-identity", "pydantic",
+    }  # fmt: skip
+    assert "agent-framework-foundry-hosting==" in requirements  # the pre-release is pinned exactly
