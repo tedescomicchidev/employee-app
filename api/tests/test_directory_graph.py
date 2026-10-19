@@ -181,6 +181,50 @@ def test_graph_failure_never_breaks_the_request_and_logs_only_a_code(
     assert env.token() not in caplog.text and "Test Person" not in caplog.text
 
 
+def test_a_failed_lookup_is_not_repeated_until_the_retry_window_passes(env: Env) -> None:
+    env.graph.error = GraphError("invalid_client")
+    for _ in range(5):
+        assert env.get("/v1/vacation/balance").status_code == 403
+    assert len(env.graph.calls) == 1
+    env.clock.now = NOW + timedelta(seconds=61)
+    env.get("/v1/me")
+    assert len(env.graph.calls) == 2
+
+
+def test_the_user_is_provisioned_as_soon_as_the_retry_window_passes_after_a_fix(env: Env) -> None:
+    env.graph.error = GraphError("invalid_client")
+    assert env.get("/v1/vacation/balance").status_code == 403
+    env.graph.error = None  # the federated credential was fixed
+    assert env.get("/v1/vacation/balance").status_code == 403  # still inside the window
+    env.clock.now = NOW + timedelta(seconds=61)
+    assert env.get("/v1/vacation/balance").status_code == 200
+
+
+def test_one_users_failure_does_not_block_another_user(env: Env) -> None:
+    env.graph.error = GraphError("graph_503")
+    env.get("/v1/me")
+    env.graph.error = None
+    env.graph.profile = GraphProfile(oid=MANAGER, display_name="Other", attributes={"state": "ZH"})
+    assert env.get("/v1/vacation/balance", oid=MANAGER).status_code == 200
+    assert len(env.graph.calls) == 2
+
+
+def test_a_mismatching_profile_also_waits_before_the_next_try(env: Env) -> None:
+    env.graph.profile = GraphProfile(oid=MANAGER, display_name="Other", attributes={})
+    env.get("/v1/me")
+    env.get("/v1/me")
+    assert len(env.graph.calls) == 1
+
+
+def test_old_failures_are_forgotten(env: Env) -> None:
+    env.graph.error = GraphError("graph_503")
+    env.get("/v1/me")
+    env.clock.now = NOW + timedelta(minutes=5)
+    env.get("/v1/me", oid=MANAGER)
+    provisioner = env.client.app.state.provisioner  # type: ignore[attr-defined]
+    assert set(provisioner._failed) == {MANAGER}
+
+
 def test_unexpected_graph_errors_are_contained(env: Env) -> None:
     env.graph.error = RuntimeError("boom")  # type: ignore[assignment]
     assert env.get("/v1/me").status_code == 200
@@ -225,9 +269,13 @@ def test_settings_come_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setenv("GRAPH_DIRECTORY", "true")
     monkeypatch.setenv("AZURE_CLIENT_ID", "mi-client")
     monkeypatch.setenv("GRAPH_CANTON_ATTRIBUTE", "officeLocation")
+    monkeypatch.setenv("GRAPH_DIRECTORY_RETRY_SECONDS", "5")
     settings = load_directory_settings()
     assert settings.enabled and settings.managed_identity_client_id == "mi-client"
     assert settings.attributes == ["officeLocation", "preferredLanguage"]
+    assert settings.retry_after == timedelta(seconds=5)
+    monkeypatch.delenv("GRAPH_DIRECTORY_RETRY_SECONDS")
+    assert load_directory_settings().retry_after == timedelta(seconds=60)
 
 
 class _Response:

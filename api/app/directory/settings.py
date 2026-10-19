@@ -13,6 +13,9 @@ class DirectorySettings:
     store_attribute: str = "officeLocation"
     region_attribute: str = "preferredLanguage"
     ttl: timedelta = field(default_factory=lambda: timedelta(hours=12))
+    # After a failed lookup, that user is not looked up again for this long (a broken setup would
+    # otherwise add a Graph round trip to every request).
+    retry_after: timedelta = field(default_factory=lambda: timedelta(seconds=60))
 
     @property
     def attributes(self) -> list[str]:
@@ -30,4 +33,5 @@ def load_directory_settings() -> DirectorySettings:
         store_attribute=env.get("GRAPH_STORE_ATTRIBUTE", "officeLocation"),
         region_attribute=env.get("GRAPH_REGION_ATTRIBUTE", "preferredLanguage"),
         ttl=timedelta(hours=float(env.get("GRAPH_DIRECTORY_TTL_HOURS", "12"))),
+        retry_after=timedelta(seconds=float(env.get("GRAPH_DIRECTORY_RETRY_SECONDS", "60"))),
     )

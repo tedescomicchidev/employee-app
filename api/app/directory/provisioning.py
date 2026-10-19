@@ -58,28 +58,54 @@ class Provisioner:
         self._settings = settings
         self._clock = clock
         self._lock = threading.Lock()
+        self._failed: dict[str, datetime] = {}
 
     def ensure(self, principal: Principal) -> None:
-        """Best effort: refresh the caller's record when missing or older than the TTL."""
+        """Best effort: refresh the caller's record when missing or older than the TTL.
+
+        A failed lookup is remembered per user for `retry_after`, not repeated on every call.
+        """
         if not self._settings.enabled or not principal.assertion:
             return
-        now = self._clock()
-        existing = self._directory.get(principal.oid)
-        if existing is not None and (existing.source == "seed" or self._fresh(existing, now)):
+        if not self._needs_lookup(principal.oid, self._clock()):
             return
         with self._lock:
-            try:
-                profile = self._client.fetch(principal.assertion, self._settings.attributes)
-            except GraphError as exc:
-                log.warning("directory lookup failed code=%s", exc.code)
+            now = self._clock()
+            if not self._needs_lookup(principal.oid, now):  # another request just did it
                 return
-            except Exception:  # noqa: BLE001 - never let a directory problem break the request
-                log.warning("directory lookup failed code=unexpected")
-                return
-            if profile.oid != principal.oid:
-                log.warning("directory lookup ignored: profile does not match the token")
-                return
-            self._store(principal, profile, now)
+            if self._lookup(principal, now):
+                self._failed.pop(principal.oid, None)
+            else:
+                self._failed[principal.oid] = now
+                self._forget_old_failures(now)
+
+    def _needs_lookup(self, oid: str, now: datetime) -> bool:
+        failed_at = self._failed.get(oid)
+        if failed_at is not None and now - failed_at < self._settings.retry_after:
+            return False
+        existing = self._directory.get(oid)
+        return existing is None or not (existing.source == "seed" or self._fresh(existing, now))
+
+    def _lookup(self, principal: Principal, now: datetime) -> bool:
+        try:
+            profile = self._client.fetch(principal.assertion, self._settings.attributes)
+        except GraphError as exc:
+            log.warning("directory lookup failed code=%s", exc.code)
+            return False
+        except Exception:  # noqa: BLE001 - never let a directory problem break the request
+            log.warning("directory lookup failed code=unexpected")
+            return False
+        if profile.oid != principal.oid:
+            log.warning("directory lookup ignored: profile does not match the token")
+            return False
+        self._store(principal, profile, now)
+        return True
+
+    def _forget_old_failures(self, now: datetime) -> None:
+        """Keeps the failure memory small: entries past `retry_after` no longer matter."""
+        retry_after = self._settings.retry_after
+        for oid in [o for o, at in self._failed.items() if now - at >= retry_after]:
+            del self._failed[oid]
 
     def _fresh(self, employee: Employee, now: datetime) -> bool:
         return (

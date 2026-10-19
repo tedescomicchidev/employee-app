@@ -154,7 +154,8 @@ No client secret is created anywhere in this design. If S-2 shows Work IQ needs 
 `api/` exchanges T-user for T-graph (OBO, delegated `User.Read`), then reads `GET /me` and `GET /me/manager`.
 The exchange authenticates with the container app's user-assigned managed identity as a federated credential
 on `employee-api` (no secret). The result is cached per user for a TTL. T-graph is never stored or logged, and
-a failed exchange leaves the user unprovisioned (`NOT_PROVISIONED`) without breaking other calls.
+a failed exchange leaves the user unprovisioned (`NOT_PROVISIONED`) without breaking other calls, and is
+not retried for that user for 60 s (`GRAPH_DIRECTORY_RETRY_SECONDS`), so a setup problem costs one Graph call, not one per request.
 Sources: learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow,
 .../entra/workload-id/workload-identity-federation-config-app-trust-managed-identity,
 .../graph/api/user-get, .../graph/api/user-list-manager (retrieved 2026-10-19).
