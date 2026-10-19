@@ -41,7 +41,9 @@ class AgentError(Exception):
 class AgentSettings:
     project_endpoint: str = ""  # https://<account>.services.ai.azure.com/api/projects/<project>
     managed_identity_client_id: str = ""
-    agents: dict[str, str] = field(default_factory=lambda: {"comms": "comms"})  # route -> Foundry
+    agents: dict[str, str] = field(
+        default_factory=lambda: {"comms": "comms", "vacation": "vacation"}  # route -> Foundry
+    )
     turns_per_minute: int = 20  # NFR-011
     max_messages: int = 20
     max_message_chars: int = 4000
@@ -56,7 +58,10 @@ def load_agent_settings() -> AgentSettings:
     return AgentSettings(
         project_endpoint=env.get("FOUNDRY_PROJECT_ENDPOINT", "").rstrip("/"),
         managed_identity_client_id=env.get("AZURE_CLIENT_ID", ""),
-        agents={"comms": env.get("COMMS_AGENT_NAME", "comms")},
+        agents={
+            "comms": env.get("COMMS_AGENT_NAME", "comms"),
+            "vacation": env.get("VACATION_AGENT_NAME", "vacation"),
+        },
         turns_per_minute=int(env.get("AGENT_TURNS_PER_MINUTE", "20")),
     )
 

@@ -1,10 +1,11 @@
-"""Eval case, trace and result models. The dataset (comms/dataset.jsonl) is the spec."""
+"""Eval case, trace and result models. The datasets (comms/, vacation/) are the spec."""
 
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Persona = Literal["ceo", "mgr1", "mgr2", "emp1", "emp4"]
+Persona = Literal["ceo", "mgr1", "mgr2", "emp1", "emp2", "emp4"]
+AgentName = Literal["comms", "vacation"]
 
 
 class Strict(BaseModel):
@@ -19,10 +20,20 @@ class ToolCall(Strict):
     args: dict[str, Any] | None = None
 
 
+class ReplyOption(Strict):
+    proposal_id: str
+    start: str
+    end: str
+
+
 class Reply(Strict):
-    kind: Literal["message", "clarification", "proposal", "published"] = "message"
+    kind: Literal[
+        "message", "clarification", "proposal", "published",  # comms
+        "options", "submitted", "cancelled", "decided",  # vacation
+    ] = "message"  # fmt: skip
     text: str = ""
     proposal_id: str | None = None
+    options: list[ReplyOption] = Field(default_factory=list)
 
 
 class Trace(Strict):
@@ -32,7 +43,11 @@ class Trace(Strict):
     replies: list[Reply] = Field(default_factory=list)  # one per agent turn
     confirmed: bool = False  # the confirm-card step happened before the last turn
     proposal: dict[str, Any] | None = None  # the stored proposal payload, if any
-    created: int = 0  # announcements the run created
+    created: int = 0  # records the run created or changed: announcements, or vacation requests
+    # Numbers the api itself holds for this scenario (vacation: balance, review of the stored
+    # proposal, plus any number a tool result carried in a recorded trace). A day count in a reply
+    # that is in no fact, no user message and no `expect.facts` was invented by the model.
+    facts: list[int] = Field(default_factory=list)
 
 
 class Fixture(Strict):
@@ -43,6 +58,16 @@ class Fixture(Strict):
     body: str
     language: Literal["de", "fr", "it", "en"] = "de"
     audience: str | dict[str, list[str]] = "all"
+
+
+class VacationFixture(Strict):
+    """A vacation request that exists before the scenario starts (booked by `owner`)."""
+
+    owner: Persona
+    start: str  # ISO date
+    end: str
+    status: Literal["pending", "approved", "rejected"] = "pending"
+    reason: str | None = None  # the manager's reject reason (untrusted text in tool results)
 
 
 class Turn(Strict):
@@ -61,6 +86,7 @@ class Expect(Strict):
     reply_mentions_all: list[str] = Field(default_factory=list)
     reply_mentions_none: list[str] = Field(default_factory=list)
     created: int = 0
+    facts: list[int] = Field(default_factory=list)  # numbers the scenario's data legitimately has
 
 
 class Violation(Strict):
@@ -73,11 +99,12 @@ class Violation(Strict):
 
 class Case(Strict):
     id: str
+    agent: AgentName = "comms"
     set: Literal["safety", "functional"]
     requirements: list[str] = Field(min_length=1)
     source: str  # scenario title in docs/product/test-cases.md ("" for cases added by this slice)
     persona: Persona
-    fixtures: list[Fixture] = Field(default_factory=list)
+    fixtures: list[Fixture | VacationFixture] = Field(default_factory=list)
     turns: list[Turn] = Field(min_length=1)
     expect: Expect
     golden: Trace  # a trace that must pass

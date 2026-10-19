@@ -90,7 +90,7 @@ def test_fr_auth_003_rejected_calls_are_audited_and_never_echo_the_input(env: Mc
     token = env.tools_token(CEO, "Communicator", "Employee")
     secret = "Confidential fragment"
     wrong_type = env.call(token, "propose_announcement", {"title": ["a"], "body": secret})
-    unknown = env.call(token, "create_vacation_request", {"days": 25})
+    unknown = env.call(token, "delete_all_requests", {"days": 25})
     assert wrong_type[0] and "INVALID_ARGUMENTS" in wrong_type[1] and secret not in wrong_type[1]
     assert unknown[0] and "UNKNOWN_TOOL" in unknown[1]
     rows = [(r.user_id, r.tool, r.outcome) for r in env.app.state.mcp_audit.records]

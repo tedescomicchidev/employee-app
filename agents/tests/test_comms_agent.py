@@ -95,7 +95,12 @@ def test_comms_tools_are_exactly_the_tools_the_api_server_defines() -> None:
 
     source = (Path(__file__).parents[2] / "api/app/mcp/server.py").read_text()
     defined = set(re.findall(r"@mcp\.tool\(\)\n    def (\w+)\(", source))
-    assert defined == set(COMMS_TOOLS)
+    vacation = {
+        "get_balance", "get_holidays", "list_vacation_requests", "get_team_coverage",
+        "list_pending_approvals", "propose_vacation_request", "create_vacation_request",
+        "propose_cancel", "cancel_vacation_request", "propose_decision", "decide_vacation_request",
+    }  # fmt: skip
+    assert defined - vacation == set(COMMS_TOOLS)  # the server's other tools belong to vacation
 
 
 def test_contract_matches_the_api_reply_model() -> None:
