@@ -18,6 +18,8 @@ param apiClientId string = ''
 // Resource app for agent tool calls (Tools.Invoke, ADR-002). Empty until the human registers employee-tools.
 param toolsClientId string = ''
 param graphDirectory string = 'false'
+// Image `azd deploy api` last pushed (SERVICE_API_IMAGE_NAME); empty on a first provision.
+param apiImage string = ''
 
 var tags = {
   'azd-env-name': environmentName
@@ -109,6 +111,7 @@ module containerApps 'modules/containerapps.bicep' = {
     apiClientId: apiClientId
     toolsClientId: toolsClientId
     graphDirectory: graphDirectory
+    deployedImage: apiImage
   }
 }
 

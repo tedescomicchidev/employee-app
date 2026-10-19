@@ -20,7 +20,10 @@ param toolsClientId string = ''
 // federated credential and Graph User.Read consent on employee-api first (docs/architecture/auth-flows.md).
 param graphDirectory string = 'false'
 // Placeholder until `azd deploy` pushes the real api image (listens on 80 until then).
-param image string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+// After a deploy azd records SERVICE_API_IMAGE_NAME in its environment; main.bicepparam passes it back so a
+// later `azd provision` keeps the deployed image instead of resetting the app to the placeholder.
+param deployedImage string = ''
+var image = empty(deployedImage) ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest' : deployedImage
 param targetPort int = 80
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
