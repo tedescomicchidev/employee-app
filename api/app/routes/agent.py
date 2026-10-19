@@ -56,6 +56,7 @@ def agent_turn(
             principal, str(body.confirmation.proposal_id)
         )
         messages.append(body.confirmation.as_message(card.proposal.draft.canonical()))
+    run_id = _task_run_id(request)
     started = time.perf_counter()
     try:
         tools_token = tools_tokens.acquire(principal.assertion)
@@ -64,14 +65,13 @@ def agent_turn(
             principal.oid,  # validated claim, never a client-supplied identity
             tools_token,
             messages,
+            str(run_id) if run_id else None,
         )
     except AgentError as exc:
         status = 403 if exc.code in ("consent_required", "interaction_required") else 502
         raise ApiError(status, "AGENT_UNAVAILABLE", "The assistant could not be reached") from exc
     log: AgentRunLog = state.agent_runs
-    log.runs.append(
-        run_record(response, _task_run_id(request), round((time.perf_counter() - started) * 1000))
-    )
+    log.runs.append(run_record(response, run_id, round((time.perf_counter() - started) * 1000)))
     return {
         "reply": parse_reply(response).model_dump(mode="json"),
         "tool_calls": tool_trace(response),

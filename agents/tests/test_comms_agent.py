@@ -1,6 +1,7 @@
 """The comms agent definition: instructions, structured output, wiring. No model is called."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -62,29 +63,39 @@ def test_reply_schema_has_no_field_that_could_carry_a_token_or_card_content() ->
     assert set(AgentReply.model_fields) == {"kind", "text", "proposal_id"}
 
 
-def test_agent_wiring_uses_toolbox_structured_output_and_no_server_side_history(
+def test_agent_wiring_uses_api_mcp_with_the_forwarded_token_and_only_comms_tools(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from agent_framework.foundry import FoundryToolbox
-    from main import build_agent
+    from agent_framework import MCPStreamableHTTPTool
+    from main import COMMS_TOOLS, build_agent
 
-    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://x.test/api/projects/p")
-    monkeypatch.delenv("TOOLBOX_ENDPOINT", raising=False)
-    monkeypatch.delenv("TOOLBOX_NAME", raising=False)
-
-    class Credential:  # never asked for a token: nothing here connects
-        pass
+    monkeypatch.setenv("API_MCP_URL", "https://api.test/mcp")
 
     class FakeChatClient:  # replaced by FoundryChatClient only in `azd ai agent run`
         pass
 
-    agent = build_agent(Credential(), chat_client=FakeChatClient())
+    agent = build_agent(FakeChatClient(), "tok-123", "run-1")
     assert agent.name == "comms"
     assert agent.default_options["instructions"] == load_instructions("v1")[1]
     assert agent.default_options["response_format"] is AgentReply
     assert agent.default_options["store"] is False
-    assert agent.default_options["tools"] == []  # tools come from the toolbox only
-    assert [type(t) for t in agent.mcp_tools] == [FoundryToolbox]
+    assert agent.default_options["tools"] == []  # no tools of its own
+    (tool,) = agent.mcp_tools
+    assert isinstance(tool, MCPStreamableHTTPTool) and tool.url == "https://api.test/mcp"
+    assert tool.allowed_tools == COMMS_TOOLS  # review: not the whole server, only what comms needs
+    assert tool.approval_mode == "never_require"  # the confirmation_token gates writes
+    assert tool._static_headers == {  # pyright: ignore[reportPrivateUsage]
+        "Authorization": "Bearer tok-123",
+        "X-Task-Run-Id": "run-1",
+    }
+
+
+def test_comms_tools_are_exactly_the_tools_the_api_server_defines() -> None:
+    from main import COMMS_TOOLS
+
+    source = (Path(__file__).parents[2] / "api/app/mcp/server.py").read_text()
+    defined = set(re.findall(r"@mcp\.tool\(\)\n    def (\w+)\(", source))
+    assert defined == set(COMMS_TOOLS)
 
 
 def test_contract_matches_the_api_reply_model() -> None:
@@ -110,6 +121,7 @@ def test_code_deploy_layout_is_flat_and_dependencies_are_minimal() -> None:
         if line.strip() and not line.startswith("#")
     }
     assert names == {
-        "agent-framework-foundry", "agent-framework-foundry-hosting", "azure-identity", "pydantic",
+        "agent-framework-foundry", "agent-framework-foundry-hosting", "azure-identity",
+        "pydantic", "starlette",
     }  # fmt: skip
     assert "agent-framework-foundry-hosting==" in requirements  # the pre-release is pinned exactly

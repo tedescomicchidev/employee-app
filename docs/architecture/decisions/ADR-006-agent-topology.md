@@ -35,3 +35,5 @@ Option A, with no router model.
 - learn.microsoft.com/azure/foundry/agents/concepts/toolbox-overview
 - learn.microsoft.com/azure/foundry/agents/how-to/tools/use-toolbox-hosted-agent
 - learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents
+
+> **Update (phase 6, comms):** the shared `core-tools` toolbox was not built. A toolbox `UserEntraToken` connection cannot carry the user (needs a user token for Foundry; `api/` holds only its own identity), so agents call `api/` `/mcp` directly with the forwarded OBO token and are limited with `allowed_tools`. See ADR-002 status update.

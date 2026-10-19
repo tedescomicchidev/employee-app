@@ -51,11 +51,16 @@ Implemented as decided (point 3 stays as written, not the literal OBO to `ai.azu
 - S-1: the default holds. A second resource app `employee-tools` is required; self-OBO is not attempted.
   The roles `Communicator`, `Manager`, `Employee` must also be defined and assigned on `employee-tools`
   because the MCP server reads `roles` from the Tools.Invoke token (same `authorize()` as REST).
-- S-3: still open. The API forwards T-tools in `x-client-api-access-token`, and the toolbox connection is declared
-  `UserEntraToken` with audience `api://employee-tools` (`tools-conn` in azure.yaml). Which of the two the
-  `FoundryToolbox` client actually presents to `/mcp` is unverified: nothing has run against a deployed Foundry.
-  If neither reaches the MCP call, the ADR-005 fallback applies (api/ attaches the token itself). The confirmation
-  token is not affected: the turn endpoint adds it, with the stored draft, as a fixed-format user message.
+- S-3: resolved the ADR-005 way; **no toolbox**. A `UserEntraToken` toolbox connection made Foundry's OBO
+  service reject the call ("Audience for incoming token is incorrect", seen in `azd ai agent run`): it needs a user
+  token for Foundry, which `api/` does not hold (it calls the agent with its own managed-identity token and only
+  names the user). Instead `api/` forwards T-tools in `x-client-api-access-token` (and the run id in
+  `x-client-task-run-id`), Foundry passes `x-client-*` headers to the container, and the agent calls `/mcp` itself with
+  the token as Bearer (`agents/comms/comms_context.py`: ASGI middleware + context variable; `main.py`: per-request
+  agent, MCP tool limited to the six comms tools). The token never enters a prompt or a tool argument. Verified
+  locally with the real Responses host and a recording MCP server (`agents/tests/test_comms_forwarding.py`);
+  not verified on a deployed Foundry. The confirmation token is unaffected: the turn endpoint adds it, with
+  the stored draft, as a fixed-format user message.
 - Agents cannot mint tokens: `POST /v1/confirmations` validates `access_as_user`, so a Tools.Invoke token gets 401.
 Sources (retrieved 2026-10-19): learn.microsoft.com/azure/foundry/agents/how-to/use-on-behalf-of-flow,
 .../how-to/isolate-sessions-per-user, .../how-to/tools/tool-authentication, .../how-to/tools/use-toolbox-hosted-agent,

@@ -527,12 +527,16 @@ dependencies = [
     { name = "agent-framework-foundry-hosting" },
     { name = "azure-identity" },
     { name = "pydantic" },
+    { name = "starlette" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
+    { name = "mcp" },
     { name = "pytest" },
     { name = "ruff" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -541,12 +545,16 @@ requires-dist = [
     { name = "agent-framework-foundry-hosting", specifier = "==1.0.0b261015" },
     { name = "azure-identity", specifier = ">=1.26.0" },
     { name = "pydantic", specifier = ">=2.14.1" },
+    { name = "starlette", specifier = ">=0.40" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "mcp", specifier = ">=1.30" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.8" },
+    { name = "uvicorn", specifier = ">=0.32" },
 ]
 
 [[package]]

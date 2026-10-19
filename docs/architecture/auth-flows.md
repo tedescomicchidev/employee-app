@@ -142,7 +142,7 @@ Human-only per CLAUDE.md. I do not receive secrets. I will prepare exact command
 | 7 | Enterprise apps | On `employee-api`: **Assignment required = Yes**. Assign the 11 seeded users or groups: CEO = Communicator + Manager + Employee; 2 managers = Manager + Employee; 8 employees = Employee. |
 | 8 | Azure RBAC (Foundry) | Create the custom role `Foundry Agent User Identity Impersonation` (data action `Microsoft.CognitiveServices/accounts/AIServices/agents/endpoints/UserIdentityImpersonation/action`, JSON in the hosted-agent-permissions page). Assign it and **Foundry Agent Consumer** to the api's managed identity at the Foundry account/project scope. |
 | 9 | Azure RBAC (Foundry) | Foundry User for the project and agent identities at account and project scope. Foundry Project Manager for whoever creates toolbox connections. |
-| 10 | Foundry (`azd ai`) | Create the toolbox connection(s) from the toolboxes to the api MCP, with the auth type decided in S-1/S-3. Human runs these (CLAUDE.md human-only list). |
+| 10 | Foundry (`azd ai`) | No toolbox connection for `comms` (S-3 resolved without one, ADR-002): the agent calls the api MCP itself with the forwarded token. Revisit only for tools that are not the api. |
 | 11 | Handoff | Export the non-secret user attributes (manager, officeLocation or state, department) of the 11 users to `/Users/Shared/handoff/` (U-07). |
 | 12 | Apple (not Entra) | Create an APNs auth key and upload it to the Notification Hubs namespace yourself. It never enters this session. |
 
@@ -160,6 +160,9 @@ No client secret is created anywhere in this design. If S-2 shows Work IQ needs 
   `published` unless `publish_announcement` succeeded in that turn. The response also lists tool names and success.
 - Audit (FR-AUTH-003): one content-free record per MCP call (user oid, tool, outcome, correlation id = `X-Task-Run-Id`
   or `X-Correlation-Id`), kept in memory and logged as `mcp_audit ...`. Tokens, arguments and text are never logged.
+- Tool token path: `api/` sends `x-client-api-access-token`; the agent's ASGI middleware moves it into a context variable;
+  the per-request agent's MCP client sends it as `Authorization: Bearer` to `API_MCP_URL`. `x-client-task-run-id` becomes
+  `X-Task-Run-Id` on the MCP call, so the MCP audit record carries the task run as correlation id.
 - Manual step 5 grows: define the three app roles on `employee-tools` and assign the same users or groups.
   Set `TOOLS_CLIENT_ID` (azd env) so `infra/` passes it to the Container App and `azure.yaml` builds the audience.
 

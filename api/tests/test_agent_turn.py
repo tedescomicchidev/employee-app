@@ -5,6 +5,7 @@ import logging
 from collections.abc import Iterator
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,9 +37,22 @@ class FakeFoundry:
         self.calls: list[dict[str, Any]] = []
         self.response: dict[str, Any] = reply({"kind": "message", "text": "Hi"})
 
-    def respond(self, foundry_agent: str, user_oid: str, tools_token: str, messages: Any) -> Any:
+    def respond(
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: Any,
+        task_run_id: str | None = None,
+    ) -> Any:
         self.calls.append(
-            {"agent": foundry_agent, "oid": user_oid, "tools": tools_token, "messages": messages}
+            {
+                "agent": foundry_agent,
+                "oid": user_oid,
+                "tools": tools_token,
+                "messages": messages,
+                "run": task_run_id,
+            }
         )
         return self.response
 
@@ -218,3 +232,41 @@ def test_proposal_card_is_owner_only_and_matches_what_will_be_published(mcp_env:
     )
     tools_only = {"Authorization": f"Bearer {env.tools_token(CEO, 'Communicator')}"}
     assert env.client.get(f"/v1/proposals/{pid}", headers=tools_only).status_code == 401
+
+
+def test_task_run_id_is_forwarded_to_the_agent_for_the_mcp_audit(env: Env) -> None:
+    env.turn(**{"X-Task-Run-Id": RUN_ID})
+    env.turn()
+    assert [c["run"] for c in env.foundry.calls] == [RUN_ID, None]
+
+
+def test_http_responder_sends_the_agreed_headers_and_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The wire contract agents/comms depends on (ADR-002): who is named, which token goes along."""
+    from app.agents import foundry
+
+    sent: dict[str, Any] = {}
+
+    def fake_post(url: str, json: Any, headers: dict[str, str], timeout: float) -> httpx.Response:
+        sent.update(url=url, json=json, headers=headers)
+        return httpx.Response(200, json={"status": "completed", "output": []})
+
+    monkeypatch.setattr(foundry.httpx, "post", fake_post)
+    monkeypatch.setattr(foundry.HttpAgentResponder, "_workload_token", lambda self: "mi-token")
+    settings = AgentSettings(
+        project_endpoint="https://acct.services.ai.azure.com/api/projects/p",
+        managed_identity_client_id="00000000-0000-0000-0000-000000000000",
+    )
+    responder = foundry.HttpAgentResponder(settings)
+    responder.respond("comms", EMP1, "tools-token", [{"role": "user", "content": "hi"}], RUN_ID)
+    assert sent["url"] == (
+        "https://acct.services.ai.azure.com/api/projects/p/agents/comms"
+        "/endpoint/protocols/openai/responses?api-version=v1"
+    )
+    assert sent["headers"] == {
+        "Authorization": "Bearer mi-token",  # the API's own identity, not the user
+        "x-ms-user-identity": EMP1,
+        "x-client-api-access-token": "tools-token",
+        "x-client-task-run-id": RUN_ID,
+    }
+    assert sent["json"]["store"] is False and sent["json"]["stream"] is False
+    assert "tools-token" not in json.dumps(sent["json"])  # never in the prompt

@@ -8,10 +8,11 @@ dependencies = [
     "agent-framework-foundry-hosting==1.0.0b261015",
     "azure-identity>=1.26.0",
     "pydantic>=2.14.1",
+    "starlette>=0.40",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.8"]
+dev = ["pytest>=8", "ruff>=0.8", "mcp>=1.30", "uvicorn>=0.32", "httpx>=0.27"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

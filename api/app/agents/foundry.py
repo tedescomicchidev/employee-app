@@ -7,8 +7,10 @@ Three credentials, never mixed:
 - `Authorization`: the API's own managed-identity token for https://ai.azure.com. It does not
   represent the user and is not forwarded to the agent container.
 - `x-ms-user-identity`: the validated caller's oid (never a client-supplied value).
-- `x-client-api-access-token`: OBO token for the tools resource app (`Tools.Invoke`), which the
-  agent presents to the toolbox/MCP server. The user's own token (T-user) never leaves the API.
+- `x-client-api-access-token`: OBO token for the tools resource app (`Tools.Invoke`). Foundry
+  forwards `x-client-*` headers to the agent container and does not exchange them. The agent calls
+  `/mcp` with it as its Bearer token (agents/comms/main.py). T-user never leaves the API.
+- `x-client-task-run-id`: the EXP-005 run id, so the MCP audit joins to the task run.
 """
 
 import os
@@ -21,6 +23,7 @@ import requests
 
 FOUNDRY_RESOURCE = "https://ai.azure.com"
 TOOLS_HEADER = "x-client-api-access-token"
+RUN_HEADER = "x-client-task-run-id"
 USER_HEADER = "x-ms-user-identity"
 TIMEOUT_SECONDS = 60
 API_VERSION = "v1"
@@ -64,7 +67,12 @@ class ToolsTokenClient(Protocol):
 
 class AgentResponder(Protocol):
     def respond(
-        self, foundry_agent: str, user_oid: str, tools_token: str, messages: list[dict[str, str]]
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: list[dict[str, str]],
+        task_run_id: str | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -118,7 +126,12 @@ class HttpAgentResponder:
         return str(token)
 
     def respond(
-        self, foundry_agent: str, user_oid: str, tools_token: str, messages: list[dict[str, str]]
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: list[dict[str, str]],
+        task_run_id: str | None = None,
     ) -> dict[str, Any]:
         url = (
             f"{self._settings.project_endpoint}/agents/{foundry_agent}"
@@ -129,6 +142,8 @@ class HttpAgentResponder:
             USER_HEADER: user_oid,
             TOOLS_HEADER: tools_token,
         }
+        if task_run_id:
+            headers[RUN_HEADER] = task_run_id
         # store=false: the app holds the history on the device (PRIV-004, overview.md section 5).
         body = {"input": messages, "stream": False, "background": False, "store": False}
         try:

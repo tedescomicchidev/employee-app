@@ -167,3 +167,5 @@ The task-flow wrapper in `Packages/Core` emits the events in `docs/experiment/me
 | NFR-012 | ADR-007, ADR-009 (content-free logs) |
 | PRIV-006, 007 | ADR-007, ADR-009 |
 | EXP-001..007 | ADR-009 |
+
+> **Update (phase 6, comms):** the shared `core-tools` toolbox was not built. A toolbox `UserEntraToken` connection cannot carry the user (needs a user token for Foundry; `api/` holds only its own identity), so agents call `api/` `/mcp` directly with the forwarded OBO token and are limited with `allowed_tools`. See ADR-002 status update.

@@ -16,33 +16,6 @@ services:
   ai-project:
     host: azure.ai.project
     endpoint: ${AZURE_AI_PROJECT_ENDPOINT}
-  # Connection from the Foundry project to the api/ MCP server (ADR-005).
-  # UserEntraToken: Foundry supplies an Entra token for the signed-in user and this audience, which
-  # api/ validates as Tools.Invoke (ADR-002). No key, secret or app-only credential is involved.
-  tools-conn:
-    host: azure.ai.connection
-    uses:
-      - ai-project
-    category: RemoteTool
-    target: ${AZURE_API_URL}/mcp
-    authType: UserEntraToken
-    audience: api://${TOOLS_CLIENT_ID}
-  # Shared toolbox (overview.md section 5): one MCP endpoint in front of api/'s /mcp server. Each
-  # agent's instructions limit it to its domain; the role checks in api/ are the real boundary.
-  core-tools:
-    host: azure.ai.toolbox
-    uses:
-      - ai-project
-      - tools-conn
-    description: Employee app tools served by api/ (acting as the calling user).
-    tools:
-      - type: mcp
-        server_label: employee-api
-        server_url: ${AZURE_API_URL}/mcp
-        connection: tools-conn
-        # Writes are guarded by the confirmation_token from the app's confirm card (FR-AUTH-006),
-        # which a model-side approval prompt cannot replace.
-        require_approval: never
   comms:
     host: azure.ai.agent
     project: ./agents/comms
@@ -58,15 +31,14 @@ services:
       dependencyResolution: remote_build
     uses:
       - ai-project
-      - core-tools
-    toolboxes:
-      - core-tools
     protocols:
       - protocol: responses
         version: 2.0.0
     env:
       AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
-      TOOLBOX_NAME: core-tools
+      # The agent calls api/'s MCP server itself with the token api/ forwards on each turn (ADR-002).
+      # No toolbox: a UserEntraToken connection needs a user token for Foundry, which api/ does not hold.
+      API_MCP_URL: ${AZURE_API_URL}/mcp
       COMMS_INSTRUCTIONS_VERSION: v1
     startupCommand: python main.py
     container:
