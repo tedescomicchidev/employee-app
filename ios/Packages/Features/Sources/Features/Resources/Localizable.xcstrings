@@ -1,1798 +1,1801 @@
 {
-  "sourceLanguage": "en",
-  "strings": {
-    "signin.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Welcome"
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "ann.audience.all" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alle Mitarbeitenden"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Willkommen"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All employees"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bienvenue"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tous les collaborateurs"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Benvenuto"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tutti i collaboratori"
           }
         }
       }
     },
-    "signin.subtitle": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in with your work account to continue."
+    "ann.compose.audience" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empfänger"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Melde dich mit deinem Geschäftskonto an, um fortzufahren."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipients"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connectez-vous avec votre compte professionnel pour continuer."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destinataires"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accedi con il tuo account aziendale per continuare."
-          }
-        }
-      }
-    },
-    "signin.button": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anmelden"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se connecter"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accedi"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destinatari"
           }
         }
       }
     },
-    "signin.in_progress": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Signing in …"
+    "ann.compose.checking" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geprüft …"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anmeldung läuft …"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connexion en cours …"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérification…"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accesso in corso …"
-          }
-        }
-      }
-    },
-    "signin.retry": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try again"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erneut versuchen"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réessayer"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Riprova"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica in corso…"
           }
         }
       }
     },
-    "signin.cancelled": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in was cancelled."
+    "ann.compose.counter" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld von %2$lld"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Anmeldung wurde abgebrochen."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La connexion a été annulée."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld sur %2$lld"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’accesso è stato annullato."
-          }
-        }
-      }
-    },
-    "signin.failed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in failed. Please try again."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La connexion a échoué. Veuillez réessayer."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accesso non riuscito. Riprova."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld di %2$lld"
           }
         }
       }
     },
-    "signin.not_allowed": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This account can’t use the app. Use your work account from the demo tenant."
+    "ann.compose.field.body" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Konto kann die App nicht verwenden. Verwende dein Geschäftskonto des Demo-Mandanten."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce compte ne peut pas utiliser l’application. Utilisez votre compte professionnel du locataire de démonstration."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Questo account non può usare l’app. Usa il tuo account aziendale del tenant demo."
-          }
-        }
-      }
-    },
-    "signin.misconfigured": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The app is not configured for sign-in yet."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die App ist noch nicht für die Anmeldung konfiguriert."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’application n’est pas encore configurée pour la connexion."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’app non è ancora configurata per l’accesso."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messaggio"
           }
         }
       }
     },
-    "signin.offline": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No connection. Check your network and try again."
+    "ann.compose.field.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titel"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Keine Verbindung. Prüfe dein Netzwerk und versuche es erneut."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas de connexion. Vérifiez votre réseau et réessayez."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titre"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nessuna connessione. Controlla la rete e riprova."
-          }
-        }
-      }
-    },
-    "tab.announcements": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "News"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktuell"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualités"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Novità"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Titolo"
           }
         }
       }
     },
-    "tab.vacation": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vacation"
+    "ann.compose.language" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprache des Inhalts"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ferien"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language of the content"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vacances"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue du contenu"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ferie"
-          }
-        }
-      }
-    },
-    "tab.week": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Week"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Woche"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Semaine"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Settimana"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lingua del contenuto"
           }
         }
       }
     },
-    "tab.more": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "More"
+    "ann.compose.review" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfen"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mehr"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Plus"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Altro"
-          }
-        }
-      }
-    },
-    "tab.approvals": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Approvals"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Freigaben"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Validations"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Approvazioni"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica"
           }
         }
       }
     },
-    "home.loading": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Loading your profile"
+    "ann.compose.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neue Mitteilung"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dein Profil wird geladen"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New announcement"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chargement de votre profil"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nouvelle annonce"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Caricamento del profilo"
-          }
-        }
-      }
-    },
-    "home.refresh": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Refresh"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aktualisieren"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Actualiser"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aggiorna"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nuovo annuncio"
           }
         }
       }
     },
-    "home.offline": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You are offline. Showing your last known profile."
+    "ann.details" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du bist offline. Das zuletzt bekannte Profil wird angezeigt."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vous êtes hors ligne. Dernier profil connu affiché."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Détails"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sei offline. Viene mostrato l’ultimo profilo noto."
-          }
-        }
-      }
-    },
-    "role.communicator": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publisher"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redaktion"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rédaction"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Redazione"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dettagli"
           }
         }
       }
     },
-    "role.manager": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Manager"
+    "ann.entry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitteilung verfassen"
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Führungskraft"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compose announcement"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Responsable"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rédiger une annonce"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Responsabile"
-          }
-        }
-      }
-    },
-    "role.employee": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Employee"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mitarbeitende"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Collaborateur"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dipendente"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivi un annuncio"
           }
         }
       }
     },
-    "placeholder.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Coming soon"
+    "ann.error.body" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text fehlt oder ist zu lang."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kommt bald"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The message is missing or too long."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bientôt disponible"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le message est manquant ou trop long."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prossimamente"
-          }
-        }
-      }
-    },
-    "placeholder.message": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This area is built in a later phase."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieser Bereich folgt in einer späteren Phase."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette section sera réalisée dans une phase ultérieure."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quest’area verrà realizzata in una fase successiva."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il messaggio manca o è troppo lungo."
           }
         }
       }
     },
-    "more.account": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account"
+    "ann.error.other" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitte prüfe deine Eingaben."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konto"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please check your entries."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compte"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifie tes saisies."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Account"
-          }
-        }
-      }
-    },
-    "more.signout": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign out"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abmelden"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se déconnecter"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esci"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Controlla i dati inseriti."
           }
         }
       }
     },
-    "more.signout.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign out?"
+    "ann.error.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Titel fehlt oder ist zu lang."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abmelden?"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The title is missing or too long."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se déconnecter ?"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le titre est manquant ou trop long."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uscire?"
-          }
-        }
-      }
-    },
-    "more.signout.message": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tokens, cached data, notifications and conversations on this device are deleted."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Token, zwischengespeicherte Daten, Benachrichtigungen und Unterhaltungen auf diesem Gerät werden gelöscht."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les jetons, les données en cache, les notifications et les conversations sur cet appareil seront supprimés."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Token, dati in cache, notifiche e conversazioni su questo dispositivo verranno eliminati."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il titolo manca o è troppo lungo."
           }
         }
       }
     },
-    "common.cancel": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cancel"
+    "ann.expired" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Bestätigung ist abgelaufen. Bitte prüfe den Entwurf erneut."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abbrechen"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The confirmation expired. Please review the draft again."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annuler"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La confirmation a expiré. Vérifie à nouveau le brouillon."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Annulla"
-          }
-        }
-      }
-    },
-    "reauth.title": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign in again"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erneut anmelden"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se reconnecter"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accedi di nuovo"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La conferma è scaduta. Controlla di nuovo la bozza."
           }
         }
       }
     },
-    "reauth.message": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your session has expired. Unsent drafts stay on this device."
+    "ann.failed.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Entwurf bleibt erhalten. Versuche es gleich noch einmal."
           }
         },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deine Sitzung ist abgelaufen. Nicht gesendete Entwürfe bleiben auf diesem Gerät erhalten."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your draft is kept. Try again in a moment."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Votre session a expiré. Les brouillons non envoyés restent sur cet appareil."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ton brouillon est conservé. Réessaie dans un instant."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sessione è scaduta. Le bozze non inviate restano su questo dispositivo."
-          }
-        }
-      }
-    },
-    "signin.unavailable": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sign-in isn’t available in this build. Check the app’s code signing (Keychain access)."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Anmeldung ist in diesem Build nicht verfügbar. Prüfe die Code-Signierung der App (Keychain-Zugriff)."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La connexion n’est pas disponible dans cette version. Vérifiez la signature du code de l’application (accès au trousseau)."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’accesso non è disponibile in questa build. Controlla la firma del codice dell’app (accesso al portachiavi)."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La bozza è conservata. Riprova tra poco."
           }
         }
       }
     },
-    "ann.audience.all": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle Mitarbeitenden"
+    "ann.failed.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veröffentlichen fehlgeschlagen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "All employees"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publishing failed"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tous les collaborateurs"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échec de la publication"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tutti i collaboratori"
-          }
-        }
-      }
-    },
-    "ann.compose.audience": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empfänger"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recipients"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Destinataires"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Destinatari"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pubblicazione non riuscita"
           }
         }
       }
     },
-    "ann.compose.checking": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wird geprüft …"
+    "ann.forbidden.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Veröffentlichen ist die Rolle «Kommunikation» nötig."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Checking…"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publishing requires the Publisher role."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérification…"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pour publier, il faut le rôle « Communication »."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica in corso…"
-          }
-        }
-      }
-    },
-    "ann.compose.counter": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld von %2$lld"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld of %2$lld"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld sur %2$lld"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$lld di %2$lld"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Per pubblicare serve il ruolo «Comunicazione»."
           }
         }
       }
     },
-    "ann.compose.field.body": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Text"
+    "ann.forbidden.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Für deine Rolle nicht verfügbar"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Message"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available for your role"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Message"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indisponible pour ton rôle"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Messaggio"
-          }
-        }
-      }
-    },
-    "ann.compose.field.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titel"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Title"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titre"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Titolo"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non disponibile per il tuo ruolo"
           }
         }
       }
     },
-    "ann.compose.language": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sprache des Inhalts"
+    "ann.lang.de" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deutsch"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language of the content"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "German"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Langue du contenu"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allemand"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lingua del contenuto"
-          }
-        }
-      }
-    },
-    "ann.compose.review": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prüfen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérifier"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tedesco"
           }
         }
       }
     },
-    "ann.compose.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Neue Mitteilung"
+    "ann.lang.en" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Englisch"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New announcement"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "English"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nouvelle annonce"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anglais"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nuovo annuncio"
-          }
-        }
-      }
-    },
-    "ann.details": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Details"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Details"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détails"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dettagli"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inglese"
           }
         }
       }
     },
-    "ann.entry": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mitteilung verfassen"
+    "ann.lang.fr" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Französisch"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Compose announcement"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "French"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rédiger une annonce"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Français"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scrivi un annuncio"
-          }
-        }
-      }
-    },
-    "ann.error.body": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Text fehlt oder ist zu lang."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The message is missing or too long."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le message est manquant ou trop long."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il messaggio manca o è troppo lungo."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Francese"
           }
         }
       }
     },
-    "ann.error.other": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitte prüfe deine Eingaben."
+    "ann.lang.it" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italienisch"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Please check your entries."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italian"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérifie tes saisies."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italien"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Controlla i dati inseriti."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Italiano"
           }
         }
       }
     },
-    "ann.error.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Titel fehlt oder ist zu lang."
+    "ann.language.a11y" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprache des Inhalts, %@"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The title is missing or too long."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language of the content, %@"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le titre est manquant ou trop long."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue du contenu, %@"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il titolo manca o è troppo lungo."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lingua del contenuto, %@"
           }
         }
       }
     },
-    "ann.expired": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die Bestätigung ist abgelaufen. Bitte prüfe den Entwurf erneut."
+    "ann.offline.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbindung nötig. Dein Entwurf bleibt auf diesem Gerät gespeichert."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The confirmation expired. Please review the draft again."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs a connection. Your draft is kept on this device."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La confirmation a expiré. Vérifie à nouveau le brouillon."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connexion requise. Ton brouillon reste sur cet appareil."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La conferma è scaduta. Controlla di nuovo la bozza."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serve una connessione. La bozza resta su questo dispositivo."
           }
         }
       }
     },
-    "ann.failed.message": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dein Entwurf bleibt erhalten. Versuche es gleich noch einmal."
+    "ann.retry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your draft is kept. Try again in a moment."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ton brouillon est conservé. Réessaie dans un instant."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La bozza è conservata. Riprova tra poco."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova"
           }
         }
       }
     },
-    "ann.failed.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Veröffentlichen fehlgeschlagen"
+    "ann.review.edit" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bearbeiten"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publishing failed"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Échec de la publication"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pubblicazione non riuscita"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifica"
           }
         }
       }
     },
-    "ann.forbidden.message": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zum Veröffentlichen ist die Rolle «Kommunikation» nötig."
+    "ann.review.hint" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erst mit «Veröffentlichen» wird die Mitteilung sichtbar."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publishing requires the Publisher role."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing is published until you tap Publish."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pour publier, il faut le rôle « Communication »."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien n'est publié avant que tu touches « Publier »."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Per pubblicare serve il ruolo «Comunicazione»."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nulla viene pubblicato finché non tocchi «Pubblica»."
           }
         }
       }
     },
-    "ann.forbidden.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für deine Rolle nicht verfügbar"
+    "ann.review.publish" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Veröffentlichen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not available for your role"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publish"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Indisponible pour ton rôle"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publier"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Non disponibile per il tuo ruolo"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pubblica"
           }
         }
       }
     },
-    "ann.lang.de": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deutsch"
+    "ann.review.recipients" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Empfänger"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "German"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld recipients"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Allemand"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld destinataires"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tedesco"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld destinatari"
           }
         }
       }
     },
-    "ann.lang.en": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Englisch"
+    "ann.review.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prüfen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "English"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anglais"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérifier"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inglese"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifica"
           }
         }
       }
     },
-    "ann.lang.fr": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Französisch"
+    "ann.success.done" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "French"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Français"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminé"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Francese"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fine"
           }
         }
       }
     },
-    "ann.lang.it": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italienisch"
+    "ann.success.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An %lld Personen veröffentlicht"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italian"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Published to %lld people"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italien"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publié pour %lld personnes"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italiano"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pubblicato per %lld persone"
           }
         }
       }
     },
-    "ann.language.a11y": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sprache des Inhalts, %@"
+    "common.cancel" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abbrechen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Language of the content, %@"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Langue du contenu, %@"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lingua del contenuto, %@"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annulla"
           }
         }
       }
     },
-    "ann.offline.message": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung nötig. Dein Entwurf bleibt auf diesem Gerät gespeichert."
+    "home.loading" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Profil wird geladen"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Needs a connection. Your draft is kept on this device."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading your profile"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connexion requise. Ton brouillon reste sur cet appareil."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement de votre profil"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Serve una connessione. La bozza resta su questo dispositivo."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caricamento del profilo"
           }
         }
       }
     },
-    "ann.retry": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erneut versuchen"
+    "home.offline" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Du bist offline. Das zuletzt bekannte Profil wird angezeigt."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Try again"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You are offline. Showing your last known profile."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réessayer"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous êtes hors ligne. Dernier profil connu affiché."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Riprova"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sei offline. Viene mostrato l’ultimo profilo noto."
           }
         }
       }
     },
-    "ann.review.edit": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bearbeiten"
+    "home.refresh" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisieren"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modifier"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiser"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modifica"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aggiorna"
           }
         }
       }
     },
-    "ann.review.hint": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erst mit «Veröffentlichen» wird die Mitteilung sichtbar."
+    "more.account" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konto"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nothing is published until you tap Publish."
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Rien n'est publié avant que tu touches « Publier »."
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compte"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nulla viene pubblicato finché non tocchi «Pubblica»."
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
           }
         }
       }
     },
-    "ann.review.publish": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Veröffentlichen"
+    "more.signout" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abmelden"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publish"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publier"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se déconnecter"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pubblica"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esci"
           }
         }
       }
     },
-    "ann.review.recipients": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Empfänger"
+    "more.signout.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token, zwischengespeicherte Daten, Benachrichtigungen und Unterhaltungen auf diesem Gerät werden gelöscht."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld recipients"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokens, cached data, notifications and conversations on this device are deleted."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld destinataires"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les jetons, les données en cache, les notifications et les conversations sur cet appareil seront supprimés."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld destinatari"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Token, dati in cache, notifiche e conversazioni su questo dispositivo verranno eliminati."
           }
         }
       }
     },
-    "ann.review.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prüfen"
+    "more.signout.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abmelden?"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Review"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign out?"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vérifier"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se déconnecter ?"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verifica"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uscire?"
           }
         }
       }
     },
-    "ann.success.done": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fertig"
+    "placeholder.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Bereich folgt in einer späteren Phase."
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Done"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This area is built in a later phase."
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminé"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette section sera réalisée dans une phase ultérieure."
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fine"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quest’area verrà realizzata in una fase successiva."
           }
         }
       }
     },
-    "ann.success.title": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "An %lld Personen veröffentlicht"
+    "placeholder.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kommt bald"
           }
         },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Published to %lld people"
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coming soon"
           }
         },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Publié pour %lld personnes"
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bientôt disponible"
           }
         },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pubblicato per %lld persone"
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prossimamente"
+          }
+        }
+      }
+    },
+    "reauth.message" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Sitzung ist abgelaufen. Nicht gesendete Entwürfe bleiben auf diesem Gerät erhalten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your session has expired. Unsent drafts stay on this device."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre session a expiré. Les brouillons non envoyés restent sur cet appareil."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sessione è scaduta. Le bozze non inviate restano su questo dispositivo."
+          }
+        }
+      }
+    },
+    "reauth.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut anmelden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in again"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se reconnecter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accedi di nuovo"
+          }
+        }
+      }
+    },
+    "role.communicator" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redaktion"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Publisher"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rédaction"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redazione"
+          }
+        }
+      }
+    },
+    "role.employee" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mitarbeitende"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Employee"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collaborateur"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dipendente"
+          }
+        }
+      }
+    },
+    "role.manager" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führungskraft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manager"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responsable"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responsabile"
+          }
+        }
+      }
+    },
+    "signin.button" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmelden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se connecter"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accedi"
+          }
+        }
+      }
+    },
+    "signin.cancelled" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anmeldung wurde abgebrochen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in was cancelled."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion a été annulée."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’accesso è stato annullato."
+          }
+        }
+      }
+    },
+    "signin.failed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in failed. Please try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion a échoué. Veuillez réessayer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesso non riuscito. Riprova."
+          }
+        }
+      }
+    },
+    "signin.in_progress" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anmeldung läuft …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Signing in …"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connexion en cours …"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accesso in corso …"
+          }
+        }
+      }
+    },
+    "signin.misconfigured" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die App ist noch nicht für die Anmeldung konfiguriert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app is not configured for sign-in yet."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’application n’est pas encore configurée pour la connexion."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’app non è ancora configurata per l’accesso."
+          }
+        }
+      }
+    },
+    "signin.not_allowed" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses Konto kann die App nicht verwenden. Verwende dein Geschäftskonto des Demo-Mandanten."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account can’t use the app. Use your work account from the demo tenant."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce compte ne peut pas utiliser l’application. Utilisez votre compte professionnel du locataire de démonstration."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo account non può usare l’app. Usa il tuo account aziendale del tenant demo."
+          }
+        }
+      }
+    },
+    "signin.offline" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Verbindung. Prüfe dein Netzwerk und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No connection. Check your network and try again."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de connexion. Vérifiez votre réseau et réessayez."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nessuna connessione. Controlla la rete e riprova."
+          }
+        }
+      }
+    },
+    "signin.retry" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Riprova"
+          }
+        }
+      }
+    },
+    "signin.subtitle" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich mit deinem Geschäftskonto an, um fortzufahren."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in with your work account to continue."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous avec votre compte professionnel pour continuer."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accedi con il tuo account aziendale per continuare."
+          }
+        }
+      }
+    },
+    "signin.title" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Willkommen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bienvenue"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benvenuto"
+          }
+        }
+      }
+    },
+    "signin.unavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Anmeldung ist in diesem Build nicht verfügbar. Prüfe die Code-Signierung der App (Keychain-Zugriff)."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign-in isn’t available in this build. Check the app’s code signing (Keychain access)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion n’est pas disponible dans cette version. Vérifiez la signature du code de l’application (accès au trousseau)."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’accesso non è disponibile in questa build. Controlla la firma del codice dell’app (accesso al portachiavi)."
+          }
+        }
+      }
+    },
+    "tab.announcements" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuell"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "News"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualités"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Novità"
+          }
+        }
+      }
+    },
+    "tab.approvals" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Freigaben"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approvals"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validations"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approvazioni"
+          }
+        }
+      }
+    },
+    "tab.more" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mehr"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altro"
+          }
+        }
+      }
+    },
+    "tab.vacation" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ferien"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vacation"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vacances"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ferie"
+          }
+        }
+      }
+    },
+    "tab.week" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Woche"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Week"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Semaine"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settimana"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }
