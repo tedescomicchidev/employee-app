@@ -38,9 +38,7 @@ services:
     # No Docker, no ACR build, and the upload is a few KB.
     codeConfiguration:
       runtime: python_3_13
-      entryPoint:
-        - python
-        - main.py
+      entryPoint: main.py  # a single file name here; azd combines it with the runtime
       dependencyResolution: remote_build
     uses:
       - ai-project
