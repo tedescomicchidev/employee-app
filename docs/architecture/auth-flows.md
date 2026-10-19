@@ -149,6 +149,20 @@ Human-only per CLAUDE.md. I do not receive secrets. I will prepare exact command
 No client secret is created anywhere in this design. If S-2 shows Work IQ needs one for OBO, stop and ask first.
 
 
+## Implementation notes: comms agent (phase 6)
+- Turn request: `POST /v1/agent/comms/turns {messages[], confirmation?}`. After the user taps Confirm on the card
+  (`POST /v1/confirmations`, T-user), the app sends `confirmation {proposal_id, confirmation_token}`. `api/` loads
+  the user's own unexpired proposal and gives the agent one fixed-format user message holding the token and the
+  stored draft, so what is published is what was confirmed. A token-shaped but unknown value fails in
+  `publish_announcement` (`INVALID_CONFIRMATION`).
+- Confirm card content comes from `GET /v1/proposals/{id}` (proposer only, REST only), never from model text.
+- The reply is structured (`kind`: message, clarification, proposal, published; `proposal_id`). `api/` downgrades
+  `published` unless `publish_announcement` succeeded in that turn. The response also lists tool names and success.
+- Audit (FR-AUTH-003): one content-free record per MCP call (user oid, tool, outcome, correlation id = `X-Task-Run-Id`
+  or `X-Correlation-Id`), kept in memory and logged as `mcp_audit ...`. Tokens, arguments and text are never logged.
+- Manual step 5 grows: define the three app roles on `employee-tools` and assign the same users or groups.
+  Set `TOOLS_CLIENT_ID` (azd env) so `infra/` passes it to the Container App and `azure.yaml` builds the audience.
+
 ## Flow 4: directory lookup on first sign-in (ADR-010)
 
 `api/` exchanges T-user for T-graph (OBO, delegated `User.Read`), then reads `GET /me` and `GET /me/manager`.

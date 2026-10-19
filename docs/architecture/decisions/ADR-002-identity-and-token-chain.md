@@ -42,3 +42,21 @@ states `ai.azure.com` is not exposed as a consentable delegated API permission.
 - learn.microsoft.com/azure/foundry/agents/how-to/tools/tool-authentication
 - learn.microsoft.com/answers/a/12695581 (ai.azure.com is RBAC, not an API permission)
 - learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow
+
+## Status update: phase 6, comms slice (2026-10-19)
+Implemented as decided (point 3 stays as written, not the literal OBO to `ai.azure.com` of the original request):
+`api/app/routes/agent.py` + `api/app/agents/foundry.py` (OBO for `employee-tools`, managed-identity token for
+`https://ai.azure.com`, `x-ms-user-identity` from the validated `oid`, `x-client-api-access-token` for T-tools,
+`store:false`); `api/app/mcp/` validates `Tools.Invoke` only (`TOOLS_CLIENT_ID` / `TOOLS_AUDIENCE`).
+- S-1: the default holds. A second resource app `employee-tools` is required; self-OBO is not attempted.
+  The roles `Communicator`, `Manager`, `Employee` must also be defined and assigned on `employee-tools`
+  because the MCP server reads `roles` from the Tools.Invoke token (same `authorize()` as REST).
+- S-3: still open. The API forwards T-tools in `x-client-api-access-token`, and the toolbox connection is declared
+  `UserEntraToken` with audience `api://employee-tools` (agents/toolboxes/tools-conn.yaml). Which of the two the
+  `FoundryToolbox` client actually presents to `/mcp` is unverified: nothing has run against a deployed Foundry.
+  If neither reaches the MCP call, the ADR-005 fallback applies (api/ attaches the token itself). The confirmation
+  token is not affected: the turn endpoint adds it, with the stored draft, as a fixed-format user message.
+- Agents cannot mint tokens: `POST /v1/confirmations` validates `access_as_user`, so a Tools.Invoke token gets 401.
+Sources (retrieved 2026-10-19): learn.microsoft.com/azure/foundry/agents/how-to/use-on-behalf-of-flow,
+.../how-to/isolate-sessions-per-user, .../how-to/tools/tool-authentication, .../how-to/tools/use-toolbox-hosted-agent,
+.../how-to/author-azure-yaml, agent-framework/hosting/foundry-hosted-agent.
