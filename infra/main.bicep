@@ -130,4 +130,6 @@ output AZURE_RESOURCE_GROUP string = rg.name
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output AZURE_API_URL string = containerApps.outputs.apiUrl
 output AZURE_AI_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+// Name the Foundry azd extensions (azure.ai.project / azure.ai.agent) read from the azd environment.
+output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
 output AZURE_AI_MODEL_DEPLOYMENT_NAME string = foundry.outputs.modelDeploymentName
