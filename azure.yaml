@@ -12,3 +12,42 @@ services:
     docker:
       path: ./Dockerfile
       remoteBuild: false
+  # Foundry project created by infra/ (modules/foundry.bicep); connect, do not recreate.
+  ai-project:
+    host: azure.ai.project
+    endpoint: ${AZURE_AI_PROJECT_ENDPOINT}
+  tools-conn:
+    host: azure.ai.connection
+    uses:
+      - ai-project
+    $ref: ./agents/toolboxes/tools-conn.yaml
+  core-tools:
+    host: azure.ai.toolbox
+    uses:
+      - ai-project
+      - tools-conn
+    $ref: ./agents/toolboxes/core-tools.yaml
+  comms:
+    host: azure.ai.agent
+    project: ./agents/comms
+    language: docker
+    kind: hosted
+    name: comms
+    description: Announcements assistant (FR-ANN-001..005 AGENT). Acts only through api/ MCP tools.
+    uses:
+      - ai-project
+      - core-tools
+    toolboxes:
+      - core-tools
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      TOOLBOX_NAME: core-tools
+      COMMS_INSTRUCTIONS_VERSION: v1
+    startupCommand: python -m comms.main
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi

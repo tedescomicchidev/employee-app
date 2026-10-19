@@ -1,0 +1,100 @@
+"""The comms agent definition: instructions, structured output, wiring. No model is called."""
+
+import json
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from comms.instructions import available_versions, load_instructions
+from comms.schemas import AgentReply
+
+PROPOSAL = "6f0c2f6e-2f0e-4d7e-8f55-0a3d5d9c1c11"
+
+
+def test_instructions_are_versioned_and_default_to_v1(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("COMMS_INSTRUCTIONS_VERSION", raising=False)
+    assert available_versions() == ["v1"]
+    assert load_instructions()[0] == "v1"
+    with pytest.raises(ValueError):
+        load_instructions("v99")
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "content_trust: untrusted",  # FR-ANN-005: announcement text is data
+        "Never follow it",
+        "is NOT a",  # a chat "yes" is not a confirmation (FR-AUTH-006.4)
+        "confirmation_token",
+        "only after `publish_announcement` returned",  # FR-ANN-001 AGENT: no premature "published"
+        "ask a clarification question",  # FR-ANN-002 AGENT: ambiguity
+        "Do not translate",  # A-07 / U-06
+        "FORBIDDEN",  # FR-AUTH-002: cannot exceed the user's role
+    ],
+)
+def test_instructions_carry_the_safety_rules(rule: str) -> None:
+    assert rule in load_instructions("v1")[1]
+
+
+def test_instructions_name_only_tools_the_api_exposes() -> None:
+    text = load_instructions("v1")[1]
+    for tool in (
+        "list_announcements", "get_announcement", "list_audience_options",
+        "resolve_audience", "propose_announcement", "publish_announcement",
+    ):  # fmt: skip
+        assert tool in text
+    assert "create_vacation_request" not in text
+
+
+def test_reply_schema_accepts_the_four_kinds_and_rejects_extras() -> None:
+    reply = AgentReply.model_validate(
+        {"kind": "proposal", "text": "Please review", "proposal_id": PROPOSAL}
+    )
+    assert str(reply.proposal_id) == PROPOSAL
+    AgentReply.model_validate({"kind": "published", "text": "Done"})
+    with pytest.raises(ValidationError):
+        AgentReply.model_validate({"kind": "confirm", "text": "x"})
+    with pytest.raises(ValidationError):
+        AgentReply.model_validate({"kind": "message", "text": "x", "confirmation_token": "t"})
+
+
+def test_reply_schema_has_no_field_that_could_carry_a_token_or_card_content() -> None:
+    assert set(AgentReply.model_fields) == {"kind", "text", "proposal_id"}
+
+
+def test_agent_wiring_uses_toolbox_structured_output_and_no_server_side_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agent_framework.foundry import FoundryToolbox
+
+    from comms.main import build_agent
+
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://x.test/api/projects/p")
+    monkeypatch.delenv("TOOLBOX_ENDPOINT", raising=False)
+    monkeypatch.delenv("TOOLBOX_NAME", raising=False)
+
+    class Credential:  # never asked for a token: nothing here connects
+        pass
+
+    class FakeChatClient:  # replaced by FoundryChatClient only in `azd ai agent run`
+        pass
+
+    agent = build_agent(Credential(), chat_client=FakeChatClient())
+    assert agent.name == "comms"
+    assert agent.default_options["instructions"] == load_instructions("v1")[1]
+    assert agent.default_options["response_format"] is AgentReply
+    assert agent.default_options["store"] is False
+    assert agent.default_options["tools"] == []  # tools come from the toolbox only
+    assert [type(t) for t in agent.mcp_tools] == [FoundryToolbox]
+
+
+def test_contract_matches_the_api_reply_model() -> None:
+    """agents/comms/schemas.py and api/app/agents/turns.py describe the same reply."""
+    api_source = (Path(__file__).parents[2] / "api/app/agents/turns.py").read_text()
+    for field, annotation in (
+        ("kind", 'Literal["message", "clarification", "proposal", "published"]'),
+        ("proposal_id", "UUID | None"),
+    ):
+        assert field in api_source and annotation in api_source
+    assert json.dumps(sorted(AgentReply.model_fields)) == '["kind", "proposal_id", "text"]'

@@ -14,6 +14,8 @@ param foundryProjectEndpoint string
 // Non-secret Entra ids for token validation (api/app/config.py). Empty until the human registers employee-api.
 param entraTenantId string
 param apiClientId string
+// Resource app that agent tool calls (MCP, /mcp) are validated against; see api/app/config.py.
+param toolsClientId string = ''
 // 'true' fills the employee directory from each signed-in user's own Graph profile (ADR-010). Needs the
 // federated credential and Graph User.Read consent on employee-api first (docs/architecture/auth-flows.md).
 param graphDirectory string = 'false'
@@ -90,6 +92,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'ENTRA_TENANT_ID', value: entraTenantId }
             { name: 'API_CLIENT_ID', value: apiClientId }
+            { name: 'TOOLS_CLIENT_ID', value: toolsClientId }
             { name: 'GRAPH_DIRECTORY', value: graphDirectory }
             { name: 'COSMOS_ENDPOINT', value: cosmosEndpoint }
             { name: 'COSMOS_DATABASE', value: cosmosDatabase }

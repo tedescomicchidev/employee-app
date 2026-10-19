@@ -3,13 +3,19 @@ name = "employee-agents"
 version = "0.1.0"
 description = "Foundry hosted agents (Phase 6+)"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "agent-framework>=1.22.0",
+    "agent-framework-foundry-hosting>=1.0.0b261015",
+    "azure-identity>=1.26.0",
+    "pydantic>=2.14.1",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.8"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100

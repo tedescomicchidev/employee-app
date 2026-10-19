@@ -1,0 +1,7 @@
+# Connection from the Foundry project to the api/ MCP server (ADR-005). Referenced from azure.yaml.
+# UserEntraToken: Foundry supplies a Microsoft Entra token for the signed-in user and this audience,
+# which api/ validates as Tools.Invoke (ADR-002). No key, secret or app-only credential is involved.
+category: RemoteTool
+target: ${AZURE_API_URL}/mcp
+authType: UserEntraToken
+audience: api://${TOOLS_CLIENT_ID}

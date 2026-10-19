@@ -15,6 +15,8 @@ param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 30
 @description('Client id of the employee-api Entra app registration (non-secret). Set after the human-only registration.')
 param apiClientId string = ''
+// Resource app for agent tool calls (Tools.Invoke, ADR-002). Empty until the human registers employee-tools.
+param toolsClientId string = ''
 param graphDirectory string = 'false'
 
 var tags = {
@@ -105,6 +107,7 @@ module containerApps 'modules/containerapps.bicep' = {
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
     entraTenantId: tenant().tenantId
     apiClientId: apiClientId
+    toolsClientId: toolsClientId
     graphDirectory: graphDirectory
   }
 }
@@ -127,3 +130,4 @@ output AZURE_RESOURCE_GROUP string = rg.name
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output AZURE_API_URL string = containerApps.outputs.apiUrl
 output AZURE_AI_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+output AZURE_AI_MODEL_DEPLOYMENT_NAME string = foundry.outputs.modelDeploymentName
