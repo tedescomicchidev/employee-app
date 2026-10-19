@@ -44,7 +44,8 @@ class Env:
 
     def headers(self, who: str) -> dict[str, str]:
         oid = OIDS.get(who, who)
-        return {"Authorization": f"Bearer {self._make_token(oid=oid)}"}
+        roles = ["Manager", "Employee"] if who in ("ceo", "mgr1", "mgr2") else ["Employee"]
+        return {"Authorization": f"Bearer {self._make_token(oid=oid, roles=roles)}"}
 
     def get(self, who: str, path: str) -> Any:
         return self.client.get(f"/v1/vacation{path}", headers=self.headers(who))
@@ -152,6 +153,10 @@ def test_fr_vac_001_requires_a_provisioned_employee(env: Env) -> None:
 # --- FR-VAC-002 ---------------------------------------------------------------------------
 
 
+def _starting(env: Env, who: str, day: date) -> int:
+    return sum(1 for r in env.store.for_owner(OIDS[who]) if r.start == day)
+
+
 def test_fr_vac_002_valid_request_becomes_pending_and_reaches_inbox(env: Env) -> None:
     """FR-VAC-002.1/.3/.5 @api: pending, assigned to mgr1, 3 days, remaining 22."""
     proposal = env.propose("emp2", "2026-11-23", "2026-11-25")
@@ -159,8 +164,7 @@ def test_fr_vac_002_valid_request_becomes_pending_and_reaches_inbox(env: Env) ->
     assert review["counted_days"] == 3
     assert review["excluded"] == []
     assert (review["remaining"], review["remaining_after"]) == (25 - 5, 17)
-    assert env.store.for_owner(OIDS["emp2"])[-1].start == date(2026, 11, 2)  # nothing created yet
-    assert len(env.store.for_owner(OIDS["emp2"])) == 1
+    assert _starting(env, "emp2", date(2026, 11, 23)) == 0  # nothing created yet
     token = env.confirm("emp2", proposal.json()["proposal_id"])
     r = env.submit("emp2", "2026-11-23", "2026-11-25", token)
     assert r.status_code == 201
@@ -168,7 +172,8 @@ def test_fr_vac_002_valid_request_becomes_pending_and_reaches_inbox(env: Env) ->
     assert body["status"] == "pending" and body["counted_days"] == 3
     assert body["approver"] == "Maria Keller" and body["per_year"] == {"2026": 3}
     inbox = env.get("mgr1", "/inbox").json()["items"]
-    assert [i["id"] for i in inbox] == [body["id"]]
+    assert body["id"] in [i["id"] for i in inbox]
+    assert {i["owner_oid"] for i in inbox} <= {OIDS["emp2"], "00000000-0000-0000-0000-000000000018"}
     assert env.get("mgr2", "/inbox").json()["items"] == []
     assert env.get("emp2", "/balance").json()["remaining"] == 17
 
@@ -283,7 +288,7 @@ def test_fr_vac_002_submission_is_idempotent(env: Env) -> None:
     second = env.submit("emp2", "2026-11-23", "2026-11-25", token)
     assert (first.status_code, second.status_code) == (201, 200)
     assert first.json()["id"] == second.json()["id"]
-    assert len(env.store.for_owner(OIDS["emp2"])) == 2  # fixture + exactly one new
+    assert _starting(env, "emp2", date(2026, 11, 23)) == 1  # exactly one new
     assert env.get("emp2", "/balance").json()["pending"] == 3
 
 
@@ -299,7 +304,7 @@ def test_fr_vac_002_write_needs_a_valid_confirmation(env: Env, who: str) -> None
     token = env.confirm(who, proposal)
     assert env.submit(who, "2026-11-23", "2026-11-27", token).status_code == 409
     assert env.submit("emp1", "2026-11-23", "2026-11-25", token).status_code == 409
-    assert len(env.store.for_owner(OIDS["emp2"])) == 1
+    assert _starting(env, "emp2", date(2026, 11, 23)) == 0
 
 
 def test_fr_vac_002_conflicting_write_after_proposal_is_rejected(env: Env) -> None:
@@ -389,3 +394,33 @@ def test_fr_vac_006_blackout_scope_is_respected() -> None:
 
 def test_holiday_name_falls_back_to_german() -> None:
     assert Holiday("ZH", date(2026, 1, 1), {"de": "Neujahr"}).name("it") == "Neujahr"
+
+
+def test_fr_vac_007_my_requests_show_status_and_decision_details(env: Env) -> None:
+    """FR-VAC-007.1 @api: approved, rejected with reason, previous year, in one list."""
+    # a pending one, like the fixture of the Gherkin scenario
+    token = env.confirm(
+        "emp2", env.propose("emp2", "2026-11-23", "2026-11-25").json()["proposal_id"]
+    )
+    env.submit("emp2", "2026-11-23", "2026-11-25", token)
+    items = env.get("emp2", "/requests").json()["items"]
+    by_id = {i["id"]: i for i in items}
+    assert {i["status"] for i in items} == {"approved", "rejected", "pending"}
+    rejected = by_id["seed-emp2-mar-rejected"]
+    assert (rejected["reason"], rejected["counted_days"]) == ("Inventory week", 3)
+    assert rejected["decided_at"] and rejected["start"] == "2026-03-02"
+    assert by_id["seed-emp2-2025-aug"]["start"] == "2025-08-04"  # previous year
+    pending = next(i for i in items if i["status"] == "pending")
+    assert pending["decided_at"] is None and pending["reason"] is None
+    assert all(i["owner_oid"] == OIDS["emp2"] for i in items)  # own requests only
+    assert [i["start"] for i in items] == sorted(i["start"] for i in items)
+
+
+def test_fr_vac_007_history_stops_after_the_previous_year(env: Env) -> None:
+    """FR-VAC-007.1: current and previous year only."""
+    old = replace(
+        env.store.get("seed-emp2-2025-aug"), id="old", start=date(2024, 8, 5), end=date(2024, 8, 9)
+    )
+    env.store.add(old)
+    ids = [i["id"] for i in env.get("emp2", "/requests").json()["items"]]
+    assert "old" not in ids and "seed-emp2-2025-aug" in ids

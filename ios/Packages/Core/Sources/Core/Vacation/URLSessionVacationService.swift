@@ -50,9 +50,15 @@ public struct URLSessionVacationService: VacationService {
     private struct RequestResponse: Decodable {
         let id: String, status: String, start: String, end: String, approver: String
         let countedDays: Int
+        let ownerName: String?
+        let decidedAt: String?
+        let reason: String?
+        let createdAt: String?
+        let ownerBalance: BalanceResponse?
         enum CodingKeys: String, CodingKey {
-            case id, status, start, end, approver
-            case countedDays = "counted_days"
+            case id, status, start, end, approver, reason
+            case countedDays = "counted_days", ownerName = "owner_name", decidedAt = "decided_at"
+            case createdAt = "created_at", ownerBalance = "owner_balance"
         }
     }
     private struct RequestsResponse: Decodable { let items: [RequestResponse] }
@@ -93,6 +99,61 @@ public struct URLSessionVacationService: VacationService {
         let start: String, end: String, confirmationToken: String
         enum CodingKeys: String, CodingKey { case start, end, confirmationToken = "confirmation_token" }
     }
+    private struct CancelProposalBody: Encodable {
+        struct Payload: Encodable {
+            let requestId: String
+            enum CodingKeys: String, CodingKey { case requestId = "request_id" }
+        }
+        let type = "vacation_cancel"
+        let payload: Payload
+    }
+    private struct CancelConfirmBody: Encodable {
+        let type = "vacation_cancel"
+        let proposalId: String
+        enum CodingKeys: String, CodingKey { case type, proposalId = "proposal_id" }
+    }
+    private struct CancelBody: Encodable {
+        let confirmationToken: String
+        enum CodingKeys: String, CodingKey { case confirmationToken = "confirmation_token" }
+    }
+    private struct DecisionPayload: Encodable {
+        let requestId: String
+        let decision: String
+        let reason: String?
+        enum CodingKeys: String, CodingKey { case requestId = "request_id", decision, reason }
+    }
+    private struct DecisionProposalBody: Encodable {
+        let type = "vacation_decision"
+        let payload: DecisionPayload
+    }
+    private struct DecisionBody: Encodable {
+        let decision: String
+        let reason: String?
+        let confirmationToken: String
+        enum CodingKeys: String, CodingKey { case decision, reason, confirmationToken = "confirmation_token" }
+    }
+    private struct DecisionConfirmBody: Encodable {
+        let type = "vacation_decision"
+        let proposalId: String
+        enum CodingKeys: String, CodingKey { case type, proposalId = "proposal_id" }
+    }
+    private struct ProposalIdResponse: Decodable {
+        let proposalId: String
+        enum CodingKeys: String, CodingKey { case proposalId = "proposal_id" }
+    }
+    private struct AbsenceResponse: Decodable {
+        let requestId: String, name: String, status: String, start: String, end: String
+        enum CodingKeys: String, CodingKey {
+            case name, status, start, end
+            case requestId = "request_id"
+        }
+    }
+    private struct CoverageDayResponse: Decodable {
+        let date: String
+        let present: Int, total: Int
+        let absent: [AbsenceResponse]
+    }
+    private struct CoverageResponse: Decodable { let days: [CoverageDayResponse] }
     private struct Empty: Codable {}
 
     // MARK: VacationService
@@ -142,6 +203,74 @@ public struct URLSessionVacationService: VacationService {
         return try Self.summary(r)
     }
 
+    public func request(id: String, accessToken: String) async throws -> VacationRequestSummary {
+        let r: RequestResponse = try await send(
+            "GET", "v1/vacation/requests/\(id)", Optional<Empty>.none, accessToken)
+        return try Self.summary(r)
+    }
+
+    public func confirmCancel(id: String, accessToken: String) async throws -> String {
+        let proposal: ProposalIdResponse = try await send(
+            "POST", "v1/proposals", CancelProposalBody(payload: .init(requestId: id)), accessToken)
+        let token: TokenResponse = try await send(
+            "POST", "v1/confirmations", CancelConfirmBody(proposalId: proposal.proposalId), accessToken)
+        return token.confirmationToken
+    }
+
+    public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
+        -> VacationRequestSummary
+    {
+        let r: RequestResponse = try await send(
+            "POST", "v1/vacation/requests/\(id)/cancel", CancelBody(confirmationToken: confirmationToken),
+            accessToken)
+        return try Self.summary(r)
+    }
+
+    public func inbox(accessToken: String) async throws -> [VacationRequestSummary] {
+        let r: RequestsResponse = try await send("GET", "v1/vacation/inbox", Optional<Empty>.none, accessToken)
+        return try r.items.map(Self.summary)
+    }
+
+    public func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay] {
+        var query: [String] = []
+        if let start { query.append("start=\(start.iso)") }
+        if let end { query.append("end=\(end.iso)") }
+        let path = "v1/vacation/coverage" + (query.isEmpty ? "" : "?" + query.joined(separator: "&"))
+        let r: CoverageResponse = try await send("GET", path, Optional<Empty>.none, accessToken)
+        return try r.days.map { raw in
+            guard let day = CalendarDay(iso: raw.date) else { throw VacationError.failed(code: nil, correlationId: nil) }
+            let absent = try raw.absent.map { a -> CoverageAbsence in
+                guard let status = VacationStatus(rawValue: a.status), let from = CalendarDay(iso: a.start),
+                      let to = CalendarDay(iso: a.end)
+                else { throw VacationError.failed(code: nil, correlationId: nil) }
+                return CoverageAbsence(requestId: a.requestId, name: a.name, status: status, start: from, end: to)
+            }
+            return CoverageDay(day: day, present: raw.present, total: raw.total, absent: absent)
+        }
+    }
+
+    public func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String {
+        let payload = DecisionPayload(requestId: id, decision: decision.rawValue, reason: reason)
+        let proposal: ProposalIdResponse = try await send(
+            "POST", "v1/proposals", DecisionProposalBody(payload: payload), accessToken)
+        let token: TokenResponse = try await send(
+            "POST", "v1/confirmations",
+            DecisionConfirmBody(proposalId: proposal.proposalId), accessToken)
+        return token.confirmationToken
+    }
+
+    public func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary {
+        let r: RequestResponse = try await send(
+            "POST", "v1/vacation/requests/\(id)/decision",
+            DecisionBody(decision: decision.rawValue, reason: reason, confirmationToken: confirmationToken),
+            accessToken)
+        return try Self.summary(r)
+    }
+
     // MARK: Mapping
 
     private static var languageCode: String {
@@ -159,7 +288,14 @@ public struct URLSessionVacationService: VacationService {
               let end = CalendarDay(iso: r.end)
         else { throw VacationError.failed(code: nil, correlationId: nil) }
         return VacationRequestSummary(
-            id: r.id, status: status, start: start, end: end, countedDays: r.countedDays, approver: r.approver)
+            id: r.id, status: status, start: start, end: end, countedDays: r.countedDays, approver: r.approver,
+            ownerName: r.ownerName ?? "", decidedAt: r.decidedAt.flatMap { try? Date($0, strategy: .iso8601) },
+            reason: r.reason, submittedAt: r.createdAt.flatMap { try? Date($0, strategy: .iso8601) },
+            ownerBalance: r.ownerBalance.map {
+                VacationBalance(
+                    year: $0.year, entitlement: $0.entitlement, carriedOver: $0.carriedOver,
+                    approved: $0.approved, pending: $0.pending, remaining: $0.remaining)
+            })
     }
 
     private static func review(_ r: ReviewResponse) -> VacationReview {
@@ -189,8 +325,11 @@ public struct URLSessionVacationService: VacationService {
         case (401, _): return .unauthenticated
         case (403, "NOT_PROVISIONED"): return .notProvisioned
         case (403, _): return .forbidden
+        case (404, _): return .notFound
+        case (409, "INVALID_STATE"): return .invalidState
         case (422, "CANTON_MISSING"): return .cantonMissing
         case (422, "NO_APPROVER"): return .noApprover
+        case (422, "SELF_APPROVAL"): return .selfApproval
         case (422, "VALIDATION_ERROR"): return .validation
         case (422, _) where error?.violations != nil:
             return .rules((error?.violations ?? []).map(violation), review: error?.review.map(review))

@@ -8,7 +8,7 @@ import Foundation
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline>
-///   -vacationStub <ok|populated|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
+///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|team|teamEmpty|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -41,6 +41,20 @@ enum StubLaunch {
         "vacation-overview-loading": (.employee, true),
         "vacation-overview-offline": (.employee, true),
         "vacation-overview-error": (.employee, true),
+        "vacation-my_requests-ok": (.employee, true),
+        "vacation-my_requests-empty": (.employee, true),
+        "vacation-request_detail-ok": (.employee, true),
+        "vacation-request_detail-cancel_dialog": (.employee, true),
+        "vacation-manager_inbox-ok": (.manager, true),
+        "vacation-manager_inbox-empty": (.manager, true),
+        "vacation-manager_inbox-forbidden": (.manager, true),
+        "vacation-request_decision-ok": (.manager, true),
+        "vacation-request_decision-reject_reason": (.manager, true),
+        "vacation-request_decision-invalid_state": (.manager, true),
+        "vacation-request_decision-blocked": (.manager, true),
+        "vacation-team_coverage-ok": (.manager, true),
+        "vacation-team_coverage-empty": (.manager, true),
+        "vacation-team_coverage-forbidden": (.manager, true),
         "vacation-holidays-ok": (.employee, true),
         "vacation-holidays-canton_missing": (.employee, true),
         "vacation-request-ok": (.employee, true),
@@ -57,6 +71,20 @@ enum StubLaunch {
         "vacation-overview-loading": (.loading, nil),
         "vacation-overview-offline": (.offline, nil),
         "vacation-overview-error": (.error, nil),
+        "vacation-my_requests-ok": (.history, .mine),
+        "vacation-my_requests-empty": (.ok, .mine),
+        "vacation-request_detail-ok": (.history, .detail),
+        "vacation-request_detail-cancel_dialog": (.history, .cancelDialog),
+        "vacation-manager_inbox-ok": (.manager, .inbox),
+        "vacation-manager_inbox-empty": (.managerEmpty, .inbox),
+        "vacation-manager_inbox-forbidden": (.managerForbidden, .inbox),
+        "vacation-request_decision-ok": (.manager, .decision),
+        "vacation-request_decision-reject_reason": (.manager, .rejectReason),
+        "vacation-request_decision-invalid_state": (.managerDecided, .approveConfirmed),
+        "vacation-request_decision-blocked": (.managerBlocked, .approveConfirmed),
+        "vacation-team_coverage-ok": (.team, .team),
+        "vacation-team_coverage-empty": (.teamEmpty, .team),
+        "vacation-team_coverage-forbidden": (.managerForbidden, .team),
         "vacation-holidays-ok": (.populated, .holidays),
         "vacation-holidays-canton_missing": (.cantonMissing, .holidays),
         "vacation-request-ok": (.populated, .requestOK),
@@ -126,7 +154,11 @@ enum StubLaunch {
             vacation: StubVacationService(scenario: vacationFlow?.0 ?? vacationArgument ?? .ok),
             vacationCache: vacationCache, clock: { fixtureNow })
         environment.vacationAutopilot = vacationFlow?.1
-        environment.startOnVacation = vacationFlow != nil || vacationArgument != nil
+        let approvalAutopilots: [VacationAutopilot] = [.inbox, .decision, .rejectReason, .approveConfirmed, .team]
+        let startOnApprovals = vacationFlow?.1.map(approvalAutopilots.contains) ?? false
+            || argument("-startOnApprovals") == "YES"
+        environment.startOnApprovals = startOnApprovals
+        environment.startOnVacation = (vacationFlow != nil || vacationArgument != nil) && !startOnApprovals
         environment.openAnnouncementOnLaunch = feedFlow?.open
         environment.announcementAutopilot = flow?.0
         environment.autoSignIn = argument("-scenario").map(autoSignIn.contains) ?? false

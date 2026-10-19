@@ -55,6 +55,11 @@ def self_approval() -> ApiError:
     return ApiError(422, "SELF_APPROVAL", "A request cannot be approved by its own author")
 
 
+def invalid_state() -> ApiError:
+    """R11: the request is no longer in a state this action applies to (FR-VAC-003.2, 004.3)."""
+    return ApiError(409, "INVALID_STATE", "The request is no longer pending")
+
+
 def rule_violation(
     violations: list[dict[str, object]], review: dict[str, object] | None = None
 ) -> ApiError:

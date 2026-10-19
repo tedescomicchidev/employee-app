@@ -84,6 +84,80 @@ struct VacationRESTTests {
         #expect(balance == VacationBalance(year: 2026, entitlement: 25, carriedOver: 3, approved: 11, pending: 4, remaining: 13))
     }
 
+    @Test("FR-VAC-007.1: status, decision date and rejection reason are decoded")
+    func history() async throws {
+        let body = """
+        {"items":[{"id":"a","status":"rejected","start":"2026-03-02","end":"2026-03-04","counted_days":3,
+        "approver":"Maria Keller","owner_name":"Anna Meier","decided_at":"2026-02-20T09:00:00+00:00",
+        "reason":"Inventory week","per_year":{"2026":3},"excluded":[]},
+        {"id":"b","status":"pending","start":"2026-12-28","end":"2026-12-30","counted_days":3,
+        "approver":"Maria Keller","decided_at":null,"reason":null}]}
+        """
+        let items = try await service(200, body).requests(accessToken: "t")
+        #expect(items.map(\.status) == [.rejected, .pending])
+        #expect(items[0].reason == "Inventory week" && items[0].ownerName == "Anna Meier")
+        #expect(items[0].decidedAt == Date(timeIntervalSince1970: 1_771_578_000))
+        #expect(items[1].decidedAt == nil && items[1].reason == nil)
+    }
+
+    @Test("FR-VAC-003.2: INVALID_STATE and NOT_FOUND map to their own cases")
+    func cancelErrors() async {
+        func error(_ status: Int, _ code: String) async -> VacationError? {
+            do {
+                _ = try await service(status, #"{"code":"\#(code)","message":"x"}"#)
+                    .cancel(id: "a", confirmationToken: "t", accessToken: "t")
+                return nil
+            } catch { return error as? VacationError }
+        }
+        #expect(await error(409, "INVALID_STATE") == .invalidState)
+        #expect(await error(404, "NOT_FOUND") == .notFound)
+        #expect(await error(409, "INVALID_CONFIRMATION") == .invalidConfirmation)
+    }
+
+    @Test("FR-VAC-004: the inbox, owner names and the report's balance are decoded; decision errors map")
+    func decisions() async throws {
+        let body = """
+        {"items":[{"id":"a","status":"pending","start":"2026-11-09","end":"2026-11-12","counted_days":4,
+        "approver":"Marco Rossi","owner_name":"Lena Meier","created_at":"2026-10-12T09:00:00+00:00",
+        "owner_balance":{"year":2026,"entitlement":25,"carried_over":3,"approved":11,"pending":4,"remaining":13}}]}
+        """
+        let items = try await service(200, body).inbox(accessToken: "t")
+        #expect(items.first?.ownerName == "Lena Meier" && items.first?.ownerBalance?.remaining == 13)
+
+        func error(_ status: Int, _ json: String) async -> VacationError? {
+            do {
+                _ = try await service(status, json)
+                    .decide(id: "a", decision: .approve, reason: nil, confirmationToken: "t", accessToken: "t")
+                return nil
+            } catch { return error as? VacationError }
+        }
+        #expect(await error(403, #"{"code":"FORBIDDEN","message":"x"}"#) == .forbidden)
+        #expect(await error(422, #"{"code":"SELF_APPROVAL","message":"x"}"#) == .selfApproval)
+        #expect(await error(409, #"{"code":"INVALID_STATE","message":"x"}"#) == .invalidState)
+        let blocked = await error(
+            422, #"{"code":"BLACKOUT","message":"x","codes":["BLACKOUT"],"violations":[{"code":"BLACKOUT","start":"2026-11-10","end":"2026-11-13"}]}"#)
+        #expect(blocked == .rules([VacationViolation(
+            code: "BLACKOUT", range: DayRange(start: CalendarDay(iso: "2026-11-10")!, end: CalendarDay(iso: "2026-11-13")!))], review: nil))
+    }
+
+    @Test("FR-VAC-005: coverage days, absences and their requests are decoded; FORBIDDEN maps")
+    func coverage() async throws {
+        let body = """
+        {"start":"2026-11-02","end":"2026-11-06","days":[{"date":"2026-11-04","present":2,"total":4,
+        "absent":[{"request_id":"a","name":"Lena Meier","status":"approved","start":"2026-11-02","end":"2026-11-06"},
+        {"request_id":"b","name":"Tim Berger","status":"pending","start":"2026-11-04","end":"2026-11-04"}]}]}
+        """
+        let days = try await service(200, body).coverage(
+            start: CalendarDay(iso: "2026-11-02"), end: CalendarDay(iso: "2026-11-06"), accessToken: "t")
+        #expect(days.count == 1 && days[0].present == 2 && days[0].total == 4)
+        #expect(days[0].absent.map(\.status) == [.approved, .pending] && days[0].absent[1].name == "Tim Berger")
+        do {
+            _ = try await service(403, #"{"code":"FORBIDDEN","message":"x"}"#)
+                .coverage(start: nil, end: nil, accessToken: "t")
+            Issue.record("expected FORBIDDEN")
+        } catch { #expect(error as? VacationError == .forbidden) }
+    }
+
     @Test("FR-VAC-002.2: every failing code arrives in order, with the blocked review")
     func rules() async throws {
         let body = """

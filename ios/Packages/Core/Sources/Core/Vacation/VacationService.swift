@@ -70,6 +70,10 @@ public enum VacationStatus: String, Sendable, Codable {
     case pending, approved, rejected, cancelled
 }
 
+public enum VacationDecision: String, Sendable, Equatable {
+    case approve, reject
+}
+
 /// A day that was not counted, with the holiday name when it is one (FR-VAC-006.2).
 public struct ExcludedDay: Sendable, Equatable, Codable, Hashable {
     public enum Kind: String, Sendable, Codable { case weekend, holiday }
@@ -91,14 +95,65 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
     public let end: CalendarDay
     public let countedDays: Int
     public let approver: String
+    /// Set for a manager's view of a report's request (FR-VAC-004); empty for the owner's own.
+    public let ownerName: String
+    /// When the request was approved, rejected or cancelled; nil while pending.
+    public let decidedAt: Date?
+    /// The rejection reason, shown to the owner (FR-VAC-007.1). Never logged.
+    public let reason: String?
+    public let submittedAt: Date?
+    /// The report's balance, only in the detail an approver opens (FR-VAC-001.3).
+    public let ownerBalance: VacationBalance?
 
-    public init(id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String) {
+    public init(
+        id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String,
+        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil, submittedAt: Date? = nil,
+        ownerBalance: VacationBalance? = nil
+    ) {
         self.id = id
         self.status = status
         self.start = start
         self.end = end
         self.countedDays = countedDays
         self.approver = approver
+        self.ownerName = ownerName
+        self.decidedAt = decidedAt
+        self.reason = reason
+        self.submittedAt = submittedAt
+        self.ownerBalance = ownerBalance
+    }
+}
+
+/// One direct report's pending or approved request that covers a day (FR-VAC-005).
+public struct CoverageAbsence: Sendable, Equatable, Codable {
+    public let requestId: String
+    public let name: String
+    public let status: VacationStatus
+    public let start: CalendarDay
+    public let end: CalendarDay
+
+    public init(requestId: String, name: String, status: VacationStatus, start: CalendarDay, end: CalendarDay) {
+        self.requestId = requestId
+        self.name = name
+        self.status = status
+        self.start = start
+        self.end = end
+    }
+}
+
+/// A working day of the team: how many direct reports are present and who is not (FR-VAC-005.1).
+public struct CoverageDay: Sendable, Equatable, Codable, Identifiable {
+    public var id: CalendarDay { day }
+    public let day: CalendarDay
+    public let present: Int
+    public let total: Int
+    public let absent: [CoverageAbsence]
+
+    public init(day: CalendarDay, present: Int, total: Int, absent: [CoverageAbsence]) {
+        self.day = day
+        self.present = present
+        self.total = total
+        self.absent = absent
     }
 }
 
@@ -212,6 +267,12 @@ public enum VacationError: Error, Sendable, Equatable {
     /// `CANTON_MISSING`: "Ask HR to set your canton".
     case cantonMissing
     case noApprover
+    /// `NOT_FOUND`: unknown or not yours (FR-VAC-003, 004).
+    case notFound
+    /// `INVALID_STATE`: the request is no longer pending (FR-VAC-003.2, 004.3).
+    case invalidState
+    /// `SELF_APPROVAL` (R10).
+    case selfApproval
     /// R5-R8: every failing code, first by precedence, plus what a blocked review still shows.
     case rules([VacationViolation], review: VacationReview?)
     case invalidConfirmation
@@ -227,6 +288,9 @@ public enum VacationError: Error, Sendable, Equatable {
         case .notProvisioned: "NOT_PROVISIONED"
         case .cantonMissing: "CANTON_MISSING"
         case .noApprover: "NO_APPROVER"
+        case .notFound: "NOT_FOUND"
+        case .invalidState: "INVALID_STATE"
+        case .selfApproval: "SELF_APPROVAL"
         case let .rules(violations, _): violations.first?.code ?? "RULE"
         case .invalidConfirmation: "INVALID_CONFIRMATION"
         case .validation: "VALIDATION_ERROR"
@@ -246,6 +310,26 @@ public protocol VacationService: Sendable {
     /// Idempotent on the confirmation token (FR-VAC-002.4).
     func submit(
         start: CalendarDay, end: CalendarDay, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary
+    /// One request, for its owner or its approver (`NOT_FOUND` for anyone else).
+    func request(id: String, accessToken: String) async throws -> VacationRequestSummary
+    /// Dry run and confirmation of a cancel in one step; call it after the user confirmed (FR-VAC-003.3).
+    func confirmCancel(id: String, accessToken: String) async throws -> String
+    /// Idempotent on the confirmation token; `INVALID_STATE` unless the request is pending (FR-VAC-003.2).
+    func cancel(id: String, confirmationToken: String, accessToken: String) async throws -> VacationRequestSummary
+    /// Requests waiting for the signed-in manager (FR-VAC-004.1); `forbidden` for non-managers.
+    func inbox(accessToken: String) async throws -> [VacationRequestSummary]
+    /// Dry run and confirmation of a decision in one step; call it after the user confirmed.
+    /// An approval that would now break R5-R7 throws `.rules` and the request stays pending (FR-VAC-004.2).
+    func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String
+    /// Present and absent direct reports per working day; `forbidden` for non-managers (FR-VAC-005).
+    /// A nil bound means the API default: from today for four weeks.
+    func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay]
+    /// Final and idempotent on the confirmation token (FR-VAC-004.3).
+    func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
     ) async throws -> VacationRequestSummary
 }
 
@@ -311,6 +395,20 @@ public struct UnconfiguredVacationService: VacationService {
     public func confirm(_ proposal: VacationProposal, accessToken: String) async throws -> String { throw Self.failure }
     public func submit(
         start: CalendarDay, end: CalendarDay, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary { throw Self.failure }
+    public func request(id: String, accessToken: String) async throws -> VacationRequestSummary { throw Self.failure }
+    public func confirmCancel(id: String, accessToken: String) async throws -> String { throw Self.failure }
+    public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
+        -> VacationRequestSummary { throw Self.failure }
+    public func inbox(accessToken: String) async throws -> [VacationRequestSummary] { throw Self.failure }
+    public func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) async throws -> [CoverageDay] {
+        throw Self.failure
+    }
+    public func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String { throw Self.failure }
+    public func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
     ) async throws -> VacationRequestSummary { throw Self.failure }
     private static var failure: VacationError { .failed(code: "NOT_CONFIGURED", correlationId: nil) }
 }

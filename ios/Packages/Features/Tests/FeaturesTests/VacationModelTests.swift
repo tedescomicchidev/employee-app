@@ -24,13 +24,31 @@ private actor FakeVacation: VacationService {
         VacationHolidays(year: 2026, canton: "ZH", items: [VacationHoliday(day: day("2026-11-11"), name: "Fixture Day ZH")]))
     var proposeResults: [Result<VacationProposal, VacationError>] = []
     var submitErrors: [VacationError] = []
-    private var minted = 0
+    var requestResult: Result<VacationRequestSummary, VacationError> = .success(
+        VacationRequestSummary(
+            id: "r1", status: .pending, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller"))
+    var cancelErrors: [VacationError] = []
+    var cancelTokens: [String] = []
+    var inboxResult: Result<[VacationRequestSummary], VacationError> = .success([])
+    var confirmDecisionErrors: [VacationError] = []
+    var decideErrors: [VacationError] = []
+    var decisions: [(decision: VacationDecision, reason: String?, token: String)] = []
+    var coverageResult: Result<[CoverageDay], VacationError> = .success([])
+    var coverageCalls: [(CalendarDay?, CalendarDay?)] = []
+    var minted = 0
 
     func set(balance result: Result<VacationBalance, VacationError>) { balanceResult = result }
     func set(requests result: Result<[VacationRequestSummary], VacationError>) { requestsResult = result }
     func set(holidays result: Result<VacationHolidays, VacationError>) { holidaysResult = result }
     func queue(propose results: [Result<VacationProposal, VacationError>]) { proposeResults = results }
     func failSubmit(_ errors: [VacationError]) { submitErrors = errors }
+    func set(request result: Result<VacationRequestSummary, VacationError>) { requestResult = result }
+    func failCancel(_ errors: [VacationError]) { cancelErrors = errors }
+    func set(inbox result: Result<[VacationRequestSummary], VacationError>) { inboxResult = result }
+    func set(coverage result: Result<[CoverageDay], VacationError>) { coverageResult = result }
+    func failConfirmDecision(_ errors: [VacationError]) { confirmDecisionErrors = errors }
+    func failDecide(_ errors: [VacationError]) { decideErrors = errors }
 
     func balance(accessToken: String) throws -> VacationBalance {
         calls.append("balance")
@@ -62,6 +80,61 @@ private actor FakeVacation: VacationService {
         if !submitErrors.isEmpty { throw submitErrors.removeFirst() }
         return VacationRequestSummary(
             id: "r1", status: .pending, start: start, end: end, countedDays: 3, approver: "Maria Keller")
+    }
+}
+
+extension FakeVacation {
+    func request(id: String, accessToken: String) throws -> VacationRequestSummary {
+        calls.append("request")
+        return try requestResult.get()
+    }
+    func confirmCancel(id: String, accessToken: String) -> String {
+        calls.append("confirmCancel")
+        minted += 1
+        return "cancel-token-\(minted)"
+    }
+    func cancel(id: String, confirmationToken: String, accessToken: String) throws -> VacationRequestSummary {
+        calls.append("cancel")
+        cancelTokens.append(confirmationToken)
+        if !cancelErrors.isEmpty { throw cancelErrors.removeFirst() }
+        guard case let .success(current) = requestResult else { throw VacationError.notFound }
+        let done = VacationRequestSummary(
+            id: current.id, status: .cancelled, start: current.start, end: current.end,
+            countedDays: current.countedDays, approver: current.approver)
+        requestResult = .success(done)
+        return done
+    }
+}
+
+extension FakeVacation {
+    func coverage(start: CalendarDay?, end: CalendarDay?, accessToken: String) throws -> [CoverageDay] {
+        calls.append("coverage")
+        coverageCalls.append((start, end))
+        return try coverageResult.get()
+    }
+    func inbox(accessToken: String) throws -> [VacationRequestSummary] {
+        calls.append("inbox")
+        return try inboxResult.get()
+    }
+    func confirmDecision(id: String, decision: VacationDecision, reason: String?, accessToken: String) throws -> String {
+        calls.append("confirmDecision")
+        if !confirmDecisionErrors.isEmpty { throw confirmDecisionErrors.removeFirst() }
+        minted += 1
+        return "decision-token-\(minted)"
+    }
+    func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
+    ) throws -> VacationRequestSummary {
+        calls.append("decide")
+        decisions.append((decision, reason, confirmationToken))
+        if !decideErrors.isEmpty { throw decideErrors.removeFirst() }
+        guard case let .success(current) = requestResult else { throw VacationError.notFound }
+        let done = VacationRequestSummary(
+            id: current.id, status: decision == .approve ? .approved : .rejected, start: current.start,
+            end: current.end, countedDays: current.countedDays, approver: current.approver,
+            ownerName: current.ownerName, decidedAt: fixtureNow, reason: reason)
+        requestResult = .success(done)
+        return done
     }
 }
 
@@ -484,3 +557,497 @@ struct VacationStringsTests {
     }
 }
 #endif
+
+@MainActor
+@Suite("FR-VAC-003 cancel")
+struct RequestDetailModelTests {
+    private func detail(_ service: FakeVacation, seed: VacationRequestSummary? = nil, changed: @escaping @MainActor () -> Void = {})
+        -> RequestDetailModel
+    {
+        RequestDetailModel(id: "r1", seed: seed, service: service, access: access(), onChanged: changed)
+    }
+
+    @Test("FR-VAC-003.1: confirming cancels once, shows cancelled and tells the list to refresh")
+    func cancels() async {
+        let service = FakeVacation()
+        var changed = 0
+        let model = detail(service, changed: { changed += 1 })
+        await model.load()
+        #expect(model.canCancel)
+        model.askToCancel()
+        #expect(model.isConfirmingCancel)
+        await model.confirmCancel()
+        #expect(model.request?.status == .cancelled && !model.canCancel && changed == 1)
+        #expect(await service.calls == ["request", "confirmCancel", "cancel"])
+    }
+
+    @Test("FR-VAC-003.3: a failed attempt keeps the token, so the retry is the same idempotent call")
+    func retryReusesToken() async {
+        let service = FakeVacation()
+        await service.failCancel([.failed(code: "INTERNAL", correlationId: nil)])
+        let model = detail(service)
+        await model.load()
+        await model.confirmCancel()
+        #expect(model.notice == .cancelFailed && model.request?.status == .pending)
+        await model.confirmCancel()
+        #expect(model.request?.status == .cancelled && model.notice == nil)
+        #expect(await service.cancelTokens == ["cancel-token-1", "cancel-token-1"])
+        #expect(await service.calls.filter { $0 == "confirmCancel" }.count == 1)
+    }
+
+    @Test("FR-VAC-003.2: a request that was decided meanwhile says so and offers no cancel")
+    func invalidState() async {
+        let service = FakeVacation()
+        let model = detail(service)
+        await model.load()
+        let decided = VacationRequestSummary(
+            id: "r1", status: .approved, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller")
+        await service.failCancel([.invalidState])
+        await service.set(request: .success(decided))
+        await model.confirmCancel()
+        #expect(model.notice == .alreadyDecided && model.request?.status == .approved && !model.canCancel)
+    }
+
+    @Test("FR-VAC-003: only a pending request can be cancelled")
+    func onlyPending() async {
+        let service = FakeVacation()
+        await service.set(request: .success(VacationRequestSummary(
+            id: "r1", status: .rejected, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller", reason: "Inventory week")))
+        let model = detail(service)
+        await model.load()
+        model.askToCancel()
+        #expect(!model.canCancel && !model.isConfirmingCancel)
+    }
+
+    @Test("FR-VAC-003 (OFF): offline keeps the seed visible with the cancel disabled")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(request: .failure(.offline))
+        let seed = VacationRequestSummary(
+            id: "r1", status: .pending, start: day("2026-11-23"), end: day("2026-11-25"), countedDays: 3,
+            approver: "Maria Keller")
+        let model = detail(service, seed: seed)
+        await model.load()
+        #expect(model.isOffline && model.request == seed && !model.canCancel)
+    }
+
+    @Test("FR-VAC-003 (403/404): someone else's request is not found")
+    func notFound() async {
+        let service = FakeVacation()
+        await service.set(request: .failure(.notFound))
+        let model = detail(service)
+        await model.load()
+        #expect(model.state == .notFound)
+    }
+}
+
+private let waiting = VacationRequestSummary(
+    id: "r1", status: .pending, start: day("2026-11-09"), end: day("2026-11-12"), countedDays: 4,
+    approver: "Marco Rossi", ownerName: "Lena Meier",
+    ownerBalance: VacationBalance(year: 2026, entitlement: 25, carriedOver: 3, approved: 11, pending: 4, remaining: 13))
+
+@MainActor
+private func approver(
+    _ service: FakeVacation, sink: MemoryEventSink = MemoryEventSink(), changed: @escaping @MainActor () -> Void = {}
+) -> (RequestDetailModel, TaskFlow) {
+    let task = TaskFlow(
+        taskId: "T-VAC-APR", feature: "vac", mode: .classic, context: TaskContext(participantId: UUID()), sink: sink,
+        confirmAction: .decide)
+    task.start()
+    let model = RequestDetailModel(
+        id: "r1", role: .approver, seed: waiting, service: service, access: access(), flow: { task },
+        onChanged: changed)
+    return (model, task)
+}
+
+@MainActor
+@Suite("FR-VAC-004 decide")
+struct DecisionModelTests {
+    @Test("FR-VAC-004.1: approve after one confirmation; T-VAC-APR reports shown, accepted, completed")
+    func approves() async throws {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        let sink = MemoryEventSink()
+        var changed = 0
+        let (model, _) = approver(service, sink: sink, changed: { changed += 1 })
+        await model.load()
+        #expect(model.canDecide)
+        model.askToApprove()
+        #expect(model.isConfirmingApprove)
+        await model.confirmApprove()
+        #expect(model.request?.status == .approved && model.notice == .decided(.approved) && !model.canDecide)
+        #expect(await service.calls == ["request", "coverage", "confirmDecision", "decide"] && changed == 1)
+        try await flush()
+        let events = await sink.events
+        #expect(events.map(\.event) == [.taskStarted, .confirmShown, .confirmAccepted, .taskCompleted])
+        #expect(events.allSatisfy { $0.taskId == "T-VAC-APR" })
+        #expect(events[1].action == .decide && events.last?.outcomeValid == true)
+    }
+
+    @Test("FR-VAC-004.1: reject sends the trimmed reason; an empty one is no reason")
+    func rejectsWithReason() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        let (model, _) = approver(service)
+        await model.load()
+        model.askToReject()
+        model.reason = "  Inventory week \n"
+        await model.confirmReject()
+        #expect(model.request?.status == .rejected && model.notice == .decided(.rejected))
+        #expect(await service.decisions.first?.reason == "Inventory week")
+
+        let other = FakeVacation()
+        await other.set(request: .success(waiting))
+        let (second, _) = approver(other)
+        await second.load()
+        second.askToReject()
+        second.reason = "   "
+        await second.confirmReject()
+        #expect(await other.decisions.first?.reason == nil)
+    }
+
+    @Test("FR-VAC-004.1: a reason over 500 characters cannot be sent")
+    func reasonLimit() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        let (model, _) = approver(service)
+        await model.load()
+        model.askToReject()
+        model.reason = String(repeating: "x", count: 501)
+        #expect(model.reasonTooLong)
+        await model.confirmReject()
+        #expect(await service.decisions.isEmpty && model.request?.status == .pending)
+        model.reason = String(repeating: "x", count: 500)
+        #expect(!model.reasonTooLong)
+    }
+
+    @Test("FR-VAC-004.2: a rule broken since submission is shown, the request stays pending, the error is reported")
+    func revalidation() async throws {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.failConfirmDecision([.rules([VacationViolation(code: "BLACKOUT")], review: nil)])
+        let sink = MemoryEventSink()
+        let (model, task) = approver(service, sink: sink)
+        await model.load()
+        model.askToApprove()
+        await model.confirmApprove()
+        #expect(model.notice == .blocked(VacationViolation(code: "BLACKOUT")))
+        #expect(model.request?.status == .pending && model.canDecide && !task.isFinished)
+        try await flush()
+        let errors = await sink.events.filter { $0.event == .taskError }
+        #expect(errors.map(\.code) == ["BLACKOUT"] && errors.first?.recovered == false)
+    }
+
+    @Test("FR-VAC-004.3: decided meanwhile says so, reloads the final state and offers no action")
+    func alreadyDecided() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        let (model, _) = approver(service)
+        await model.load()
+        let decided = VacationRequestSummary(
+            id: "r1", status: .approved, start: day("2026-11-09"), end: day("2026-11-12"), countedDays: 4,
+            approver: "Marco Rossi", ownerName: "Lena Meier", decidedAt: fixtureNow)
+        await service.failConfirmDecision([.invalidState])
+        await service.set(request: .success(decided))
+        model.askToApprove()
+        await model.confirmApprove()
+        #expect(model.notice == .alreadyDecided && model.request?.status == .approved && !model.canDecide)
+    }
+
+    @Test("FR-VAC-004.3: a failed decision retries with the same token, a changed reason mints a new one")
+    func tokenReuse() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.failDecide([.failed(code: "INTERNAL", correlationId: nil)])
+        let (model, _) = approver(service)
+        await model.load()
+        model.askToReject()
+        model.reason = "Inventory week"
+        await model.confirmReject()
+        #expect(model.notice == .decisionFailed && model.request?.status == .pending)
+        model.askToReject()
+        model.reason = "Inventory week"
+        await model.confirmReject()
+        let tokens = await service.decisions.map(\.token)
+        #expect(tokens == ["decision-token-1", "decision-token-1"])
+        #expect(await service.calls.filter { $0 == "confirmDecision" }.count == 1)
+    }
+
+    @Test("FR-VAC-004.5: FORBIDDEN is shown as such and nothing changes")
+    func forbidden() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.failConfirmDecision([.forbidden])
+        let (model, _) = approver(service)
+        await model.load()
+        model.askToApprove()
+        await model.confirmApprove()
+        #expect(model.notice == .forbidden && model.request?.status == .pending)
+    }
+
+    @Test("FR-VAC-004 (OFF): offline keeps the request visible with Approve and Reject disabled")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(request: .failure(.offline))
+        let (model, _) = approver(service)
+        await model.load()
+        model.askToApprove()
+        #expect(model.isOffline && !model.canDecide && !model.isConfirmingApprove && model.request == waiting)
+    }
+
+    @Test("EXP-003: dismissing the approve dialog or the reject sheet reports confirm_rejected once")
+    func dismissals() async throws {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        let sink = MemoryEventSink()
+        let (model, _) = approver(service, sink: sink)
+        await model.load()
+        model.askToApprove()
+        model.dismissApprove()
+        model.askToReject()
+        model.dismissReject()
+        model.dismissReject()  // swipe-down after the button: no second event
+        try await flush()
+        let names = await sink.events.map(\.event)
+        #expect(names == [.taskStarted, .confirmShown, .confirmRejected, .confirmShown, .confirmRejected])
+        #expect(await service.decisions.isEmpty)
+    }
+
+    @Test("A11Y: a decision is not possible for the owner's own detail")
+    func ownerCannotDecide() async {
+        let service = FakeVacation()
+        let model = RequestDetailModel(id: "r1", seed: waiting, service: service, access: access())
+        await model.load()
+        model.askToApprove()
+        #expect(!model.canDecide && !model.isConfirmingApprove)
+    }
+}
+
+@MainActor
+@Suite("FR-VAC-004 inbox")
+struct ManagerInboxModelTests {
+    private func inbox(_ service: FakeVacation, sink: MemoryEventSink = MemoryEventSink()) -> ManagerInboxModel {
+        ManagerInboxModel(
+            service: service, access: access(),
+            makeFlow: {
+                TaskFlow(
+                    taskId: "T-VAC-APR", feature: "vac", mode: .classic, context: TaskContext(participantId: UUID()),
+                    sink: sink, confirmAction: .decide)
+            }, now: { fixtureNow })
+    }
+
+    @Test("FR-VAC-004.1: the waiting requests and their count (the badge)")
+    func loads() async {
+        let service = FakeVacation()
+        await service.set(inbox: .success([waiting]))
+        let model = inbox(service)
+        await model.begin()
+        #expect(model.items == [waiting] && model.count == 1)
+    }
+
+    @Test("FR-VAC-004 (E): nothing waiting is an empty list with no badge")
+    func empty() async {
+        let model = inbox(FakeVacation())
+        await model.begin()
+        #expect(model.state == .content([]) && model.count == 0)
+    }
+
+    @Test("FR-VAC-004 (403): a non-manager gets the forbidden state")
+    func forbidden() async {
+        let service = FakeVacation()
+        await service.set(inbox: .failure(.forbidden))
+        let model = inbox(service)
+        await model.begin()
+        #expect(model.state == .forbidden && model.count == 0)
+    }
+
+    @Test("FR-VAC-004 (OFF): offline keeps the last list with an as-of time; no list at all is an error")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(inbox: .success([waiting]))
+        let model = inbox(service)
+        await model.begin()
+        await service.set(inbox: .failure(.offline))
+        await model.refresh()
+        #expect(model.items == [waiting] && model.offlineAsOf == fixtureNow)
+
+        let cold = FakeVacation()
+        await cold.set(inbox: .failure(.offline))
+        let first = inbox(cold)
+        await first.begin()
+        #expect(first.state == .error(code: "OFFLINE", correlationId: nil))
+    }
+
+    @Test("T-VAC-APR: opening the inbox starts the flow; a finished flow is replaced for the next decision")
+    func flowLifecycle() async throws {
+        let sink = MemoryEventSink()
+        let model = inbox(FakeVacation(), sink: sink)
+        await model.begin()
+        let first = model.currentFlow()
+        #expect(first === model.currentFlow())
+        first?.complete(outcomeValid: true)
+        let second = model.currentFlow()
+        #expect(second !== first && second?.isFinished == false)
+        try await flush()
+        let names = await sink.events.map(\.event)
+        #expect(names == [.taskStarted, .taskCompleted, .taskStarted])
+    }
+}
+
+private func absence(_ id: String, _ name: String, _ status: VacationStatus, _ start: String, _ end: String)
+    -> CoverageAbsence
+{
+    CoverageAbsence(requestId: id, name: name, status: status, start: day(start), end: day(end))
+}
+
+private func coverageDay(_ iso: String, present: Int = 6, absent: [CoverageAbsence] = []) -> CoverageDay {
+    CoverageDay(day: day(iso), present: present, total: 6, absent: absent)
+}
+
+@MainActor
+private func team(_ service: FakeVacation, sink: MemoryEventSink = MemoryEventSink()) -> TeamCoverageModel {
+    TeamCoverageModel(
+        service: service, access: access(), today: day("2026-10-19"),
+        makeFlow: {
+            TaskFlow(
+                taskId: "T-VAC-COV", feature: "vac", mode: .classic, context: TaskContext(participantId: UUID()),
+                sink: sink)
+        }, now: { fixtureNow })
+}
+
+@MainActor
+@Suite("FR-VAC-005 team coverage")
+struct TeamCoverageModelTests {
+    private let lena = absence("a", "Lena Meier", .pending, "2026-11-09", "2026-11-12")
+    private let tim = absence("b", "Tim Berger", .approved, "2026-11-11", "2026-11-13")
+
+    @Test("FR-VAC-005.1: the default range is the next four weeks, asked of the API as such")
+    func defaultRange() async {
+        let service = FakeVacation()
+        let model = team(service)
+        #expect(model.start == day("2026-10-19") && model.end == day("2026-11-15"))
+        await model.begin()
+        let call = await service.coverageCalls.first
+        #expect(call?.0 == day("2026-10-19") && call?.1 == day("2026-11-15"))
+    }
+
+    @Test("FR-VAC-005.1: days are grouped per ISO week; each absence is listed once per week")
+    func weeks() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([
+            coverageDay("2026-11-09", present: 5, absent: [lena]),
+            coverageDay("2026-11-10", present: 5, absent: [lena]),
+            coverageDay("2026-11-11", present: 4, absent: [lena, tim]),
+            coverageDay("2026-11-12", present: 4, absent: [lena, tim]),
+            coverageDay("2026-11-13", present: 5, absent: [tim]),
+            coverageDay("2026-11-16"),
+        ]))
+        let model = team(service)
+        await model.begin()
+        #expect(model.weeks.map(\.number) == [46, 47])
+        #expect(model.weeks[0].days.count == 5 && model.weeks[0].absences.map(\.name) == ["Lena Meier", "Tim Berger"])
+        #expect(model.weeks[1].absences.isEmpty && !model.isEmpty)
+    }
+
+    @Test("FR-VAC-005 (E): no absence in the range is the empty state")
+    func empty() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([coverageDay("2026-11-09"), coverageDay("2026-11-10")]))
+        let model = team(service)
+        await model.begin()
+        #expect(model.isEmpty)
+    }
+
+    @Test("FR-VAC-005.1: a chosen range is asked as chosen, capped at the API's 93 days, never reversed")
+    func rangeChange() async {
+        let service = FakeVacation()
+        let model = team(service)
+        await model.begin()
+        await model.setRange(start: day("2026-11-09"), end: day("2026-11-27"))
+        #expect(model.start == day("2026-11-09") && model.end == day("2026-11-27"))
+        await model.setRange(start: day("2026-11-09"), end: day("2026-01-01"))
+        #expect(model.end == model.start)
+        await model.setRange(start: day("2026-11-09"), end: day("2028-01-01"))
+        #expect(model.end == day("2026-11-09").addingDays(92))
+        #expect(await service.coverageCalls.count == 4)
+    }
+
+    @Test("FR-VAC-005.2 (403): a non-manager gets the forbidden state and the error is reported")
+    func forbidden() async throws {
+        let service = FakeVacation()
+        await service.set(coverage: .failure(.forbidden))
+        let sink = MemoryEventSink()
+        let model = team(service, sink: sink)
+        await model.begin()
+        #expect(model.state == .forbidden)
+        try await flush()
+        let events = await sink.events
+        #expect(events.map(\.event) == [.taskStarted, .taskError] && events.last?.code == "FORBIDDEN")
+    }
+
+    @Test("FR-VAC-005 (OFF): offline keeps the last result with an as-of time; none at all is an error")
+    func offline() async {
+        let service = FakeVacation()
+        await service.set(coverage: .success([coverageDay("2026-11-09", present: 5, absent: [lena])]))
+        let model = team(service)
+        await model.begin()
+        await service.set(coverage: .failure(.offline))
+        await model.refresh()
+        #expect(model.days.count == 1 && model.offlineAsOf == fixtureNow)
+
+        let cold = FakeVacation()
+        await cold.set(coverage: .failure(.offline))
+        let first = team(cold)
+        await first.begin()
+        #expect(first.state == .error(code: "OFFLINE", correlationId: nil))
+    }
+
+    @Test("T-VAC-COV: started on open, completed once the API's numbers are shown, taps counted")
+    func events() async throws {
+        let sink = MemoryEventSink()
+        let model = team(FakeVacation(), sink: sink)
+        await model.begin()
+        try await flush()
+        let events = await sink.events
+        #expect(events.map(\.event) == [.taskStarted, .taskCompleted])
+        #expect(events.allSatisfy { $0.taskId == "T-VAC-COV" && $0.feature == "vac" })
+        #expect(events.last?.outcomeValid == true)
+    }
+
+    @Test("FR-VAC-005.3: the approver's detail shows the team on the request's days, without the request itself")
+    func presenceInDetail() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.set(coverage: .success([
+            coverageDay("2026-11-09", present: 5, absent: [absence("r1", "Lena Meier", .pending, "2026-11-09", "2026-11-12")]),
+            coverageDay("2026-11-11", present: 4, absent: [
+                absence("r1", "Lena Meier", .pending, "2026-11-09", "2026-11-12"), tim,
+            ]),
+        ]))
+        let (model, _) = approver(service)
+        await model.load()
+        #expect(model.presence.count == 2 && model.otherAbsences.map(\.name) == ["Tim Berger"])
+        let call = await service.coverageCalls.first
+        #expect(call?.0 == waiting.start && call?.1 == waiting.end)
+    }
+
+    @Test("FR-VAC-005.3: no coverage (error) leaves the strip out and the decision possible")
+    func presenceFailureIsHarmless() async {
+        let service = FakeVacation()
+        await service.set(request: .success(waiting))
+        await service.set(coverage: .failure(.failed(code: "INTERNAL", correlationId: nil)))
+        let (model, _) = approver(service)
+        await model.load()
+        #expect(model.presence.isEmpty && model.canDecide)
+    }
+
+    @Test("FR-VAC-005.2: the owner's own detail never asks for team data")
+    func ownerNeverLoadsCoverage() async {
+        let service = FakeVacation()
+        let model = RequestDetailModel(id: "r1", seed: nil, service: service, access: access())
+        await model.load()
+        #expect(await service.calls == ["request"] && model.presence.isEmpty)
+    }
+}

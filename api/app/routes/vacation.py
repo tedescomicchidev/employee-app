@@ -2,10 +2,10 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 
-from app.auth.principal import Principal, current_principal
+from app.auth.principal import Principal, Role, authorize, current_principal
 from app.vacation.models import DayCount, VacationRequest
 from app.vacation.serialize import count_json, holiday_json
-from app.vacation.service import Review, VacationService, parse_draft
+from app.vacation.service import Review, VacationService, parse_date, parse_draft
 
 router = APIRouter(prefix="/v1/vacation")
 
@@ -40,7 +40,10 @@ def _request(r: VacationRequest) -> dict[str, Any]:
         **count_json(DayCount(r.counted_days, r.per_year, r.excluded)),
         "approver": r.approver_name,
         "owner_oid": r.owner_oid,
+        "owner_name": r.owner_name,
         "created_at": r.created_at.isoformat(),
+        "decided_at": r.decided_at.isoformat() if r.decided_at else None,
+        "reason": r.decision_reason,
     }
 
 
@@ -86,6 +89,86 @@ def create_request(principal: Caller, service: Service, body: Body, response: Re
     return {**_request(result.request), "created": result.created}
 
 
+@router.get("/requests/{request_id}")
+def get_request(request_id: str, principal: Caller, service: Service) -> dict[str, Any]:
+    request = service.get_request(principal, request_id)
+    row = _request(request)
+    balance = service.owner_balance(principal, request)
+    if balance is not None:
+        row["owner_balance"] = {
+            "year": balance.year,
+            "entitlement": balance.entitlement,
+            "carried_over": balance.carried_over,
+            "approved": balance.approved,
+            "pending": balance.pending,
+            "remaining": balance.remaining,
+        }
+    return row
+
+
+@router.post("/requests/{request_id}/decision")
+def decide_request(request_id: str, principal: Caller, service: Service, body: Body) -> Any:
+    token = body.get("confirmation_token")
+    return _request(
+        service.decide(
+            principal,
+            request_id,
+            body.get("decision", ""),
+            body.get("reason"),
+            token if isinstance(token, str) else None,
+        )
+    )
+
+
+@router.post("/requests/{request_id}/cancel")
+def cancel_request(request_id: str, principal: Caller, service: Service, body: Body) -> Any:
+    token = body.get("confirmation_token")
+    return _request(
+        service.cancel(principal, request_id, token if isinstance(token, str) else None)
+    )
+
+
 @router.get("/inbox")
 def get_inbox(principal: Caller, service: Service) -> dict[str, Any]:
+    authorize(principal, Role.MANAGER)
     return {"items": [_request(r) for r in service.inbox(principal)]}
+
+
+@router.get("/coverage")
+def get_coverage(
+    principal: Caller,
+    service: Service,
+    start: Annotated[str | None, Query()] = None,
+    end: Annotated[str | None, Query()] = None,
+) -> dict[str, Any]:
+    first = parse_date("start", start) if start else None
+    last = parse_date("end", end) if end else None
+    days = service.coverage(principal, first, last)
+    return {
+        "start": (first or service.today()).isoformat(),
+        "end": days[-1].date.isoformat() if days else None,
+        "days": [
+            {
+                "date": d.date.isoformat(),
+                "present": d.present,
+                "total": d.total,
+                "absent": [
+                    {
+                        "request_id": a.request_id,
+                        "name": a.name,
+                        "status": a.status,
+                        "start": a.start.isoformat(),
+                        "end": a.end.isoformat(),
+                    }
+                    for a in d.absent
+                ],
+            }
+            for d in days
+        ],
+    }
+
+
+@router.get("/decisions")
+def get_decisions(principal: Caller, service: Service) -> dict[str, Any]:
+    authorize(principal, Role.MANAGER)
+    return {"items": [_request(r) for r in service.decisions(principal)]}

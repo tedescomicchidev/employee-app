@@ -38,12 +38,15 @@ struct MainTabView: View {
     let model: AppModel
     let environment: AppEnvironment
     @State private var selection: AppTab
+    @State private var inbox: ManagerInboxModel?
+    @State private var team: TeamCoverageModel?
 
     init(model: AppModel, environment: AppEnvironment) {
         self.model = model
         self.environment = environment
         #if DEBUG
-        _selection = State(initialValue: environment.startOnVacation ? .vacation : .announcements)
+        _selection = State(
+            initialValue: environment.startOnApprovals ? .approvals : environment.startOnVacation ? .vacation : .announcements)
         #else
         _selection = State(initialValue: .announcements)
         #endif
@@ -56,7 +59,15 @@ struct MainTabView: View {
         case .announcements: FeedView(model: model, environment: environment, title: tab.title)
         case .more: MoreView(model: model, environment: environment)
         case .vacation: VacationView(model: model, environment: environment, title: tab.title)
-        case .week, .approvals: PlaceholderTab(title: tab.title, symbol: tab.symbol)
+        case .approvals:
+            if let inbox, let team {
+                ManagerInboxView(
+                    inbox: inbox, team: team, makeDetail: makeDecisionDetail, autopilot: approvalsAutopilot,
+                    opensFirst: opensFirstApproval, opensTeam: opensTeamCoverage)
+            } else {
+                PlaceholderTab(title: tab.title, symbol: tab.symbol)
+            }
+        case .week: PlaceholderTab(title: tab.title, symbol: tab.symbol)
         }
     }
 
@@ -70,6 +81,7 @@ struct MainTabView: View {
             ForEach(AppTab.tabs(for: session)) { tab in
                 content(for: tab)
                     .tabItem { tabLabel(tab.title, tab.symbol) }
+                    .badge(tab == .approvals ? (inbox?.count ?? 0) : 0)
                     .tag(tab)
             }
         }
@@ -77,6 +89,84 @@ struct MainTabView: View {
             ReauthSheet(model: model)
                 .interactiveDismissDisabled()
         }
+        .task(id: session?.oid) {
+            guard session?.has(.manager) == true else {
+                inbox = nil
+                team = nil
+                return
+            }
+            if inbox == nil { inbox = makeInbox() }
+            if team == nil { team = makeTeam() }
+            await inbox?.loadQuietly()  // the badge, before the tab is opened
+        }
+    }
+
+    @MainActor private func makeInbox() -> ManagerInboxModel {
+        let auth = environment.auth
+        let events = environment.events, context = environment.taskContext
+        return ManagerInboxModel(
+            service: environment.vacation,
+            accessToken: { try await auth.accessToken() },
+            onReauthNeeded: { [model] in model.needsReauth = true },
+            makeFlow: {
+                TaskFlow(
+                    taskId: "T-VAC-APR", feature: "vac", mode: .classic, context: context, sink: events,
+                    confirmAction: .decide)
+            })
+    }
+
+    @MainActor private func makeTeam() -> TeamCoverageModel {
+        let auth = environment.auth
+        let events = environment.events, context = environment.taskContext
+        return TeamCoverageModel(
+            service: environment.vacation,
+            accessToken: { try await auth.accessToken() },
+            onReauthNeeded: { [model] in model.needsReauth = true },
+            today: CalendarDay(date: environment.clock()),
+            makeFlow: {
+                TaskFlow(taskId: "T-VAC-COV", feature: "vac", mode: .classic, context: context, sink: events)
+            },
+            now: environment.clock)
+    }
+
+    private var opensTeamCoverage: Bool {
+        #if DEBUG
+        environment.vacationAutopilot == .team
+        #else
+        false
+        #endif
+    }
+
+    @MainActor private func makeDecisionDetail(_ seed: VacationRequestSummary) -> RequestDetailModel {
+        let auth = environment.auth
+        let inbox = inbox
+        return RequestDetailModel(
+            id: seed.id, role: .approver, seed: seed, service: environment.vacation,
+            accessToken: { try await auth.accessToken() },
+            onReauthNeeded: { [model] in model.needsReauth = true },
+            flow: { inbox?.currentFlow() },
+            onChanged: { Task { await inbox?.loadQuietly() } })
+    }
+
+    private var opensFirstApproval: Bool {
+        #if DEBUG
+        [.decision, .rejectReason, .approveConfirmed].contains(environment.vacationAutopilot)
+        #else
+        false
+        #endif
+    }
+
+    private var approvalsAutopilot: DetailAutopilot? {
+        #if DEBUG
+        switch environment.vacationAutopilot {
+        case .decision: .none
+        case .rejectReason: .reject
+        case .approveConfirmed: .approve
+        default: nil
+        }
+        #else
+        nil
+        #endif
     }
 }
 

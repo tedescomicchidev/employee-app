@@ -12,7 +12,11 @@ scenarios=(signin signin-failed signin-offline home-employee home-manager home-p
            compose-ok compose-validation review-ok review-success review-error review-offline
            audience-ok feed-ok feed-loading feed-empty feed-error feed-offline detail-ok
            vacation-overview-ok vacation-overview-empty vacation-overview-loading vacation-overview-offline
-           vacation-overview-error vacation-holidays-ok vacation-holidays-canton_missing
+           vacation-overview-error vacation-my_requests-ok vacation-my_requests-empty vacation-request_detail-ok
+           vacation-request_detail-cancel_dialog vacation-manager_inbox-ok vacation-manager_inbox-empty
+           vacation-manager_inbox-forbidden vacation-request_decision-ok vacation-request_decision-reject_reason
+           vacation-request_decision-invalid_state vacation-request_decision-blocked vacation-team_coverage-ok vacation-team_coverage-empty
+           vacation-team_coverage-forbidden vacation-holidays-ok vacation-holidays-canton_missing
            vacation-request-ok vacation-request-validation_overlap vacation-review-ok
            vacation-review-validation_insufficient_balance vacation-review-success)
 lang=${SCREENSHOT_LANG:-de}

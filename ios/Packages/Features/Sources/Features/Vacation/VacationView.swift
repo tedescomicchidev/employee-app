@@ -8,7 +8,7 @@ private struct RequestFlowItem: Identifiable {
 
 /// Vacation tab: the five numbers (FR-VAC-001), the next request, holidays (FR-VAC-006) and the request entry.
 struct VacationView: View {
-    enum Route: Hashable { case holidays }
+    enum Route: Hashable { case holidays, mine, detail(String) }
 
     let model: AppModel
     let environment: AppEnvironment
@@ -31,8 +31,12 @@ struct VacationView: View {
             }
             .background(DSColor.bg)
             .navigationTitle(Text(title))
-            .navigationDestination(for: Route.self) { _ in
-                HolidaysView(model: makeHolidays())
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .holidays: HolidaysView(model: makeHolidays())
+                case .mine: if let overview { MyRequestsView(overview: overview) }
+                case let .detail(id): RequestDetailHost(autopilot: askToCancelOnOpen ? .cancel : nil) { makeDetail(id) }
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -58,6 +62,14 @@ struct VacationView: View {
         .accessibilityIdentifier("vacation.overview")
     }
 
+    private var askToCancelOnOpen: Bool {
+        #if DEBUG
+        environment.vacationAutopilot == .cancelDialog
+        #else
+        false
+        #endif
+    }
+
     private var today: CalendarDay { CalendarDay(date: environment.clock()) }
 
     @MainActor private func makeOverview(_ session: Session) -> VacationOverviewModel {
@@ -72,6 +84,15 @@ struct VacationView: View {
                 TaskFlow(taskId: "T-VAC-BAL", feature: "vac", mode: .classic, context: context, sink: events)
             },
             now: environment.clock)
+    }
+
+    @MainActor private func makeDetail(_ id: String) -> RequestDetailModel {
+        let auth = environment.auth
+        return RequestDetailModel(
+            id: id, seed: overview?.requests.first { $0.id == id }, service: environment.vacation,
+            accessToken: { try await auth.accessToken() },
+            onReauthNeeded: { [model] in model.needsReauth = true },
+            onChanged: { [overview] in Task { await overview?.refresh() } })
     }
 
     @MainActor private func makeHolidays() -> HolidaysModel {
@@ -103,9 +124,11 @@ struct VacationView: View {
     @MainActor private func runAutopilot() {
         guard !autopilotRan, let autopilot = environment.vacationAutopilot else { return }
         autopilotRan = true
-        if autopilot == .holidays {
-            path = [.holidays]
-            return
+        switch autopilot {
+        case .holidays: path = [.holidays]; return
+        case .mine: path = [.mine]; return
+        case .detail, .cancelDialog: path = [.mine, .detail("r1")]; return
+        default: break
         }
         let request = present()
         guard let range = autopilot.range, let start = CalendarDay(iso: range.0), let end = CalendarDay(iso: range.1) else {
@@ -147,6 +170,7 @@ private struct VacationContent: View {
                     Balance(balance: balance)
                     Composition(balance: balance)
                     UpcomingSection(next: overview.next(today: today), isEmpty: requests.isEmpty)
+                    historyLink
                     holidaysLink
                 case .notProvisioned:
                     DSEmptyState(symbol: "person.crop.circle.badge.questionmark",
@@ -162,6 +186,18 @@ private struct VacationContent: View {
             .padding(DSSpacing.gutter)
         }
         .refreshable { await overview.refresh() }
+    }
+
+    private var historyLink: some View {
+        DSGroupedSection {
+            NavigationLink(value: VacationView.Route.mine) {
+                DSListRow(
+                    title: Text(L10n.vacMineTitle),
+                    leading: .icon(systemName: "tray.full", tint: DSColor.orange), showsChevron: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("vacation.mine")
+        }
     }
 
     private var holidaysLink: some View {

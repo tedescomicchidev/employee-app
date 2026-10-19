@@ -1,7 +1,7 @@
 import json
 import threading
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -17,6 +17,13 @@ class VacationStore(Protocol):
     def get(self, request_id: str) -> VacationRequest | None: ...
     def for_owner(self, oid: str) -> list[VacationRequest]: ...
     def pending_for_approver(self, oid: str) -> list[VacationRequest]: ...
+    def for_approver(self, oid: str) -> list[VacationRequest]:
+        """Every request assigned to `oid`, any status, in the same order as `for_owner`."""
+
+    def replace_if_status(
+        self, request: VacationRequest, expected_status: str
+    ) -> VacationRequest | None:
+        """Atomic transition: stores `request` only while the stored status is `expected_status`."""
 
 
 @dataclass
@@ -31,9 +38,23 @@ class InMemoryVacationStore:
     def get(self, request_id: str) -> VacationRequest | None:
         return self._requests.get(request_id)
 
+    def replace_if_status(
+        self, request: VacationRequest, expected_status: str
+    ) -> VacationRequest | None:
+        with self._lock:
+            current = self._requests.get(request.id)
+            if current is None or current.status != expected_status:
+                return None
+            self._requests[request.id] = request
+            return request
+
     def for_owner(self, oid: str) -> list[VacationRequest]:
         mine = [r for r in self._requests.values() if r.owner_oid == oid]
         return sorted(mine, key=lambda r: (r.start, r.created_at))
+
+    def for_approver(self, oid: str) -> list[VacationRequest]:
+        rows = [r for r in self._requests.values() if r.approver_oid == oid]
+        return sorted(rows, key=lambda r: (r.start, r.created_at))
 
     def pending_for_approver(self, oid: str) -> list[VacationRequest]:
         rows = [
@@ -49,6 +70,8 @@ class SeedRequest:
     start: date
     end: date
     status: str
+    decided_at: datetime | None = None
+    reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +111,8 @@ class VacationConfig:
                     date.fromisoformat(r["start"]),
                     date.fromisoformat(r["end"]),
                     r["status"],
+                    datetime.fromisoformat(r["decided_at"]) if r.get("decided_at") else None,
+                    r.get("reason"),
                 )
                 for r in policy["requests"]
             ),

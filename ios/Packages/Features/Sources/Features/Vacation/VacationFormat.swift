@@ -12,6 +12,10 @@ enum VacationFormat {
         day.date().formatted(style.weekday(.abbreviated).day())
     }
 
+    static func weekday(_ day: CalendarDay) -> String {
+        day.date().formatted(style.weekday(.abbreviated))
+    }
+
     static func short(_ day: CalendarDay) -> String {
         day.date().formatted(style.weekday(.abbreviated).day().month(.abbreviated))
     }
@@ -24,6 +28,11 @@ enum VacationFormat {
         day.date().formatted(style.day().month(.abbreviated).year())
     }
 
+    /// "2. Jun." for "decided on" lines.
+    static func shortMonth(_ day: CalendarDay) -> String {
+        day.date().formatted(style.day().month(.abbreviated))
+    }
+
     /// "Mo 9. – Do 12. Nov." within a month, with both months otherwise; one day when start == end.
     static func range(_ start: CalendarDay, _ end: CalendarDay, long useLong: Bool = false) -> String {
         if start == end { return useLong ? long(start) : short(start) }
@@ -34,6 +43,13 @@ enum VacationFormat {
         return "\(short(start)) – \(short(end))"
     }
 
+    static func initials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        return [parts.first, parts.count > 1 ? parts.last : nil].compactMap { $0?.first }.map(String.init).joined()
+    }
+
+    static func firstName(_ name: String) -> String { name.split(separator: " ").first.map(String.init) ?? name }
+
     static func days(_ count: Int) -> String { String(localized: L10n.vacDays(count)) }
 
     /// "−11" with a true minus sign, as in the mockup's composition list.
@@ -43,6 +59,14 @@ enum VacationFormat {
 }
 
 extension View {
+    @ViewBuilder func vacHideTabBar(_ hidden: Bool) -> some View {
+        #if os(iOS)
+        toolbar(hidden ? .hidden : .automatic, for: .tabBar)
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder func vacInlineTitle() -> some View {
         #if os(iOS)
         navigationBarTitleDisplayMode(.inline)
