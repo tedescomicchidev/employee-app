@@ -14,6 +14,7 @@ from app.repositories import (
     SeedDirectory,
 )
 from app.routes import announcements, events, me, proposals, vacation
+from app.telemetry import ApiCallLog, record_api_call
 from app.vacation.service import VacationService
 from app.vacation.store import InMemoryVacationStore
 
@@ -42,6 +43,8 @@ def create_app(
     )
     app.state.provisioner = build_provisioner(directory, directory_client, directory_settings)
     app.state.event_sink = []  # TODO(EXP): replace with the events container (ADR-009)
+    app.state.api_call_log = ApiCallLog()
+    app.middleware("http")(record_api_call)
 
     @app.exception_handler(ApiError)
     def api_error(_: Request, exc: ApiError) -> JSONResponse:
