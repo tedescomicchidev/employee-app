@@ -14,6 +14,9 @@ param foundryProjectEndpoint string
 // Non-secret Entra ids for token validation (api/app/config.py). Empty until the human registers employee-api.
 param entraTenantId string
 param apiClientId string
+// 'true' fills the employee directory from each signed-in user's own Graph profile (ADR-010). Needs the
+// federated credential and Graph User.Read consent on employee-api first (docs/architecture/auth-flows.md).
+param graphDirectory string = 'false'
 // Placeholder until `azd deploy` pushes the real api image (listens on 80 until then).
 param image string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
 param targetPort int = 80
@@ -87,6 +90,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'ENTRA_TENANT_ID', value: entraTenantId }
             { name: 'API_CLIENT_ID', value: apiClientId }
+            { name: 'GRAPH_DIRECTORY', value: graphDirectory }
             { name: 'COSMOS_ENDPOINT', value: cosmosEndpoint }
             { name: 'COSMOS_DATABASE', value: cosmosDatabase }
             { name: 'KEY_VAULT_URI', value: keyVaultUri }

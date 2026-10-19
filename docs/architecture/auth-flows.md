@@ -12,6 +12,7 @@ Tokens in play:
 | T-user | `api://employee-api` (scope `access_as_user`) | iOS Keychain | REST calls and confirmations |
 | T-foundry | `https://ai.azure.com` (workload, managed identity) | api/ | invoking the hosted agent; does not represent the user |
 | T-tools | `api://employee-tools` (scope `Tools.Invoke`), from OBO | api/, then the agent for one request | agent calls to the MCP surface |
+| T-graph | `https://graph.microsoft.com` (`User.Read`), from OBO | api/ only, in memory | the caller's own profile and manager, to fill the directory (ADR-010) |
 | T-workiq | `api://workiq.svc.cloud.microsoft` (`WorkIQAgent.Ask`), from OBO | api/ only, in memory | Work IQ calls |
 
 ## Flow 1: sign-in and REST call
@@ -146,3 +147,38 @@ Human-only per CLAUDE.md. I do not receive secrets. I will prepare exact command
 | 12 | Apple (not Entra) | Create an APNs auth key and upload it to the Notification Hubs namespace yourself. It never enters this session. |
 
 No client secret is created anywhere in this design. If S-2 shows Work IQ needs one for OBO, stop and ask first.
+
+
+## Flow 4: directory lookup on first sign-in (ADR-010)
+
+`api/` exchanges T-user for T-graph (OBO, delegated `User.Read`), then reads `GET /me` and `GET /me/manager`.
+The exchange authenticates with the container app's user-assigned managed identity as a federated credential
+on `employee-api` (no secret). The result is cached per user for a TTL. T-graph is never stored or logged, and
+a failed exchange leaves the user unprovisioned (`NOT_PROVISIONED`) without breaking other calls.
+Sources: learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow,
+.../entra/workload-id/workload-identity-federation-config-app-trust-managed-identity,
+.../graph/api/user-get, .../graph/api/user-list-manager (retrieved 2026-10-19).
+
+Human-only setup (run in your account, in this order; nothing here is a secret):
+
+```
+# 1. Let employee-api's token exchange use the container app's managed identity (no client secret)
+az ad app federated-credential create --id <employee-api object id> --parameters '{
+  "name": "api-managed-identity",
+  "issuer": "https://login.microsoftonline.com/<tenant id>/v2.0",
+  "subject": "<managed identity principal (object) id>",
+  "audiences": ["api://AzureADTokenExchange"] }'
+
+# 2. Delegated Graph User.Read on employee-api, consented tenant-wide so users are not prompted
+az ad app permission add --id <employee-api client id> \
+  --api 00000003-0000-0000-c000-000000000000 --api-permissions e1fe6dd8-ba31-4d61-89e7-88639da4683d=Scope
+az ad app permission admin-consent --id <employee-api client id>
+
+# 3. Turn it on and redeploy
+azd env set GRAPH_DIRECTORY true
+azd provision   # applies the setting; then: azd deploy api
+```
+
+Which Graph properties hold canton/store/region is tenant specific: set `GRAPH_CANTON_ATTRIBUTE`,
+`GRAPH_STORE_ATTRIBUTE`, `GRAPH_REGION_ATTRIBUTE` if the defaults (`state`, `officeLocation`,
+`preferredLanguage`) do not match your tenant.

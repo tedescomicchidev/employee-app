@@ -20,6 +20,8 @@ class Employee:
     region: str = ""
     canton: str | None = None
     manager_oid: str | None = None
+    source: str = "seed"  # seed | graph | graph-manager (app.directory.provisioning)
+    fetched_at: datetime | None = None
 
 
 class Payload(Protocol):
@@ -102,7 +104,13 @@ class SeedDirectory:
         return self._by_oid.get(oid)
 
     def active(self) -> list[Employee]:
-        return [e for e in self._by_oid.values() if e.active]
+        return [e for e in list(self._by_oid.values()) if e.active]
+
+    def upsert(self, employee: Employee) -> None:
+        """Seed entries are never replaced by directory lookups."""
+        current = self._by_oid.get(employee.oid)
+        if current is None or current.source != "seed":
+            self._by_oid[employee.oid] = employee
 
 
 @dataclass

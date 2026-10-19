@@ -15,6 +15,7 @@ param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 30
 @description('Client id of the employee-api Entra app registration (non-secret). Set after the human-only registration.')
 param apiClientId string = ''
+param graphDirectory string = 'false'
 
 var tags = {
   'azd-env-name': environmentName
@@ -104,6 +105,7 @@ module containerApps 'modules/containerapps.bicep' = {
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
     entraTenantId: tenant().tenantId
     apiClientId: apiClientId
+    graphDirectory: graphDirectory
   }
 }
 
