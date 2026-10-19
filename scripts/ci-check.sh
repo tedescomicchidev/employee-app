@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ios build+test, api lint+test, agent unit tests. Run from anywhere.
+# requirement traceability, ios build+test, api lint+test, agent unit tests. Run from anywhere.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
@@ -15,6 +15,9 @@ fi
 if grep -rnE "listKeys|listSecrets|adminUserEnabled: *true|disableLocalAuth: *false" infra --include=*.bicep; then
   echo "infra: key-based access found"; exit 1
 fi
+
+echo "== traceability =="
+"$root/scripts/check-traceability.sh"
 
 echo "== ios =="
 cd "$root/ios"

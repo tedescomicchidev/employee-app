@@ -52,6 +52,22 @@ final class PublishAnnouncementTests: XCTestCase {
         XCTAssertFalse(app.buttons["review.publish"].exists)
     }
 
+    // FR-AUTH-005: a revoked token on Review opens "Sign in again", nothing is sent, the draft survives
+    func testRevokedTokenDuringComposeKeepsTheDraft() {
+        let app = launch(api: "sessionRevoked")
+        compose(app)
+        app.buttons["compose.review"].tap()
+        XCTAssertTrue(app.buttons["reauth.button"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["review.publish"].exists)
+        app.buttons["reauth.button"].tap()
+        XCTAssertTrue(app.buttons["reauth.button"].waitForNonExistence(timeout: 10))
+        XCTAssertEqual(app.textFields["compose.title"].value as? String, "Store hours")
+        app.buttons["compose.review"].tap()
+        XCTAssertTrue(app.staticTexts["review.title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["review.title"].label, "Store hours")
+        XCTAssertFalse(app.staticTexts["Published to 11 people"].exists)
+    }
+
     // FR-ANN-001.4 / FR-AUTH-002: employees have no compose entry
     func testEmployeeHasNoComposeEntry() {
         let app = launch(auth: "employee")

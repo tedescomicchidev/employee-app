@@ -60,18 +60,12 @@ enum AppBootstrap {
     private static func configure(
         _ environment: AppEnvironment, clearing events: URLSessionEventSink? = nil
     ) -> AppEnvironment {
-        let drafts = environment.drafts
-        let feedCache = environment.feedCache
-        let vacationCache = environment.vacationCache
-        let cleaner = environment.cleaner
-        Task {
-            await cleaner.register { await drafts.clear() }
-            await cleaner.register { await feedCache.clear() }
-            await cleaner.register { await vacationCache.clear() }
-            await cleaner.register { UNUserNotificationCenter.current().removeAllPendingNotificationRequests() }
-            await cleaner.register { URLCache.shared.removeAllCachedResponses() }
-            if let events { await cleaner.register { await events.clear() } }
-        }
+        var extra: [SessionCleaner.Hook] = [
+            { UNUserNotificationCenter.current().removeAllPendingNotificationRequests() },
+            { URLCache.shared.removeAllCachedResponses() },
+        ]
+        if let events { extra.append { await events.clear() } }
+        Task { [extra] in await environment.registerSessionCleanup(also: extra) }
         return environment
     }
 }

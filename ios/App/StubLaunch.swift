@@ -7,7 +7,7 @@ import Foundation
 ///   -authStub <employee|manager|publisher|failed|cancelled|offline|notAllowed|expiresAfterSignIn>
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
-///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline>
+///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline|sessionRevoked>
 ///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|team|teamEmpty|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.

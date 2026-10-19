@@ -39,6 +39,14 @@ All events are pseudonymous and content-free. Timestamps are UTC ISO-8601; busin
 | `safety_counter` | `unconfirmed_write_blocked`, `cross_user_block`, `injection_detected` (counts only, never content) | H9 |
 | `outcome_check` | `task_run_id`, `outcome_valid`, `reason` | H3, H4 |
 
+**Implemented (CLASSIC, EXP-005):** `api_call` only. The iOS services send `X-Task-Run-Id` (the flow's
+`task_run_id`) on REST calls made for a task (`TaskRun` in `Packages/Core`); `api/app/telemetry.py` records
+method, route template (never ids or query), status and latency per run in an in-memory `ApiCallLog`, with
+count and summed latency per run. Calls without the header, with an invalid one, or to `/v1/events` are not
+recorded. Not implemented: durable storage (same gap as the event sink, ADR-009), `agent_run` and
+`safety_counter` (AGENT, phase 6), and a separate `outcome_check` record (`outcome_valid` already travels
+on `task_completed`, and nothing verifies it server-side yet).
+
 Never recorded: announcement text, calendar content, user prompts/agent replies, rejection reasons,
 names, emails, tokens.
 
@@ -72,4 +80,5 @@ names, emails, tokens.
 | `T-VAC-REJ` | classic | same screens as `T-VAC-REQ` | Not emitted separately yet: the app cannot know that a participant was assigned the "fix a rejected request" task. The `task_error` + later `task_completed` sequence of a `T-VAC-REQ` run carries the signal; the session protocol has to relabel those runs (open item for the experiment protocol). |
 | `T-VAC-APR` | classic | `Packages/Features/.../ManagerInboxModel` + `RequestDetailModel` via `TaskFlow(confirmAction: .decide)` (FR-VAC-004) | `task_started` when the Freigaben tab (inbox) opens, and again for the next decision once the previous run finished. `confirm_shown` with `action=decide` when the approve dialog or the reject sheet opens; `confirm_accepted` on Approve / Reject; `confirm_rejected` on Cancel or sheet swipe-down (once). `task_completed` after the API decided. `task_error` carries only the first code (`BLACKOUT`, `OVERLAP`, `INSUFFICIENT_BALANCE`, `INVALID_STATE`, `FORBIDDEN`, `OFFLINE`, ...) and never the reason text, names or dates. Taps count Approve, Reject and refresh. `task_abandoned` is not emitted (the inbox is a tab). The badge refresh does not touch the flow. |
 | `T-VAC-COV` | classic | `Packages/Features/.../TeamCoverageModel` via `TaskFlow` (FR-VAC-005) | `task_started` when the Team segment of Freigaben opens; `task_completed` once the API's per-day numbers are on screen (a range change loads again but the flow is already finished). Range changes and refresh count as taps. `FORBIDDEN` and `OFFLINE` emit `task_error` (`OFFLINE` with `recovered: true` when the last result stays visible). `confirm_*` do not apply; `task_abandoned` is not emitted (segment of a tab). The overlap strip in the approval detail uses the same endpoint but is part of `T-VAC-APR`, not a separate run. |
+| (none) | classic | `HolidaysModel` (FR-VAC-006), sign-in and sign-out (FR-AUTH-001, FR-AUTH-005) | Not tasks of the protocol, so they emit no events. Holidays are loaded by the request flow for its calendar under `T-VAC-REQ`. |
 | (none) | classic | `RequestDetailModel` (FR-VAC-003, FR-VAC-007) | Cancel and "My requests" are not tasks of the protocol (no `task_id` in the table above), so they emit no events. `My requests` loads through the `T-VAC-BAL` overview flow. If the protocol adds a cancel task, wrap `confirmCancel` in `TaskFlow(confirmAction: .cancel)`; `action=cancel` already exists in the schema. |

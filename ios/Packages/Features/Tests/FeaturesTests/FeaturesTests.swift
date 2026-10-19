@@ -16,6 +16,11 @@ func tabsFollowRoles() {
 }
 
 #if DEBUG
+private actor Flag {
+    private(set) var value = false
+    func set() { value = true }
+}
+
 @MainActor
 private func makeModel(_ scenario: StubScenario, signedIn: Bool = false) -> (AppModel, StubAuthService) {
     let stub = StubAuthService(scenario: scenario, signedIn: signedIn)
@@ -147,6 +152,27 @@ struct AppModelTests {
         #expect(await drafts.draft(key: "k") == nil)
     }
 
+    @Test("FR-AUTH-005: sign-out empties drafts, the cached feed, the cached balance and runs the app's hooks")
+    func signOutClearsEveryStore() async {
+        let stub = StubAuthService(scenario: .employee, signedIn: true)
+        let environment = AppEnvironment(auth: stub, me: stub, mode: ModeStore())
+        let ran = Flag()
+        await environment.registerSessionCleanup(also: [{ await ran.set() }])
+        await environment.drafts.save(["title": "x"], key: "k")
+        await environment.feedCache.save(FeedSnapshot(userKey: "u1", fetchedAt: Date(), items: []))
+        await environment.vacationCache.save(VacationSnapshot(
+            userKey: "u1", fetchedAt: Date(),
+            balance: VacationBalance(year: 2026, entitlement: 25, carriedOver: 0, approved: 5, pending: 0, remaining: 20),
+            requests: []))
+        let model = AppModel(auth: stub, me: stub, cleaner: environment.cleaner)
+        await model.start()
+        await model.signOut()
+        #expect(await environment.drafts.draft(key: "k") == nil)
+        #expect(await environment.feedCache.load(userKey: "u1") == nil)
+        #expect(await environment.vacationCache.load(userKey: "u1") == nil)
+        #expect(await ran.value)
+    }
+
     @Test("FR-AUTH-005: offline reload keeps the cached session and flags offline")
     func offlineReload() async {
         actor FlakyMe: MeService {
@@ -171,7 +197,7 @@ struct AppModelTests {
 
 @Suite("Localisation")
 struct LocalisationTests {
-    @Test("every key in the Features catalog has DE, FR, IT and EN")
+    @Test("NFR-009: every key in the Features catalog has DE, FR, IT and EN")
     func catalogComplete() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

@@ -232,6 +232,7 @@ def test_fr_auth_006_tools_invoke_token_cannot_mint_confirmation(
 def test_fr_ann_001_logs_hold_no_content_or_tokens(
     env: Env, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """NFR-012: no announcement bodies or tokens in logs."""
     caplog.set_level(logging.DEBUG)
     token = confirmed_token(env)
     publish(env, token)
@@ -239,6 +240,7 @@ def test_fr_ann_001_logs_hold_no_content_or_tokens(
 
 
 def test_fr_ann_001_events_reject_unknown_fields_and_content(env: Env) -> None:
+    """PRIV-007 / EXP-001: events carry no content fields."""
     event = {
         "event": "task_started",
         "participant_id": "3f1b6a7e-5d7e-4a8e-9a33-3c7f4f1d2b10",

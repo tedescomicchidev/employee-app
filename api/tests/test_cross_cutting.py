@@ -157,3 +157,25 @@ def test_priv_008_resolving_an_audience_is_publisher_only(env: Env) -> None:
         headers=env.headers("emp1"),
     )
     assert r.status_code == 403
+
+
+# PRIV-002 --------------------------------------------------------------------------------
+
+
+def test_priv_002_a_vacation_request_stores_no_employee_reason(env: Env) -> None:
+    proposal = env.propose("emp2", "2026-11-23", "2026-11-25").json()["proposal_id"]
+    token = env.confirm("emp2", proposal)
+    r = env.client.post(
+        "/v1/vacation/requests",
+        json={
+            "start": "2026-11-23",
+            "end": "2026-11-25",
+            "confirmation_token": token,
+            "reason": "Doctor appointment",
+        },
+        headers=env.headers("emp2"),
+    )
+    assert r.status_code in (201, 422)
+    assert "Doctor appointment" not in r.text
+    assert "Doctor appointment" not in env.get("emp2", "/requests").text
+    assert "Doctor appointment" not in env.get("mgr1", "/inbox").text

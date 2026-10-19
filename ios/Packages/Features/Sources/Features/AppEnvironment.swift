@@ -75,6 +75,17 @@ public struct AppEnvironment: Sendable {
         self.events = events
         self.taskContext = taskContext
     }
+
+    /// What sign-out removes (FR-AUTH-005): unsent drafts, the cached feed and the cached balance and
+    /// requests, then whatever the app target owns (scheduled notifications, URL cache, queued events,
+    /// later agent conversation state). A re-sign-in after expiry does not run these.
+    public func registerSessionCleanup(also extra: [SessionCleaner.Hook] = []) async {
+        let drafts = drafts, feedCache = feedCache, vacationCache = vacationCache
+        await cleaner.register { await drafts.clear() }
+        await cleaner.register { await feedCache.clear() }
+        await cleaner.register { await vacationCache.clear() }
+        for hook in extra { await cleaner.register(hook) }
+    }
 }
 
 #if DEBUG

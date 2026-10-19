@@ -729,6 +729,14 @@ Scenario: Sign-out clears local state
   When emp1 signs out
   Then Keychain tokens, cached feed, cached balance, scheduled notifications and agent conversation state are removed
 
+# FR-AUTH-005 implementation notes (CLASSIC)
+# - Expired token during compose: `PublishAnnouncementTests.testRevokedTokenDuringComposeKeepsTheDraft` (ui, stub `sessionRevoked`),
+#   `PublishModelTests` staleToken / revokedToken / draftPreserved (unit).
+# - Sign-out: `FeaturesTests.signOutClearsEveryStore` (drafts, feed cache, balance cache, app hooks), `signOutFailureStillClears`,
+#   `AuthFlowTests.testSignOut` (ui). Scheduled notifications, URL cache and queued events are app-target hooks registered in
+#   `AppBootstrap.configure`; the system calls themselves are not unit-tested.
+# - Agent conversation state: AGENT mode is not built; the hook point is `AppEnvironment.registerSessionCleanup(also:)`.
+
 # FR-AUTH-006
 @api @adversarial
 Scenario Outline: Invalid confirmation tokens are rejected
