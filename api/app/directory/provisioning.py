@@ -98,6 +98,10 @@ class Provisioner:
         if profile.oid != principal.oid:
             log.warning("directory lookup ignored: profile does not match the token")
             return False
+        if profile.manager_error:
+            log.warning("directory manager lookup failed code=%s", profile.manager_error)
+            # Keep the profile, but look again after the retry window instead of the full TTL.
+            now = now - self._settings.ttl + self._settings.retry_after
         self._store(principal, profile, now)
         return True
 

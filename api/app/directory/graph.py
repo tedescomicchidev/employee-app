@@ -32,6 +32,8 @@ class GraphProfile:
     attributes: dict[str, str]
     manager_oid: str | None = None
     manager_name: str = ""
+    # Set when `/me/manager` failed for a reason other than "no manager"; the profile stays usable.
+    manager_error: str | None = None
 
 
 class GraphProfileClient(Protocol):
@@ -65,25 +67,35 @@ class MsalGraphProfileClient:
             raise GraphError(str(result.get("error") or "obo_failed"))
         headers = {"Authorization": f"Bearer {token}"}
         select = ",".join(dict.fromkeys(["id", "displayName", *attributes]))
-        me = self._get(f"{GRAPH}/me?$select={select}", headers)
-        manager = self._get(f"{GRAPH}/me/manager?$select=id,displayName", headers, missing_ok=True)
+        me = self._get(f"{GRAPH}/me?$select={select}", headers, "me")
+        manager: dict[str, Any] = {}
+        manager_error: str | None = None
+        try:
+            manager = self._get(
+                f"{GRAPH}/me/manager?$select=id,displayName", headers, "manager", missing_ok=True
+            )
+        except GraphError as exc:
+            manager_error = exc.code
         return GraphProfile(
             oid=str(me.get("id", "")),
             display_name=str(me.get("displayName") or ""),
             attributes={a: str(me[a]) for a in attributes if me.get(a)},
             manager_oid=str(manager["id"]) if manager and manager.get("id") else None,
             manager_name=str((manager or {}).get("displayName") or ""),
+            manager_error=manager_error,
         )
 
     @staticmethod
-    def _get(url: str, headers: dict[str, str], missing_ok: bool = False) -> dict[str, Any]:
+    def _get(
+        url: str, headers: dict[str, str], call: str, missing_ok: bool = False
+    ) -> dict[str, Any]:
         try:
             response = requests.get(url, headers=headers, timeout=TIMEOUT_SECONDS)
         except requests.RequestException:
-            raise GraphError("graph_unreachable") from None
+            raise GraphError(f"graph_{call}_unreachable") from None
         if response.status_code == 404 and missing_ok:  # no manager assigned
             return {}
         if response.status_code != 200:
-            raise GraphError(f"graph_{response.status_code}")
+            raise GraphError(f"graph_{call}_{response.status_code}")
         body: dict[str, Any] = response.json()
         return body

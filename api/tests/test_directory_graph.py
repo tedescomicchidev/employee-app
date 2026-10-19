@@ -225,6 +225,30 @@ def test_old_failures_are_forgotten(env: Env) -> None:
     assert set(provisioner._failed) == {MANAGER}
 
 
+def test_a_manager_failure_still_provisions_the_user_and_retries_soon(
+    env: Env, caplog: pytest.LogCaptureFixture
+) -> None:
+    env.graph.profile = GraphProfile(
+        oid=NEW_USER,
+        display_name="Test Person",
+        attributes={"state": "ZH"},
+        manager_error="graph_manager_403",
+    )
+    with caplog.at_level(logging.WARNING, logger="app.directory"):
+        assert env.get("/v1/vacation/balance").status_code == 200  # News and balance work
+    assert "graph_manager_403" in caplog.text
+    env.get("/v1/me")
+    assert len(env.graph.calls) == 1  # not retried inside the window
+    env.clock.now = NOW + timedelta(seconds=61)  # far short of the 12 h TTL
+    env.graph.profile = GraphProfile(
+        oid=NEW_USER, display_name="Test Person", attributes={"state": "ZH"}, manager_oid=MANAGER
+    )
+    env.get("/v1/me")
+    assert len(env.graph.calls) == 2
+    employee = env.directory.get(NEW_USER)
+    assert employee is not None and employee.manager_oid == MANAGER
+
+
 def test_unexpected_graph_errors_are_contained(env: Env) -> None:
     env.graph.error = RuntimeError("boom")  # type: ignore[assignment]
     assert env.get("/v1/me").status_code == 200
@@ -356,6 +380,21 @@ class TestMsalClient:
             client.fetch("user-token", ["state"])
         assert caught.value.code == "consent_required" and "AADSTS" not in str(caught.value)
 
+    def test_a_failing_manager_call_keeps_the_profile_and_names_the_call(
+        self, client: Any, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import requests
+
+        def fake_get(url: str, headers: dict[str, str], timeout: int) -> _Response:
+            if "/me/manager" in url:
+                return _Response(403, {})
+            return _Response(200, {"id": NEW_USER, "displayName": "Me", "state": "ZH"})
+
+        monkeypatch.setattr(requests, "get", fake_get)
+        profile = client.fetch("user-token", ["state"])
+        assert profile.attributes == {"state": "ZH"}
+        assert profile.manager_oid is None and profile.manager_error == "graph_manager_403"
+
     def test_graph_http_errors_are_codes(
         self, client: Any, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -364,4 +403,4 @@ class TestMsalClient:
         monkeypatch.setattr(requests, "get", lambda *a, **k: _Response(403, {}))
         with pytest.raises(GraphError) as caught:
             client.fetch("user-token", ["state"])
-        assert caught.value.code == "graph_403"
+        assert caught.value.code == "graph_me_403"
