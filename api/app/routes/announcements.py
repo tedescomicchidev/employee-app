@@ -43,28 +43,6 @@ def _announcement(a: Announcement) -> dict[str, Any]:
     }
 
 
-@router.post("/proposals")
-def create_proposal(principal: Publisher, service: Service, body: Body) -> dict[str, Any]:
-    draft = _draft(body)
-    result = service.propose(principal, draft)
-    return {
-        "proposal_id": result.proposal.id,
-        "type": "announcement",
-        "payload": draft.canonical(),
-        "recipient_count": result.recipient_count,
-        "expires_at": result.proposal.expires_at.isoformat(),
-    }
-
-
-@router.post("/confirmations")
-def create_confirmation(principal: Publisher, service: Service, body: Body) -> dict[str, Any]:
-    proposal_id = body.get("proposal_id")
-    if not isinstance(proposal_id, str):
-        raise FieldError("proposal_id", "required")
-    token = service.confirm(principal, proposal_id)
-    return {"confirmation_token": token.token, "expires_at": token.expires_at.isoformat()}
-
-
 @router.post("/announcements")
 def publish_announcement(
     principal: Publisher, service: Service, body: Body, response: Response

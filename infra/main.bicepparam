@@ -7,3 +7,4 @@ param modelVersion = readEnvironmentVariable('AZURE_MODEL_VERSION', '2024-11-20'
 param modelSkuName = readEnvironmentVariable('AZURE_MODEL_SKU', 'GlobalStandard')
 param modelCapacity = int(readEnvironmentVariable('AZURE_MODEL_CAPACITY', '30'))
 param apiClientId = readEnvironmentVariable('API_CLIENT_ID', '')
+param graphDirectory = readEnvironmentVariable('GRAPH_DIRECTORY', 'false')

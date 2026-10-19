@@ -5,6 +5,7 @@ public struct DSCalendarMonth: View {
     private let month: Date
     private let selection: ClosedRange<Date>?
     private let holidays: [Date]
+    private let dimsWeekends: Bool
     private let calendar: Calendar
     private let onSelect: (Date) -> Void
 
@@ -12,14 +13,21 @@ public struct DSCalendarMonth: View {
         month: Date,
         selection: ClosedRange<Date>? = nil,
         holidays: [Date] = [],
+        dimsWeekends: Bool = false,
         calendar: Calendar = .current,
         onSelect: @escaping (Date) -> Void = { _ in }
     ) {
         self.month = month
         self.selection = selection
         self.holidays = holidays
+        self.dimsWeekends = dimsWeekends
         self.calendar = calendar
         self.onSelect = onSelect
+    }
+
+    /// Formats in the calendar's own time zone, so a fixed business calendar never shifts a day.
+    private var format: Date.FormatStyle {
+        Date.FormatStyle(calendar: calendar, timeZone: calendar.timeZone)
     }
 
     private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 0), count: 7) }
@@ -45,7 +53,7 @@ public struct DSCalendarMonth: View {
 
     public var body: some View {
         VStack(spacing: DSSpacing.xs) {
-            Text(month, format: .dateTime.month(.wide).year())
+            Text(month, format: format.month(.wide).year())
                 .font(DSFont.cardTitle)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
@@ -75,15 +83,16 @@ public struct DSCalendarMonth: View {
         let selected = isSelected(day)
         return Button { onSelect(day) } label: {
             VStack(spacing: 2) {
-                Text(day, format: .dateTime.day()).font(DSFont.body).monospacedDigit()
+                Text(day, format: format.day()).font(DSFont.body).monospacedDigit()
                 Circle().fill(isHoliday(day) ? DSColor.orange : .clear).frame(width: 5, height: 5)
             }
-            .foregroundStyle(selected ? Color.white : DSColor.ink)
+            .foregroundStyle(selected ? Color.white : (dimsWeekends && calendar.isDateInWeekend(day) ? DSColor.ink2 : DSColor.ink))
             .frame(maxWidth: .infinity, minHeight: DSSize.touch)
             .background(selected ? DSColor.tint : .clear, in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(day, format: .dateTime.weekday(.wide).day().month(.wide)))
+        .accessibilityLabel(Text(day, format: format.weekday(.wide).day().month(.wide)))
+        .accessibilityValue(isHoliday(day) ? Text(DSStrings.holiday) : Text(verbatim: ""))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

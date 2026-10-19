@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Annotated
 
@@ -22,6 +22,8 @@ class Principal:
     upn: str
     roles: tuple[str, ...]
     tenant_id: str
+    # The validated access token, kept only for the on-behalf-of exchange. Never logged.
+    assertion: str = field(default="", repr=False, compare=False)
 
     def has_role(self, role: Role) -> bool:
         return role.value in self.roles
@@ -48,13 +50,18 @@ def current_principal(
         claims = validator.validate(token, required_scope="access_as_user")
     except TokenError as exc:
         raise unauthenticated(str(exc)) from exc
-    return Principal(
+    principal = Principal(
         oid=claims["oid"],
         display_name=claims.get("name", ""),
         upn=claims.get("preferred_username", ""),
         roles=tuple(claims.get("roles", [])),
         tenant_id=claims["tid"],
+        assertion=token,
     )
+    provisioner = getattr(request.app.state, "provisioner", None)
+    if provisioner is not None:
+        provisioner.ensure(principal)
+    return principal
 
 
 def require_roles(*required: Role) -> Callable[[Principal], Principal]:

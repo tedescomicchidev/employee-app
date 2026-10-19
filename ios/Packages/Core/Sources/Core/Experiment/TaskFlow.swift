@@ -72,6 +72,8 @@ public final class TaskFlow {
     public let taskId: String
     public let feature: String
     public let mode: AppMode
+    /// What `confirm_*` events report: the write this flow asks the user to confirm.
+    private let confirmAction: ExperimentEvent.Action
     private let context: TaskContext
     private let sink: any EventSink
     private let now: @Sendable () -> Date
@@ -83,11 +85,13 @@ public final class TaskFlow {
 
     public init(
         taskId: String, feature: String, mode: AppMode, context: TaskContext, sink: any EventSink,
+        confirmAction: ExperimentEvent.Action = .publish,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.taskId = taskId
         self.feature = feature
         self.mode = mode
+        self.confirmAction = confirmAction
         self.context = context
         self.sink = sink
         self.now = now
@@ -106,7 +110,7 @@ public final class TaskFlow {
 
     public func confirmShown() {
         shownAt = now()
-        emit(.confirmShown) { $0.action = .publish }
+        emit(.confirmShown) { [confirmAction] in $0.action = confirmAction }
     }
 
     public func confirmAccepted() { confirmResolved(.confirmAccepted) }
@@ -127,7 +131,7 @@ public final class TaskFlow {
 
     private func confirmResolved(_ name: ExperimentEvent.Name) {
         let latency = shownAt.map { Int(now().timeIntervalSince($0) * 1000) }
-        emit(name) { $0.action = .publish; $0.latencyMs = latency }
+        emit(name) { [confirmAction] in $0.action = confirmAction; $0.latencyMs = latency }
     }
 
     private func finish(_ name: ExperimentEvent.Name, _ configure: (inout ExperimentEvent) -> Void) {
