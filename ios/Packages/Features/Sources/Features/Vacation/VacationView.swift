@@ -35,7 +35,7 @@ struct VacationView: View {
                 switch route {
                 case .holidays: HolidaysView(model: makeHolidays())
                 case .mine: if let overview { MyRequestsView(overview: overview) }
-                case let .detail(id): RequestDetailHost(askToCancel: askToCancelOnOpen) { makeDetail(id) }
+                case let .detail(id): RequestDetailHost(autopilot: askToCancelOnOpen ? .cancel : nil) { makeDetail(id) }
                 }
             }
             .toolbar {

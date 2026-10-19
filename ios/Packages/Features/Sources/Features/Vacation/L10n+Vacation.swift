@@ -93,6 +93,45 @@ extension L10n {
         .init("vac.cancel.message", defaultValue: "The \(days) reserved days will be released. \(approver) will no longer see the request.", bundle: bundle)
     }
 
+    // Manager inbox and decision (FR-VAC-004)
+    static var vacInboxEmptyTitle: LocalizedStringResource { .init("vac.inbox.empty.title", bundle: bundle) }
+    static var vacInboxEmptyMessage: LocalizedStringResource { .init("vac.inbox.empty.message", bundle: bundle) }
+    static var vacInboxForbidden: LocalizedStringResource { .init("vac.inbox.forbidden", bundle: bundle) }
+    static var vacDecisionBalanceNote: LocalizedStringResource { .init("vac.decision.balance.note", bundle: bundle) }
+    static var vacDecisionApprove: LocalizedStringResource { .init("vac.decision.approve", bundle: bundle) }
+    static var vacDecisionReject: LocalizedStringResource { .init("vac.decision.reject", bundle: bundle) }
+    static var vacDecisionCancel: LocalizedStringResource { .init("vac.decision.cancel", bundle: bundle) }
+    static var vacDecisionApproveTitle: LocalizedStringResource { .init("vac.decision.approve.title", bundle: bundle) }
+    static var vacDecisionRejectTitle: LocalizedStringResource { .init("vac.decision.reject.title", bundle: bundle) }
+    static var vacDecisionReasonLabel: LocalizedStringResource { .init("vac.decision.reason.label", bundle: bundle) }
+    static var vacDecisionFailed: LocalizedStringResource { .init("vac.decision.failed", bundle: bundle) }
+    static var vacDecisionForbidden: LocalizedStringResource { .init("vac.decision.forbidden", bundle: bundle) }
+    static func vacInboxGroup(_ count: Int) -> LocalizedStringResource {
+        .init("vac.inbox.group", defaultValue: "Waiting for you · \(count)", bundle: bundle)
+    }
+    static func vacDecisionBalanceHeader(_ name: String) -> LocalizedStringResource {
+        .init("vac.decision.balance.header", defaultValue: "Balance of \(name)", bundle: bundle)
+    }
+    static func vacDecisionApproveMessage(name: String, days: Int) -> LocalizedStringResource {
+        .init("vac.decision.approve.message", defaultValue: "\(name) will see the decision. The \(days) days stay deducted.", bundle: bundle)
+    }
+    static func vacDecisionRejectMessage(name: String, days: Int) -> LocalizedStringResource {
+        .init("vac.decision.reject.message", defaultValue: "\(name) sees the reason. The \(days) reserved days will be released.", bundle: bundle)
+    }
+    static func vacDecisionDone(_ status: VacationStatus, name: String) -> LocalizedStringResource {
+        status == .rejected
+            ? .init("vac.decision.done.rejected", defaultValue: "Rejected. \(name) sees the decision and the reason.", bundle: bundle)
+            : .init("vac.decision.done.approved", defaultValue: "Approved. \(name) sees the decision.", bundle: bundle)
+    }
+    static func vacDecisionAlready(_ status: VacationStatus, on date: String) -> LocalizedStringResource {
+        status == .rejected
+            ? .init("vac.decision.already.rejected", defaultValue: "Already decided. Rejected on \(date). No further action is needed.", bundle: bundle)
+            : .init("vac.decision.already.approved", defaultValue: "Already decided. Approved on \(date). No further action is needed.", bundle: bundle)
+    }
+    static func vacDecisionBlocked(_ reason: String) -> LocalizedStringResource {
+        .init("vac.decision.blocked", defaultValue: "Can’t approve: \(reason). The request stays pending.", bundle: bundle)
+    }
+
     // Holidays (FR-VAC-006)
     static var vacHolidaysNote: LocalizedStringResource { .init("vac.holidays.note", bundle: bundle) }
     static var vacHolidaysEmptyTitle: LocalizedStringResource { .init("vac.holidays.empty.title", bundle: bundle) }

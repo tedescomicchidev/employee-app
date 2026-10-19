@@ -39,6 +39,13 @@ enum VacationFormat {
         return "\(short(start)) – \(short(end))"
     }
 
+    static func initials(_ name: String) -> String {
+        let parts = name.split(separator: " ")
+        return [parts.first, parts.count > 1 ? parts.last : nil].compactMap { $0?.first }.map(String.init).joined()
+    }
+
+    static func firstName(_ name: String) -> String { name.split(separator: " ").first.map(String.init) ?? name }
+
     static func days(_ count: Int) -> String { String(localized: L10n.vacDays(count)) }
 
     /// "−11" with a true minus sign, as in the mockup's composition list.
@@ -48,6 +55,14 @@ enum VacationFormat {
 }
 
 extension View {
+    @ViewBuilder func vacHideTabBar(_ hidden: Bool) -> some View {
+        #if os(iOS)
+        toolbar(hidden ? .hidden : .automatic, for: .tabBar)
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder func vacInlineTitle() -> some View {
         #if os(iOS)
         navigationBarTitleDisplayMode(.inline)

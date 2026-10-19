@@ -100,3 +100,97 @@ final class CancelRequestTests: XCTestCase {
         XCTAssertTrue(app.buttons["detail.cancel"].exists)
     }
 }
+
+final class ManagerDecisionTests: XCTestCase {
+    override func setUp() {
+        continueAfterFailure = false
+    }
+
+    private func launch(api: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-authStub", "manager", "-signedIn", "YES", "-vacationStub", api, "-startOnApprovals", "YES",
+            "-AppleLanguages", "(en)", "-AppleLocale", "en_US",
+        ]
+        app.launch()
+        return app
+    }
+
+    private func element(_ app: XCUIApplication, _ id: String) -> XCUIElement {
+        app.descendants(matching: .any)[id].firstMatch
+    }
+
+    private func waitFor(_ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return condition()
+    }
+
+    // FR-VAC-004 (UI): manager decides in two taps from the inbox
+    func testApproveFromInboxInTwoTaps() {
+        let app = launch(api: "manager")
+        let row = element(app, "inbox.row.m1")
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        row.tap()
+        let approve = app.buttons["detail.approve"]
+        XCTAssertTrue(approve.waitForExistence(timeout: 5))
+        approve.tap()  // tap 1
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.buttons["Approve"].tap()  // tap 2 confirms
+        XCTAssertTrue(element(app, "detail.decided").waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["detail.approve"].exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(waitFor { !self.element(app, "inbox.row.m1").exists }, "the inbox no longer lists it")
+        XCTAssertTrue(element(app, "inbox.row.m2").exists)
+    }
+
+    // FR-VAC-004.1: reject with a reason through the sheet
+    func testRejectWithReason() {
+        let app = launch(api: "manager")
+        element(app, "inbox.row.m1").tap()
+        let reject = app.buttons["detail.reject"]
+        XCTAssertTrue(reject.waitForExistence(timeout: 10))
+        reject.tap()
+        let reason = element(app, "reject.reason")
+        XCTAssertTrue(reason.waitForExistence(timeout: 5))
+        reason.tap()
+        reason.typeText("Inventory week")
+        XCTAssertTrue(element(app, "reject.count").label.contains("14 / 500"))
+        app.buttons["reject.confirm"].tap()
+        XCTAssertTrue(element(app, "detail.decided").waitForExistence(timeout: 5))
+    }
+
+    // FR-VAC-004.3: decided meanwhile shows the final state, actions disabled
+    func testAlreadyDecidedShowsFinalStateWithoutActions() {
+        let app = launch(api: "managerDecided")
+        element(app, "inbox.row.m1").tap()
+        let approve = app.buttons["detail.approve"]
+        XCTAssertTrue(approve.waitForExistence(timeout: 10))
+        approve.tap()
+        app.alerts.firstMatch.buttons["Approve"].tap()
+        XCTAssertTrue(element(app, "detail.invalid_state").waitForExistence(timeout: 5))
+        XCTAssertFalse(approve.isEnabled)
+    }
+
+    // FR-VAC-004.2: a rule broken since submission is shown and the request stays pending
+    func testBlockedApprovalStaysPending() {
+        let app = launch(api: "managerBlocked")
+        element(app, "inbox.row.m1").tap()
+        let approve = app.buttons["detail.approve"]
+        XCTAssertTrue(approve.waitForExistence(timeout: 10))
+        approve.tap()
+        app.alerts.firstMatch.buttons["Approve"].tap()
+        XCTAssertTrue(element(app, "detail.blocked.BLACKOUT").waitForExistence(timeout: 5))
+        XCTAssertTrue(approve.isEnabled)
+    }
+
+    // FR-VAC-004 (E): nothing waiting
+    func testEmptyInbox() {
+        let app = launch(api: "managerEmpty")
+        XCTAssertTrue(element(app, "inbox.empty").waitForExistence(timeout: 10))
+    }
+}

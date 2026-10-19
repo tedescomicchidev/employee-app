@@ -2,7 +2,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 
-from app.auth.principal import Principal, current_principal
+from app.auth.principal import Principal, Role, authorize, current_principal
 from app.vacation.models import DayCount, VacationRequest
 from app.vacation.serialize import count_json, holiday_json
 from app.vacation.service import Review, VacationService, parse_draft
@@ -91,7 +91,33 @@ def create_request(principal: Caller, service: Service, body: Body, response: Re
 
 @router.get("/requests/{request_id}")
 def get_request(request_id: str, principal: Caller, service: Service) -> dict[str, Any]:
-    return _request(service.get_request(principal, request_id))
+    request = service.get_request(principal, request_id)
+    row = _request(request)
+    balance = service.owner_balance(principal, request)
+    if balance is not None:
+        row["owner_balance"] = {
+            "year": balance.year,
+            "entitlement": balance.entitlement,
+            "carried_over": balance.carried_over,
+            "approved": balance.approved,
+            "pending": balance.pending,
+            "remaining": balance.remaining,
+        }
+    return row
+
+
+@router.post("/requests/{request_id}/decision")
+def decide_request(request_id: str, principal: Caller, service: Service, body: Body) -> Any:
+    token = body.get("confirmation_token")
+    return _request(
+        service.decide(
+            principal,
+            request_id,
+            body.get("decision", ""),
+            body.get("reason"),
+            token if isinstance(token, str) else None,
+        )
+    )
 
 
 @router.post("/requests/{request_id}/cancel")
@@ -104,4 +130,11 @@ def cancel_request(request_id: str, principal: Caller, service: Service, body: B
 
 @router.get("/inbox")
 def get_inbox(principal: Caller, service: Service) -> dict[str, Any]:
+    authorize(principal, Role.MANAGER)
     return {"items": [_request(r) for r in service.inbox(principal)]}
+
+
+@router.get("/decisions")
+def get_decisions(principal: Caller, service: Service) -> dict[str, Any]:
+    authorize(principal, Role.MANAGER)
+    return {"items": [_request(r) for r in service.decisions(principal)]}

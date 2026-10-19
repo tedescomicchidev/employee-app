@@ -10,6 +10,15 @@ public enum VacationStubScenario: String, Sendable, CaseIterable {
     case history
     /// A pending request whose cancel fails on the server (error state of the cancel dialog).
     case cancelFails
+    /// The manager's inbox with three waiting requests (FR-VAC-004 mockups).
+    case manager
+    case managerEmpty
+    /// The first request was decided meanwhile: deciding returns `INVALID_STATE`.
+    case managerDecided
+    /// Approving now breaks a rule (blackout added after submission): the request stays pending.
+    case managerBlocked
+    case managerForbidden
+    case decideFails
     case loading, offline, error, cantonMissing, submitFails, submitOffline
 }
 
@@ -20,6 +29,8 @@ public actor StubVacationService: VacationService {
     public private(set) var proposeCalls = 0
     private let scenario: VacationStubScenario
     private var existing: [VacationRequestSummary]
+    private var waiting: [VacationRequestSummary] = []
+    private var decidedMeanwhile = false
     private let carriedOver: Int
     private var approved: Int
     private var pending: Int
@@ -46,10 +57,34 @@ public actor StubVacationService: VacationService {
             pending = 0
             existing = []
         }
+        switch scenario {
+        case .manager, .managerDecided, .managerBlocked, .decideFails: waiting = Self.managerInbox
+        default: break
+        }
     }
 
-    private static func decided(_ month: Int, _ day: Int) -> Date {
-        Calendar.zurich.date(from: DateComponents(year: 2026, month: month, day: day, hour: 9)) ?? Date()
+    private static let leaBalance = VacationBalance(
+        year: 2026, entitlement: 25, carriedOver: 3, approved: 11, pending: 4, remaining: 13)
+
+    /// What the API returns for a manager: waiting requests ordered by start date.
+    private static let managerInbox: [VacationRequestSummary] = [
+        VacationRequestSummary(
+            id: "m1", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 9),
+            end: CalendarDay(year: 2026, month: 11, day: 12), countedDays: 4, approver: "Marco Rossi",
+            ownerName: "Lena Meier", submittedAt: decided(10, 12), ownerBalance: leaBalance),
+        VacationRequestSummary(
+            id: "m2", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 16),
+            end: CalendarDay(year: 2026, month: 11, day: 20), countedDays: 5, approver: "Marco Rossi",
+            ownerName: "Anna Keller", submittedAt: decided(10, 14), ownerBalance: leaBalance),
+        VacationRequestSummary(
+            id: "m3", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 26),
+            end: CalendarDay(year: 2026, month: 11, day: 27), countedDays: 2, approver: "Marco Rossi",
+            ownerName: "Jonas Brunner", submittedAt: decided(10, 15), ownerBalance: leaBalance),
+    ]
+
+    private static func decided(_ month: Int, _ day: Int, hour: Int = 9, minute: Int = 0) -> Date {
+        Calendar.zurich.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))
+            ?? Date()
     }
 
     private static let decidedHistory: [VacationRequestSummary] = [
@@ -141,8 +176,67 @@ public actor StubVacationService: VacationService {
 
     public func request(id: String, accessToken: String) async throws -> VacationRequestSummary {
         try await gate()
-        guard let found = existing.first(where: { $0.id == id }) else { throw VacationError.notFound }
+        if let found = existing.first(where: { $0.id == id }) { return found }
+        guard let found = waiting.first(where: { $0.id == id }) ?? Self.managerInbox.first(where: { $0.id == id })
+        else { throw VacationError.notFound }
+        if decidedMeanwhile {
+            return Self.copy(found, status: .approved, decidedAt: Self.decided(10, 17, hour: 16, minute: 58))
+        }
         return found
+    }
+
+    public func inbox(accessToken: String) async throws -> [VacationRequestSummary] {
+        try await gate()
+        if scenario == .managerForbidden { throw VacationError.forbidden }
+        return waiting
+    }
+
+    public func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String {
+        try await gate()
+        guard waiting.contains(where: { $0.id == id }) else { throw VacationError.notFound }
+        switch scenario {
+        case .managerDecided:
+            decidedMeanwhile = true
+            throw VacationError.invalidState
+        case .managerBlocked where decision == .approve:
+            throw VacationError.rules(
+                [VacationViolation(
+                    code: "BLACKOUT",
+                    range: DayRange(
+                        start: CalendarDay(year: 2026, month: 11, day: 10),
+                        end: CalendarDay(year: 2026, month: 11, day: 13)))],
+                review: nil)
+        case .decideFails: throw VacationError.failed(code: "INTERNAL", correlationId: "stub-corr-3456")
+        default: return "stub-decision-\(id)"
+        }
+    }
+
+    public func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary {
+        try await gate()
+        guard let index = waiting.firstIndex(where: { $0.id == id }) else {
+            // Idempotent on the token: the already stored decision.
+            if let done = existing.first(where: { $0.id == id }) { return done }
+            throw VacationError.notFound
+        }
+        let current = waiting.remove(at: index)
+        let decided = Self.copy(
+            current, status: decision == .approve ? .approved : .rejected, decidedAt: Self.fixtureNow,
+            reason: decision == .reject ? reason : nil)
+        existing.append(decided)
+        return decided
+    }
+
+    private static func copy(
+        _ r: VacationRequestSummary, status: VacationStatus, decidedAt: Date, reason: String? = nil
+    ) -> VacationRequestSummary {
+        VacationRequestSummary(
+            id: r.id, status: status, start: r.start, end: r.end, countedDays: r.countedDays,
+            approver: r.approver, ownerName: r.ownerName, decidedAt: decidedAt, reason: reason,
+            submittedAt: r.submittedAt, ownerBalance: r.ownerBalance)
     }
 
     public func confirmCancel(id: String, accessToken: String) async throws -> String {

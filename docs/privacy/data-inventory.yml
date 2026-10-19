@@ -75,6 +75,8 @@ entries:
     retention: HUMAN_CONFIRMATION_REQUIRED
     access: [owner, approver, api]
     notes: rejection_reason is free text written by the manager; may contain personal data; not logged
+      (implemented as `decision_reason`, API field `reason`, max 500 chars; `decided_at` and `decided_by` are
+      stored with it; the in-memory store has no retention yet)
     requirements: [FR-VAC-001, FR-VAC-002, FR-VAC-003, FR-VAC-004, FR-VAC-005, FR-VAC-007, PRIV-002]
 
   - id: vacation-parameters

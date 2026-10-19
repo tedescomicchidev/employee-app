@@ -12,6 +12,7 @@ from app.auth.errors import (
     FieldError,
     canton_missing,
     confirmation_required,
+    forbidden,
     invalid_confirmation,
     invalid_state,
     no_approver,
@@ -31,10 +32,16 @@ from app.repositories import (
 from app.vacation import rules
 from app.vacation.models import (
     ACTION_CANCEL,
+    ACTION_DECIDE,
     ACTION_REQUEST,
+    BLACKOUT,
+    INSUFFICIENT_BALANCE,
+    MAX_REASON,
+    OVERLAP,
     Balance,
     CancelDraft,
     DayCount,
+    DecisionDraft,
     Holiday,
     VacationDraft,
     VacationRequest,
@@ -61,6 +68,19 @@ def parse_date(field: str, raw: object) -> date:
         return date.fromisoformat(raw)
     except ValueError:
         raise FieldError(field, "ISO date YYYY-MM-DD") from None
+
+
+def parse_decision(request_id: str, decision: object, reason: object) -> DecisionDraft:
+    if decision not in ("approve", "reject"):
+        raise FieldError("decision", "approve or reject")
+    text: str | None = None
+    if reason is not None:
+        if not isinstance(reason, str):
+            raise FieldError("reason", "text")
+        if len(reason) > MAX_REASON:
+            raise FieldError("reason", f"at most {MAX_REASON} characters")
+        text = reason.strip() or None
+    return DecisionDraft(request_id, str(decision), text if decision == "reject" else None)
 
 
 def parse_draft(payload: object) -> VacationDraft:
@@ -96,6 +116,12 @@ class CreateResult:
 
 @dataclass(frozen=True)
 class CancelProposal:
+    proposal: Proposal
+    request: VacationRequest
+
+
+@dataclass(frozen=True)
+class DecisionProposal:
     proposal: Proposal
     request: VacationRequest
 
@@ -151,6 +177,12 @@ class VacationService:
         """Pending requests assigned to the caller as approver (FR-VAC-002.5)."""
         self._employee(principal)
         return self._store.pending_for_approver(principal.oid)
+
+    def decisions(self, principal: Principal) -> list[VacationRequest]:
+        """Every request assigned to the caller, same order and statuses as the owners (007.2)."""
+        self._employee(principal)
+        first = self.today().year - 1
+        return [r for r in self._store.for_approver(principal.oid) if r.end.year >= first]
 
     # FR-VAC-002 ---------------------------------------------------------------------------
 
@@ -295,6 +327,115 @@ class VacationService:
             token.request_id = request_id
             log.info("vacation request cancelled id=%s", request_id)
             return cancelled
+
+    # FR-VAC-004 ---------------------------------------------------------------------------
+
+    def owner_balance(self, principal: Principal, request: VacationRequest) -> Balance | None:
+        """The report's balance, for their approver only (FR-VAC-001.3)."""
+        if request.approver_oid != principal.oid:
+            return None
+        return self._balance(request.owner_oid, request.start.year)
+
+    def propose_decision(
+        self, principal: Principal, request_id: str, decision: str, reason: object
+    ) -> DecisionProposal:
+        """Dry run: assigned approver only, pending only, and an approval must still be valid."""
+        draft = parse_decision(request_id, decision, reason)
+        request = self._decidable(principal, request_id)
+        if draft.decision == "approve":
+            self._revalidate(request)
+        proposal = Proposal(
+            id=str(uuid.uuid4()),
+            oid=principal.oid,
+            action=ACTION_DECIDE,
+            draft=draft,
+            expires_at=self._clock() + self._ttl,
+        )
+        self._confirmations.save_proposal(proposal)
+        return DecisionProposal(proposal, request)
+
+    def decide(
+        self,
+        principal: Principal,
+        request_id: str,
+        decision: str,
+        reason: object,
+        token_value: str | None,
+    ) -> VacationRequest:
+        """Approve or reject; final and idempotent on the confirmation token (AC 1-3, 5)."""
+        draft = parse_decision(request_id, decision, reason)
+        self._employee(principal)
+        if not token_value:
+            raise confirmation_required()
+        with self._write_lock:
+            token = self._confirmations.get_token(token_value)
+            if (
+                token is None
+                or token.oid != principal.oid
+                or token.action != ACTION_DECIDE
+                or not hmac.compare_digest(token.payload_hash, draft.payload_hash())
+            ):
+                raise invalid_confirmation()
+            if token.request_id == request_id:
+                done = self._store.get(request_id)
+                if done is not None:
+                    return done
+            if token.expires_at <= self._clock():
+                raise invalid_confirmation()
+            request = self._decidable(principal, request_id)
+            if draft.decision == "approve":
+                self._revalidate(request)  # R5-R7 again; a failure leaves the request pending
+            decided = self._store.replace_if_status(
+                replace(
+                    request,
+                    status="approved" if draft.decision == "approve" else "rejected",
+                    decided_at=self._clock(),
+                    decided_by=principal.oid,
+                    decision_reason=draft.reason,
+                ),
+                "pending",
+            )
+            if decided is None:
+                raise invalid_state()
+            token.request_id = request_id
+            log.info("vacation request %s id=%s", decided.status, request_id)
+            return decided
+
+    def _decidable(self, principal: Principal, request_id: str) -> VacationRequest:
+        self._employee(principal)
+        request = self._store.get(request_id)
+        if request is None:
+            raise not_found()
+        if request.owner_oid == principal.oid:
+            raise self_approval()  # R10
+        if request.approver_oid != principal.oid:
+            raise forbidden()
+        if request.status != "pending":
+            raise invalid_state()
+        return request
+
+    def _revalidate(self, request: VacationRequest) -> None:
+        """R5-R7 at decision time; the request's own reservation is not counted against itself."""
+        owner = self._directory.get(request.owner_oid)
+        if owner is None:
+            raise not_found()
+        others = [r for r in self._store.for_owner(owner.oid) if r.id != request.id]
+        found = rules.validate(
+            request.start,
+            request.end,
+            self.today(),
+            DayCount(request.counted_days, request.per_year, request.excluded),
+            [
+                b
+                for b in self._config.blackouts
+                if rules.blackout_applies(b, owner.region, owner.store)
+            ],
+            others,
+            lambda year: self._balance(owner.oid, year, others),
+        )
+        failing = [v for v in found if v.code in (BLACKOUT, OVERLAP, INSUFFICIENT_BALANCE)]
+        if failing:
+            raise rule_violation([_violation(v) for v in failing])
 
     def _own_pending(self, principal: Principal, request_id: str) -> VacationRequest:
         self._employee(principal)

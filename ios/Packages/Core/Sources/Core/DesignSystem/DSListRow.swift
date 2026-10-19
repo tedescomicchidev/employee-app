@@ -102,13 +102,26 @@ public struct DSListRow: View {
                 .background(tint, in: RoundedRectangle(cornerRadius: DSRadius.chip))
                 .accessibilityHidden(true)
         case let .avatar(initials):
-            Text(verbatim: initials)
-                .font(DSFont.secondary.weight(.semibold))
-                .foregroundStyle(DSColor.tint)
-                .frame(width: DSSize.avatar, height: DSSize.avatar)
-                .background(DSColor.tintSoft, in: Circle())
-                .accessibilityHidden(true)
+            DSAvatar(initials: initials)
         }
+    }
+}
+
+/// Initials in a tinted circle; decorative, the name next to it carries the meaning.
+public struct DSAvatar: View {
+    private let initials: String
+
+    public init(initials: String) { self.initials = initials }
+
+    public var body: some View {
+        Text(verbatim: initials)
+            .font(DSFont.secondary.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.4)  // the circle stays fixed; big text shrinks to fit
+            .foregroundStyle(DSColor.tint)
+            .frame(width: DSSize.avatar, height: DSSize.avatar)
+            .background(DSColor.tintSoft, in: Circle())
+            .accessibilityHidden(true)
     }
 }
 

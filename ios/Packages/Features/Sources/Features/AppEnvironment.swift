@@ -44,6 +44,8 @@ public struct AppEnvironment: Sendable {
     public var vacationAutopilot: VacationAutopilot?
     /// Screenshots and UI tests: start on the vacation tab.
     public var startOnVacation = false
+    /// Screenshots and UI tests: start on the manager's approvals tab.
+    public var startOnApprovals = false
     #endif
 
     public init(
@@ -102,6 +104,8 @@ public enum AnnouncementAutopilot: String, Sendable {
 /// Drives the vacation flow without taps so `screenshot.sh` can capture each state (FR-VAC-001/002/006).
 public enum VacationAutopilot: String, Sendable {
     case requestOK, requestOverlap, reviewOK, reviewInsufficient, reviewSuccess, holidays, mine, detail, cancelDialog
+    /// Manager screens: the inbox, a decision, the reject sheet, an approval that fails.
+    case inbox, decision, rejectReason, approveConfirmed
 
     /// The dates the autopilot selects, as ISO strings.
     var range: (String, String)? {
@@ -109,7 +113,7 @@ public enum VacationAutopilot: String, Sendable {
         case .requestOK, .reviewOK, .reviewSuccess: ("2026-12-28", "2027-01-05")
         case .requestOverlap: ("2026-11-11", "2026-11-13")
         case .reviewInsufficient: ("2026-11-23", "2026-12-11")
-        case .holidays, .mine, .detail, .cancelDialog: nil
+        case .holidays, .mine, .detail, .cancelDialog, .inbox, .decision, .rejectReason, .approveConfirmed: nil
         }
     }
 }

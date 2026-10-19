@@ -6,6 +6,8 @@ from typing import Any
 
 ACTION_REQUEST = "create_vacation_request"
 ACTION_CANCEL = "cancel_vacation_request"
+ACTION_DECIDE = "decide_vacation_request"
+MAX_REASON = 500
 CANTONS = "AG AI AR BE BL BS FR GE GL GR JU LU NE NW OW SG SH SO SZ TG TI UR VD VS ZG ZH".split()
 
 # Reason codes in the precedence of FR-VAC-002.2.
@@ -116,5 +118,20 @@ class CancelDraft:
 
     def payload_hash(self) -> str:
         """The cancel token is bound to this one request (FR-AUTH-006.1)."""
+        raw = json.dumps(self.canonical(), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class DecisionDraft:
+    request_id: str
+    decision: str  # approve | reject
+    reason: str | None = None
+
+    def canonical(self) -> dict[str, str | None]:
+        return {"request_id": self.request_id, "decision": self.decision, "reason": self.reason}
+
+    def payload_hash(self) -> str:
+        """The decide token is bound to the request, the decision and the reason (FR-AUTH-006.1)."""
         raw = json.dumps(self.canonical(), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(raw.encode()).hexdigest()

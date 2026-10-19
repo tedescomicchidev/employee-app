@@ -70,6 +70,10 @@ public enum VacationStatus: String, Sendable, Codable {
     case pending, approved, rejected, cancelled
 }
 
+public enum VacationDecision: String, Sendable, Equatable {
+    case approve, reject
+}
+
 /// A day that was not counted, with the holiday name when it is one (FR-VAC-006.2).
 public struct ExcludedDay: Sendable, Equatable, Codable, Hashable {
     public enum Kind: String, Sendable, Codable { case weekend, holiday }
@@ -98,10 +102,13 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
     /// The rejection reason, shown to the owner (FR-VAC-007.1). Never logged.
     public let reason: String?
     public let submittedAt: Date?
+    /// The report's balance, only in the detail an approver opens (FR-VAC-001.3).
+    public let ownerBalance: VacationBalance?
 
     public init(
         id: String, status: VacationStatus, start: CalendarDay, end: CalendarDay, countedDays: Int, approver: String,
-        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil, submittedAt: Date? = nil
+        ownerName: String = "", decidedAt: Date? = nil, reason: String? = nil, submittedAt: Date? = nil,
+        ownerBalance: VacationBalance? = nil
     ) {
         self.id = id
         self.status = status
@@ -113,6 +120,7 @@ public struct VacationRequestSummary: Sendable, Equatable, Codable, Identifiable
         self.decidedAt = decidedAt
         self.reason = reason
         self.submittedAt = submittedAt
+        self.ownerBalance = ownerBalance
     }
 }
 
@@ -230,6 +238,8 @@ public enum VacationError: Error, Sendable, Equatable {
     case notFound
     /// `INVALID_STATE`: the request is no longer pending (FR-VAC-003.2, 004.3).
     case invalidState
+    /// `SELF_APPROVAL` (R10).
+    case selfApproval
     /// R5-R8: every failing code, first by precedence, plus what a blocked review still shows.
     case rules([VacationViolation], review: VacationReview?)
     case invalidConfirmation
@@ -247,6 +257,7 @@ public enum VacationError: Error, Sendable, Equatable {
         case .noApprover: "NO_APPROVER"
         case .notFound: "NOT_FOUND"
         case .invalidState: "INVALID_STATE"
+        case .selfApproval: "SELF_APPROVAL"
         case let .rules(violations, _): violations.first?.code ?? "RULE"
         case .invalidConfirmation: "INVALID_CONFIRMATION"
         case .validation: "VALIDATION_ERROR"
@@ -273,6 +284,17 @@ public protocol VacationService: Sendable {
     func confirmCancel(id: String, accessToken: String) async throws -> String
     /// Idempotent on the confirmation token; `INVALID_STATE` unless the request is pending (FR-VAC-003.2).
     func cancel(id: String, confirmationToken: String, accessToken: String) async throws -> VacationRequestSummary
+    /// Requests waiting for the signed-in manager (FR-VAC-004.1); `forbidden` for non-managers.
+    func inbox(accessToken: String) async throws -> [VacationRequestSummary]
+    /// Dry run and confirmation of a decision in one step; call it after the user confirmed.
+    /// An approval that would now break R5-R7 throws `.rules` and the request stays pending (FR-VAC-004.2).
+    func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String
+    /// Final and idempotent on the confirmation token (FR-VAC-004.3).
+    func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary
 }
 
 /// Last good overview for offline display with an "as of" time (NFR-007).
@@ -342,5 +364,12 @@ public struct UnconfiguredVacationService: VacationService {
     public func confirmCancel(id: String, accessToken: String) async throws -> String { throw Self.failure }
     public func cancel(id: String, confirmationToken: String, accessToken: String) async throws
         -> VacationRequestSummary { throw Self.failure }
+    public func inbox(accessToken: String) async throws -> [VacationRequestSummary] { throw Self.failure }
+    public func confirmDecision(
+        id: String, decision: VacationDecision, reason: String?, accessToken: String
+    ) async throws -> String { throw Self.failure }
+    public func decide(
+        id: String, decision: VacationDecision, reason: String?, confirmationToken: String, accessToken: String
+    ) async throws -> VacationRequestSummary { throw Self.failure }
     private static var failure: VacationError { .failed(code: "NOT_CONFIGURED", correlationId: nil) }
 }

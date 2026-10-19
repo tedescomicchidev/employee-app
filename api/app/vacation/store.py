@@ -17,6 +17,9 @@ class VacationStore(Protocol):
     def get(self, request_id: str) -> VacationRequest | None: ...
     def for_owner(self, oid: str) -> list[VacationRequest]: ...
     def pending_for_approver(self, oid: str) -> list[VacationRequest]: ...
+    def for_approver(self, oid: str) -> list[VacationRequest]:
+        """Every request assigned to `oid`, any status, in the same order as `for_owner`."""
+
     def replace_if_status(
         self, request: VacationRequest, expected_status: str
     ) -> VacationRequest | None:
@@ -48,6 +51,10 @@ class InMemoryVacationStore:
     def for_owner(self, oid: str) -> list[VacationRequest]:
         mine = [r for r in self._requests.values() if r.owner_oid == oid]
         return sorted(mine, key=lambda r: (r.start, r.created_at))
+
+    def for_approver(self, oid: str) -> list[VacationRequest]:
+        rows = [r for r in self._requests.values() if r.approver_oid == oid]
+        return sorted(rows, key=lambda r: (r.start, r.created_at))
 
     def pending_for_approver(self, oid: str) -> list[VacationRequest]:
         rows = [

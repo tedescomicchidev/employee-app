@@ -9,7 +9,7 @@ from app.auth.errors import FieldError
 from app.auth.principal import Principal, Role, authorize, current_principal
 from app.routes.announcements import Body, _draft
 from app.routes.vacation import _request, review_json
-from app.vacation.models import ACTION_CANCEL
+from app.vacation.models import ACTION_CANCEL, ACTION_DECIDE
 from app.vacation.service import VacationService, parse_draft
 
 router = APIRouter(prefix="/v1")
@@ -19,8 +19,8 @@ Caller = Annotated[Principal, Depends(current_principal)]
 
 def _type(body: Body) -> str:
     kind = body.get("type", "announcement")
-    if kind not in ("announcement", "vacation", "vacation_cancel"):
-        raise FieldError("type", "announcement, vacation or vacation_cancel")
+    if kind not in ("announcement", "vacation", "vacation_cancel", "vacation_decision"):
+        raise FieldError("type", "announcement, vacation, vacation_cancel or vacation_decision")
     return kind
 
 
@@ -39,6 +39,21 @@ def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str
             "payload": {"request_id": request_id},
             "request": _request(cancel.request),
             "expires_at": cancel.proposal.expires_at.isoformat(),
+        }
+    if _type(body) == "vacation_decision":
+        payload = body.get("payload")
+        if not isinstance(payload, dict) or not isinstance(payload.get("request_id"), str):
+            raise FieldError("payload.request_id", "required")
+        deciding: VacationService = request.app.state.vacation_service
+        result = deciding.propose_decision(
+            principal, payload["request_id"], payload.get("decision", ""), payload.get("reason")
+        )
+        return {
+            "proposal_id": result.proposal.id,
+            "type": "vacation_decision",
+            "payload": result.proposal.draft.canonical(),
+            "request": _request(result.request),
+            "expires_at": result.proposal.expires_at.isoformat(),
         }
     if _type(body) == "vacation":
         vacation: VacationService = request.app.state.vacation_service
@@ -72,8 +87,9 @@ def create_confirmation(principal: Caller, request: Request, body: Body) -> dict
     proposal_id = body.get("proposal_id")
     if not isinstance(proposal_id, str):
         raise FieldError("proposal_id", "required")
-    if kind == "vacation_cancel":
-        token = request.app.state.vacation_service.confirm(principal, proposal_id, ACTION_CANCEL)
+    if kind in ("vacation_cancel", "vacation_decision"):
+        action = ACTION_CANCEL if kind == "vacation_cancel" else ACTION_DECIDE
+        token = request.app.state.vacation_service.confirm(principal, proposal_id, action)
     elif kind == "vacation":
         token = request.app.state.vacation_service.confirm(principal, proposal_id)
     else:
