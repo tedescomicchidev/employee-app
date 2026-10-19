@@ -170,15 +170,33 @@ def test_obo_failure_is_a_clean_error_without_detail(env: Env, caplog: Any) -> N
     assert env.turn().status_code == 502
 
 
-def test_proposal_reply_carries_only_the_id_for_the_server_rendered_card(env: Env) -> None:
+def ceo_proposal(env: Env) -> tuple[dict[str, str], str]:
+    draft = {"title": "Hours", "body": "Open at 8", "language": "de", "audience": "all"}
+    token = sign(env.key, SETTINGS.api_audience, "access_as_user", CEO, ["Communicator"])
+    ceo = {"Authorization": f"Bearer {token}"}
+    stored = env.client.post("/v1/proposals", json={"payload": draft}, headers=ceo).json()
+    return ceo, stored["proposal_id"]
+
+
+def test_fr_ann_001_proposal_reply_carries_only_the_id_of_the_stored_proposal(env: Env) -> None:
+    ceo, proposal_id = ceo_proposal(env)
+    body = {"messages": [{"role": "user", "content": "draft it"}]}
+
+    def turn() -> Any:
+        return env.client.post("/v1/agent/comms/turns", json=body, headers=ceo).json()["reply"]
+
     env.foundry.response = reply(
-        {"kind": "proposal", "text": "Please review", "proposal_id": PROPOSAL}
+        {"kind": "proposal", "text": "Please review", "proposal_id": proposal_id}
     )
-    assert env.turn().json()["reply"] == {
-        "kind": "proposal", "text": "Please review", "proposal_id": PROPOSAL,
+    assert turn() == {
+        "kind": "proposal", "text": "Please review", "proposal_id": proposal_id,
+        "reason": None, "sources": [],
     }  # fmt: skip
     env.foundry.response = reply({"kind": "proposal", "text": "no id"})
-    assert env.turn().json()["reply"]["kind"] == "message"
+    assert turn()["kind"] == "message"
+    # An id the api never stored (or someone else's) cannot produce a card.
+    env.foundry.response = reply({"kind": "proposal", "text": "x", "proposal_id": PROPOSAL})
+    assert turn()["kind"] == "message" and turn()["proposal_id"] is None
 
 
 def test_fr_ann_001_published_is_only_believed_after_the_tool_succeeded(env: Env) -> None:

@@ -95,7 +95,7 @@ def test_reply_schema_accepts_every_kind_and_rejects_extras() -> None:
 
 
 def test_reply_schema_has_no_field_that_could_carry_a_token_a_number_or_card_content() -> None:
-    assert set(VacationReply.model_fields) == {"kind", "text", "proposal_id", "options"}
+    assert set(VacationReply.model_fields) == {"kind", "text", "proposal_id", "options", "reason"}
     from vacation_schemas import VacationOption
 
     assert set(VacationOption.model_fields) == {"proposal_id", "start", "end"}
@@ -150,10 +150,10 @@ def test_every_write_tool_takes_a_confirmation_token_and_none_mints_one() -> Non
 def test_contract_matches_the_api_reply_model() -> None:
     """vacation_schemas.py and api/app/agents/turns.py describe the same reply."""
     api_source = (ROOT / "api/app/agents/turns.py").read_text()
-    kinds = '"message", "clarification", "options", "proposal", "submitted", "cancelled", "decided"'
+    kinds = '"cancelled",\n        "decided",\n        "refusal",'
     assert kinds in api_source and "options: list[VacationOption]" in api_source
     assert json.dumps(sorted(VacationReply.model_fields)) == (
-        '["kind", "options", "proposal_id", "text"]'
+        '["kind", "options", "proposal_id", "reason", "text"]'
     )
     from vacation_schemas import VacationOption
 
@@ -182,3 +182,13 @@ def test_code_deploy_layout_is_flat_and_dependencies_match_comms() -> None:
     assert (folder / "requirements.txt").read_text() == (
         folder.parent / "comms" / "requirements.txt"
     ).read_text()
+
+
+def test_reply_schema_accepts_refusal_with_a_code() -> None:
+    reply = VacationReply.model_validate(
+        {"kind": "refusal", "text": "I can't do that.", "reason": "rule_bypass"}
+    )
+    assert reply.reason == "rule_bypass"
+    with pytest.raises(ValidationError):
+        VacationReply.model_validate({"kind": "refusal", "text": "no", "reason": "Not a code!"})
+    assert "kind=refusal" in load_instructions("v1")[1]

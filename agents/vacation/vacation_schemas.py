@@ -27,14 +27,22 @@ class VacationReply(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     kind: Literal[
-        "message", "clarification", "options", "proposal", "submitted", "cancelled", "decided"
+        "message",
+        "clarification",
+        "options",
+        "proposal",
+        "submitted",
+        "cancelled",
+        "decided",
+        "refusal",
     ] = Field(
         description=(
             "message: plain answer. clarification: a question for the user. "
             "proposal: a propose_* tool succeeded; the app shows the confirm card. "
             "options: two or three ranges, each from its own propose_vacation_request. "
             "submitted, cancelled, decided: ONLY after create_vacation_request, "
-            "cancel_vacation_request or decide_vacation_request returned status ok."
+            "cancel_vacation_request or decide_vacation_request returned status ok. "
+            "refusal: you decline to do what was asked (see reason)."
         )
     )
     text: str = Field(max_length=4000, description="Reply to the user, in the user's UI language.")
@@ -46,4 +54,13 @@ class VacationReply(BaseModel):
         default_factory=list,
         max_length=3,
         description="Required for kind=options: one entry per proposed range, at most three.",
+    )
+    reason: str | None = Field(
+        default=None,
+        pattern=r"^[a-z][a-z_]{0,39}$",
+        description=(
+            "Required for kind=refusal: one short code, lowercase with underscores: "
+            "write_without_confirmation, role_not_allowed, rule_bypass, out_of_scope, "
+            "other_users_data, untrusted_instructions or unsupported_action."
+        ),
     )

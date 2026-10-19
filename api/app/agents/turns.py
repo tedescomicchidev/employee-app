@@ -5,6 +5,7 @@ only ever carries a proposal *id* (auth-flows.md flow 3, assumption A-13).
 """
 
 import json
+import math
 import threading
 import time
 from collections import defaultdict, deque
@@ -61,13 +62,27 @@ class TurnRequest(BaseModel):
     confirmation: Confirmation | None = None
 
 
+REASON_PATTERN = r"^[a-z][a-z_]{0,39}$"
+MAX_SOURCES = 10
+
+
+class Source(BaseModel):
+    """An announcement the answer is based on. The title is replaced from the store."""
+
+    model_config = ConfigDict(extra="ignore")
+    announcement_id: UUID
+    title: str = Field(default="", max_length=200)
+
+
 class AgentReply(BaseModel):
     """Mirror of agents/comms/comms_schemas.py: the hosted agent's final output."""
 
     model_config = ConfigDict(extra="ignore")
-    kind: Literal["message", "clarification", "proposal", "published"] = "message"
+    kind: Literal["message", "clarification", "proposal", "published", "refusal"] = "message"
     text: str = Field(default="", max_length=4000)
     proposal_id: UUID | None = None
+    reason: str | None = Field(default=None, pattern=REASON_PATTERN)
+    sources: list[Source] = Field(default_factory=list, max_length=MAX_SOURCES)
 
 
 class VacationOption(BaseModel):
@@ -84,11 +99,19 @@ class VacationReply(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
     kind: Literal[
-        "message", "clarification", "options", "proposal", "submitted", "cancelled", "decided"
+        "message",
+        "clarification",
+        "options",
+        "proposal",
+        "submitted",
+        "cancelled",
+        "decided",
+        "refusal",
     ] = "message"
     text: str = Field(default="", max_length=4000)
     proposal_id: UUID | None = None
     options: list[VacationOption] = Field(default_factory=list, max_length=3)
+    reason: str | None = Field(default=None, pattern=REASON_PATTERN)
 
 
 @dataclass(frozen=True)
@@ -127,6 +150,14 @@ class TurnRateLimiter:
                 return False
             hits.append(now)
             return True
+
+    def retry_after(self, user: str) -> int:
+        """Whole seconds until the oldest hit leaves the window (at least 1)."""
+        with self._lock:
+            hits = self._hits[user]
+            if not hits:
+                return 1
+            return max(1, math.ceil(60 - (self._clock() - hits[0])))
 
 
 def _items(response: dict[str, Any]) -> list[dict[str, Any]]:
@@ -210,6 +241,38 @@ def ground_vacation_reply(reply: VacationReply, service: Any, principal: Any) ->
             return VacationReply(kind="message", text=reply.text)
         return reply.model_copy(update={"options": grounded})
     return reply
+
+
+def ground_comms_reply(reply: AgentReply, service: Any, principal: Any) -> AgentReply:
+    """Tie the reply to what the api stored or shows this user (FR-ANN-001, FR-ANN-003).
+
+    A proposal id must be the caller's own, unexpired proposal. A source must be an announcement
+    this user can see; its title comes from the store, never from the model. Sources only
+    accompany a plain answer. Anything that does not resolve is dropped or downgraded.
+    """
+    if reply.kind == "proposal":
+        try:
+            service.get_proposal(principal, str(reply.proposal_id))
+        except Exception:  # ApiError: unknown, someone else's or expired look the same
+            return AgentReply(kind="message", text=reply.text)
+    if reply.kind != "message":
+        return reply.model_copy(update={"sources": []})
+    sources: list[Source] = []
+    for source in reply.sources:
+        if any(s.announcement_id == source.announcement_id for s in sources):
+            continue
+        try:
+            announcement, _ = service.get_for(principal, str(source.announcement_id))
+        except Exception:
+            continue
+        sources.append(Source(announcement_id=source.announcement_id, title=announcement.title))
+    return reply.model_copy(update={"sources": sources})
+
+
+def ground_reply(reply: AgentReply | VacationReply, state: Any, principal: Any) -> Any:
+    if isinstance(reply, VacationReply):
+        return ground_vacation_reply(reply, state.vacation_service, principal)
+    return ground_comms_reply(reply, state.announcement_service, principal)
 
 
 def run_record(response: dict[str, Any], task_run_id: UUID | None, latency_ms: int) -> AgentRun:

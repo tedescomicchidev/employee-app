@@ -14,6 +14,8 @@ Three credentials, never mixed:
 """
 
 import os
+import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -26,6 +28,7 @@ TOOLS_HEADER = "x-client-api-access-token"
 RUN_HEADER = "x-client-task-run-id"
 USER_HEADER = "x-ms-user-identity"
 TIMEOUT_SECONDS = 60
+STREAM_DEADLINE_SECONDS = 120  # a whole streamed turn; TIMEOUT_SECONDS is per read
 API_VERSION = "v1"
 
 
@@ -80,6 +83,15 @@ class AgentResponder(Protocol):
         task_run_id: str | None = None,
     ) -> dict[str, Any]: ...
 
+    def stream(
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: list[dict[str, str]],
+        task_run_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]: ...
+
 
 class MsalToolsTokenClient:
     """OBO for the tools resource app. Same federated-credential pattern as the Graph client."""
@@ -130,14 +142,15 @@ class HttpAgentResponder:
             raise AgentError("foundry_token")
         return str(token)
 
-    def respond(
+    def _request(
         self,
         foundry_agent: str,
         user_oid: str,
         tools_token: str,
         messages: list[dict[str, str]],
-        task_run_id: str | None = None,
-    ) -> dict[str, Any]:
+        task_run_id: str | None,
+        stream: bool,
+    ) -> tuple[str, dict[str, str], dict[str, Any]]:
         url = (
             f"{self._settings.project_endpoint}/agents/{foundry_agent}"
             f"/endpoint/protocols/openai/responses?api-version={API_VERSION}"
@@ -150,7 +163,20 @@ class HttpAgentResponder:
         if task_run_id:
             headers[RUN_HEADER] = task_run_id
         # store=false: the app holds the history on the device (PRIV-004, overview.md section 5).
-        body = {"input": messages, "stream": False, "background": False, "store": False}
+        body = {"input": messages, "stream": stream, "background": False, "store": False}
+        return url, headers, body
+
+    def respond(
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: list[dict[str, str]],
+        task_run_id: str | None = None,
+    ) -> dict[str, Any]:
+        url, headers, body = self._request(
+            foundry_agent, user_oid, tools_token, messages, task_run_id, stream=False
+        )
         try:
             response = httpx.post(url, json=body, headers=headers, timeout=TIMEOUT_SECONDS)
         except httpx.HTTPError:
@@ -161,3 +187,32 @@ class HttpAgentResponder:
         if result.get("status") != "completed":
             raise AgentError(f"agent_{result.get('status') or 'failed'}")
         return result
+
+    def stream(
+        self,
+        foundry_agent: str,
+        user_oid: str,
+        tools_token: str,
+        messages: list[dict[str, str]],
+        task_run_id: str | None = None,
+    ) -> Iterator[dict[str, Any]]:
+        """The Responses API server-sent events, one dict per event (`stream: true`)."""
+        from app.agents.stream import parse_sse  # local: stream.py imports this module's errors
+
+        url, headers, body = self._request(
+            foundry_agent, user_oid, tools_token, messages, task_run_id, stream=True
+        )
+        headers["Accept"] = "text/event-stream"
+        deadline = time.monotonic() + STREAM_DEADLINE_SECONDS
+        try:
+            with httpx.stream(
+                "POST", url, json=body, headers=headers, timeout=TIMEOUT_SECONDS
+            ) as response:
+                if response.status_code != 200:
+                    raise AgentError(f"foundry_{response.status_code}")
+                for event in parse_sse(response.iter_lines()):
+                    if time.monotonic() > deadline:
+                        raise AgentError("foundry_timeout")
+                    yield event
+        except httpx.HTTPError:
+            raise AgentError("foundry_unreachable") from None

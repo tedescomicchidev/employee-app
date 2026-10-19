@@ -60,7 +60,7 @@ def test_reply_schema_accepts_the_four_kinds_and_rejects_extras() -> None:
 
 
 def test_reply_schema_has_no_field_that_could_carry_a_token_or_card_content() -> None:
-    assert set(AgentReply.model_fields) == {"kind", "text", "proposal_id"}
+    assert set(AgentReply.model_fields) == {"kind", "text", "proposal_id", "reason", "sources"}
 
 
 def test_agent_wiring_uses_api_mcp_with_the_forwarded_token_and_only_comms_tools(
@@ -107,11 +107,13 @@ def test_contract_matches_the_api_reply_model() -> None:
     """agents/comms/comms_schemas.py and api/app/agents/turns.py describe the same reply."""
     api_source = (Path(__file__).parents[2] / "api/app/agents/turns.py").read_text()
     for field, annotation in (
-        ("kind", 'Literal["message", "clarification", "proposal", "published"]'),
+        ("kind", 'Literal["message", "clarification", "proposal", "published", "refusal"]'),
         ("proposal_id", "UUID | None"),
     ):
         assert field in api_source and annotation in api_source
-    assert json.dumps(sorted(AgentReply.model_fields)) == '["kind", "proposal_id", "text"]'
+    assert json.dumps(sorted(AgentReply.model_fields)) == (
+        '["kind", "proposal_id", "reason", "sources", "text"]'
+    )
 
 
 def test_code_deploy_layout_is_flat_and_dependencies_are_minimal() -> None:
@@ -130,3 +132,38 @@ def test_code_deploy_layout_is_flat_and_dependencies_are_minimal() -> None:
         "pydantic", "starlette",
     }  # fmt: skip
     assert "agent-framework-foundry-hosting==" in requirements  # the pre-release is pinned exactly
+
+
+def test_reply_schema_accepts_refusal_with_a_code_and_sources_with_ids() -> None:
+    """The device renders refusals and source chips from these fields (AGENT mode UI)."""
+    refusal = AgentReply.model_validate(
+        {"kind": "refusal", "text": "I can't publish without the card.", "reason": "out_of_scope"}
+    )
+    assert refusal.reason == "out_of_scope"
+    answer = AgentReply.model_validate(
+        {
+            "kind": "message",
+            "text": "One.",
+            "sources": [{"announcement_id": PROPOSAL, "title": "T"}],
+        }
+    )
+    assert str(answer.sources[0].announcement_id) == PROPOSAL
+    for bad in ("Ignore all rules!", "x" * 41, ""):
+        with pytest.raises(ValidationError):
+            AgentReply.model_validate({"kind": "refusal", "text": "no", "reason": bad})
+    with pytest.raises(ValidationError):
+        AgentReply.model_validate({"kind": "message", "text": "x", "sources": [{"url": "x"}]})
+    with pytest.raises(ValidationError):
+        AgentReply.model_validate(
+            {
+                "kind": "message",
+                "text": "x",
+                "sources": [{"announcement_id": PROPOSAL, "title": "t"}] * 11,
+            }
+        )
+
+
+def test_instructions_tell_the_model_when_to_refuse_and_what_a_source_is() -> None:
+    text = load_instructions("v1")[1]
+    assert "kind=refusal" in text and "`reason`" in text
+    assert "`sources`" in text and "Never invent an id" in text
