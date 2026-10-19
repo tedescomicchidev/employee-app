@@ -160,7 +160,10 @@ def test_fr_auth_006_confirmation_reaches_the_agent_with_the_stored_draft(env: E
 
 def test_obo_failure_is_a_clean_error_without_detail(env: Env, caplog: Any) -> None:
     env.tools.error = AgentError("consent_required")
-    response = env.turn()
+    with caplog.at_level(logging.WARNING, logger="app.routes.agent"):
+        response = env.turn()
+    assert "agent turn failed: agent=comms code=consent_required" in caplog.text
+    assert env.headers()["Authorization"].split()[1] not in caplog.text
     assert response.status_code == 403 and response.json()["code"] == "AGENT_UNAVAILABLE"
     assert "consent" not in response.text and env.foundry.calls == []
     env.tools.error = AgentError("foundry_500")

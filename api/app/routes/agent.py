@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Annotated, Any
 from uuid import UUID
@@ -18,6 +19,7 @@ from app.auth.principal import Principal, current_principal
 from app.telemetry import TASK_RUN_HEADER
 
 router = APIRouter(prefix="/v1")
+logger = logging.getLogger(__name__)
 
 Caller = Annotated[Principal, Depends(current_principal)]
 
@@ -68,6 +70,8 @@ def agent_turn(
             str(run_id) if run_id else None,
         )
     except AgentError as exc:
+        # The stable code only (never a token, prompt or reply): foundry_403, consent_required, ...
+        logger.warning("agent turn failed: agent=%s code=%s", agent, exc.code)
         status = 403 if exc.code in ("consent_required", "interaction_required") else 502
         raise ApiError(status, "AGENT_UNAVAILABLE", "The assistant could not be reached") from exc
     log: AgentRunLog = state.agent_runs
