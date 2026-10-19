@@ -304,8 +304,15 @@ def build_mcp_server(app: FastAPI) -> FastMCP:
 
     @mcp.tool()
     def get_balance() -> dict[str, Any]:
-        """The calling user's own vacation balance for the current year, in working days."""
-        return audited("get_balance", lambda p: balance_json(vacation().balance(p)))
+        """The calling user's own vacation balance for the current year, in working days, and
+        today's date (Europe/Zurich) for resolving words like "next week"."""
+        return audited(
+            "get_balance",
+            lambda p: {
+                **balance_json(vacation().balance(p)),
+                "today": vacation().today().isoformat(),
+            },
+        )
 
     @mcp.tool()
     def get_holidays(year: int | None = None) -> dict[str, Any]:

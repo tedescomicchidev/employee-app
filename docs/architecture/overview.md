@@ -80,14 +80,14 @@ Write = needs `confirmation_token` (FR-AUTH-006).
 | `resolve_audience` | `POST /v1/audiences:resolve` | P | R | ANN-002 |
 | `propose_announcement` | `POST /v1/proposals` (type=announcement) | P | R (stores proposal) | ANN-001 |
 | `publish_announcement(token)` | `POST /v1/announcements` | P | W | ANN-001 |
-| `get_balance` | `GET /v1/vacation/balance` | E | R | VAC-001 |
+| `get_balance` | `GET /v1/vacation/balance` (+ `today`, MCP only: the agent resolves "next week" from it) | E | R | VAC-001 |
 | `get_holidays` | `GET /v1/vacation/holidays` | E | R | VAC-006 |
 | `list_vacation_requests` | `GET /v1/vacation/requests` | E | R | VAC-007 |
 | `propose_vacation_request` | `POST /v1/proposals` (type=vacation) | E | R | VAC-002 |
 | `create_vacation_request(token)` | `POST /v1/vacation/requests` | E | W | VAC-002 |
-| `propose_cancel` / `cancel_vacation_request(token)` | `POST /v1/proposals`, `DELETE /v1/vacation/requests/{id}` | E | R / W | VAC-003 |
-| `list_pending_approvals` | `GET /v1/vacation/approvals` | M | R | VAC-004 |
-| `propose_decision` / `decide_vacation_request(token)` | `POST /v1/proposals`, `POST /v1/vacation/requests/{id}:decide` | M | R / W | VAC-004 |
+| `propose_cancel` / `cancel_vacation_request(token)` | `POST /v1/proposals` (type=vacation_cancel), `POST /v1/vacation/requests/{id}/cancel` | E | R / W | VAC-003 |
+| `list_pending_approvals` | `GET /v1/vacation/inbox` | M | R | VAC-004 |
+| `propose_decision` / `decide_vacation_request(token)` | `POST /v1/proposals` (type=vacation_decision), `POST /v1/vacation/requests/{id}/decision` | assigned approver (no role gate: `SELF_APPROVAL` / `FORBIDDEN` come from the service) | R / W | VAC-004 |
 | `get_team_coverage` | `GET /v1/vacation/coverage` | M | R | VAC-005 |
 | `get_briefing_status` | `GET /v1/briefing/settings` | E | R | BRF-001 |
 | `propose_briefing_optin` / `set_briefing_optin(token)` | `POST /v1/proposals`, `PUT /v1/briefing/settings` | E | R / W | BRF-001 |

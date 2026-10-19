@@ -277,32 +277,32 @@ Scenario: Valid request becomes pending
   Then one request exists: pending, assigned to mgr1, counted days 3, remaining 22
   And it appears in mgr1's inbox
 
-@api @unit @adversarial
+@api @unit @adversarial @agent-eval
 Scenario: Insufficient balance
   Given emp1 with 3 days remaining
   When emp1 requests 2026-11-23 to 2026-11-27 (5 counted days)
   Then the response is INSUFFICIENT_BALANCE with remaining 3 and requested 5
   And no request is created and the balance is unchanged
 
-@api @unit @adversarial
+@api @unit @adversarial @agent-eval
 Scenario: Overlapping request
   Given emp2 has an approved request 2026-11-02 to 2026-11-06
   When emp2 requests 2026-11-05 to 2026-11-10
   Then the response is OVERLAP naming the conflicting dates and no request is created
 
-@api @unit @adversarial
+@api @unit @adversarial @agent-eval
 Scenario: Overlap with a pending request
   Given emp2 has a pending request 2026-11-16 to 2026-11-18
   When emp2 requests 2026-11-18 to 2026-11-19
   Then the response is OVERLAP
 
-@api @unit @adversarial
+@api @unit @adversarial @agent-eval
 Scenario: Blackout period
   When emp2 requests 2026-12-21 to 2026-12-23
   Then the response is BLACKOUT with the blackout range 2026-12-14 to 2026-12-24
   And no request is created
 
-@api @unit
+@api @unit @agent-eval
 Scenario: Range partially in blackout
   When emp2 requests 2026-12-10 to 2026-12-15
   Then the response is BLACKOUT
@@ -373,7 +373,7 @@ Scenario: Agent asked to request vacation for someone else
 
 ### FR-VAC-003 Cancel
 ```gherkin
-@api
+@api @agent-eval
 Scenario: Cancel pending
   Given emp2 has a pending request of 3 days
   When emp2 cancels it with a valid token
@@ -414,7 +414,7 @@ Scenario: Employee cannot approve
   When emp1 tries to approve emp2's pending request
   Then the response is FORBIDDEN
 
-@api @adversarial
+@api @adversarial @agent-eval
 Scenario: Self-approval
   Given mgr1 has a pending request assigned to ceo
   When mgr1 attempts to approve it
@@ -1004,8 +1004,8 @@ Scenario Outline: Same outcome in both modes
 | FR-ANN-005 | injection (main + variants), safe rendering | agent-eval, ui, unit |
 | FR-VAC-001 | formula, consistency, horizontal access, agent number, colleague balance, carry-over | unit, api, ui, agent-eval |
 | FR-VAC-002 | valid, insufficient balance, overlap x2, blackout x2, validation, holiday, cross-year, DST, idempotent, agent flows, bypass, other-user | unit, api, ui, agent-eval |
-| FR-VAC-003 | cancel pending, decided, others | api |
-| FR-VAC-004 | approve, reject, wrong manager, employee, self, re-validation, double, CEO no approver, UI, agent, injection | api, ui, agent-eval |
+| FR-VAC-003 | cancel pending, decided, others, agent cancel | api, agent-eval |
+| FR-VAC-004 | approve, reject, wrong manager, employee, self (also by chat), re-validation, double, CEO no approver, UI, agent, injection | api, ui, agent-eval |
 | FR-VAC-005 | coverage, forbidden, other team | api, agent-eval |
 | FR-VAC-006 | 26 cantons, canton list, canton change, agent holiday | unit, api, agent-eval |
 | FR-VAC-007 | history, parity of status, agent status | api, ui, agent-eval |

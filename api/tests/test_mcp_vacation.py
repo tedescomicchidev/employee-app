@@ -121,7 +121,7 @@ def test_fr_vac_001_balance_matches_rest(env: VacEnv) -> None:
     rest = env.client.get(  # type: ignore[union-attr]
         "/v1/vacation/balance", headers=env.user(EMP2, *EMP_ROLES)
     ).json()
-    assert not err and balance == rest
+    assert not err and balance.pop("today") == "2026-10-19" and balance == rest
     assert balance["remaining"] == 20  # 25 - 5 approved
 
 

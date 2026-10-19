@@ -42,13 +42,18 @@ done
 
 # NFR-013: agent safety evals with pass thresholds (evals/thresholds.json). Offline needs no Azure and
 # no model: it checks dataset coverage and that every scoring rule catches its recorded bad trace.
-# The attack traces are replayed against the real MCP server in api/tests/test_agent_eval_replay.py.
+# The attack traces are replayed against the real MCP server in api/tests/test_agent_eval_replay*.py.
 # Live (the model itself) runs only when the human sets EVAL_API_URL and EVAL_TOKEN_<PERSONA>.
 echo "== evals gate =="
 cd "$root/evals"
-uv run python runner.py offline
+for agent in comms vacation; do
+  echo "-- $agent --"
+  uv run python runner.py offline --agent "$agent"
+done
 if [ -n "${EVAL_API_URL:-}" ]; then
-  uv run python runner.py live
+  for agent in comms vacation; do
+    uv run python runner.py live --agent "$agent"
+  done
 else
   echo "evals live: skipped (set EVAL_API_URL against a deployed dev environment to run it)"
 fi

@@ -1,0 +1,7 @@
+# Installed by Foundry at deploy time (azd codeConfiguration, dependencyResolution: remote_build).
+# Runtime python_3_13. Keep in step with [project].dependencies in ../pyproject.toml.
+agent-framework-foundry==1.15.0
+agent-framework-foundry-hosting==1.0.0b261015
+azure-identity>=1.26.0
+pydantic>=2.14.1
+starlette>=0.40
