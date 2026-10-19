@@ -9,12 +9,22 @@ import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 PUBLISH_TOOL = "publish_announcement"
+# A reply kind that claims a write is believed only if this turn really made that tool call.
+CLAIM_TOOLS: dict[str, dict[str, str]] = {
+    "comms": {"published": PUBLISH_TOOL},
+    "vacation": {
+        "submitted": "create_vacation_request",
+        "cancelled": "cancel_vacation_request",
+        "decided": "decide_vacation_request",
+    },
+}
 
 
 class Message(BaseModel):
@@ -56,6 +66,27 @@ class AgentReply(BaseModel):
     kind: Literal["message", "clarification", "proposal", "published"] = "message"
     text: str = Field(default="", max_length=4000)
     proposal_id: UUID | None = None
+
+
+class VacationOption(BaseModel):
+    """One candidate range. Dates only: the numbers on the card come from the stored proposal."""
+
+    model_config = ConfigDict(extra="ignore")
+    proposal_id: UUID
+    start: date
+    end: date
+
+
+class VacationReply(BaseModel):
+    """Mirror of agents/vacation/vacation_schemas.py: the hosted vacation agent's final output."""
+
+    model_config = ConfigDict(extra="ignore")
+    kind: Literal[
+        "message", "clarification", "options", "proposal", "submitted", "cancelled", "decided"
+    ] = "message"
+    text: str = Field(default="", max_length=4000)
+    proposal_id: UUID | None = None
+    options: list[VacationOption] = Field(default_factory=list, max_length=3)
 
 
 @dataclass(frozen=True)
@@ -122,19 +153,23 @@ def tool_trace(response: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def parse_reply(response: dict[str, Any]) -> AgentReply:
+def parse_reply(response: dict[str, Any], agent: str = "comms") -> AgentReply | VacationReply:
     text = output_text(response)
+    model = VacationReply if agent == "vacation" else AgentReply
     try:
-        reply = AgentReply.model_validate(json.loads(text))
+        reply = model.model_validate(json.loads(text))
     except (ValueError, ValidationError):
-        return AgentReply(kind="message", text=text[:4000])
-    # "published" is only believed when the tool really succeeded in this turn (FR-ANN-001 AGENT).
-    if reply.kind == "published" and not any(
-        c.get("name") == PUBLISH_TOOL and not c.get("error") for c in tool_calls(response)
+        return model(kind="message", text=text[:4000])
+    # A claimed write is only believed when the tool really succeeded in this turn.
+    claim_tool = CLAIM_TOOLS.get(agent, {}).get(reply.kind)
+    if claim_tool and not any(
+        c.get("name") == claim_tool and not c.get("error") for c in tool_calls(response)
     ):
-        return AgentReply(kind="message", text=reply.text)
+        return model(kind="message", text=reply.text)
     if reply.kind == "proposal" and reply.proposal_id is None:
-        return AgentReply(kind="message", text=reply.text)
+        return model(kind="message", text=reply.text)
+    if isinstance(reply, VacationReply) and reply.kind == "options" and not reply.options:
+        return VacationReply(kind="message", text=reply.text)
     return reply
 
 

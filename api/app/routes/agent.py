@@ -54,10 +54,12 @@ def agent_turn(
     messages = [m.model_dump() for m in body.messages]
     if body.confirmation:
         # Own, unexpired proposal only (NOT_FOUND otherwise); the draft comes from the store.
-        card = state.announcement_service.get_proposal(
-            principal, str(body.confirmation.proposal_id)
-        )
-        messages.append(body.confirmation.as_message(card.proposal.draft.canonical()))
+        proposal_id = str(body.confirmation.proposal_id)
+        if agent == "vacation":
+            proposal = state.vacation_service.get_proposal(principal, proposal_id)
+        else:
+            proposal = state.announcement_service.get_proposal(principal, proposal_id).proposal
+        messages.append(body.confirmation.as_message(proposal.draft.canonical()))
     run_id = _task_run_id(request)
     started = time.perf_counter()
     try:
@@ -77,6 +79,6 @@ def agent_turn(
     log: AgentRunLog = state.agent_runs
     log.runs.append(run_record(response, run_id, round((time.perf_counter() - started) * 1000)))
     return {
-        "reply": parse_reply(response).model_dump(mode="json"),
+        "reply": parse_reply(response, agent).model_dump(mode="json"),
         "tool_calls": tool_trace(response),
     }

@@ -5,11 +5,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 
 from app.announcements.service import AnnouncementService
-from app.auth.errors import FieldError
+from app.auth.errors import ApiError, FieldError
 from app.auth.principal import Principal, Role, authorize, current_principal
+from app.repositories import Proposal
 from app.routes.announcements import Body, _draft
-from app.routes.vacation import _request, review_json
-from app.vacation.models import ACTION_CANCEL, ACTION_DECIDE
+from app.routes.vacation import request_json, review_json
+from app.vacation.models import ACTION_CANCEL, ACTION_DECIDE, ACTION_REQUEST
 from app.vacation.service import VacationService, parse_draft
 
 router = APIRouter(prefix="/v1")
@@ -37,7 +38,7 @@ def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str
             "proposal_id": cancel.proposal.id,
             "type": "vacation_cancel",
             "payload": {"request_id": request_id},
-            "request": _request(cancel.request),
+            "request": request_json(cancel.request),
             "expires_at": cancel.proposal.expires_at.isoformat(),
         }
     if _type(body) == "vacation_decision":
@@ -52,7 +53,7 @@ def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str
             "proposal_id": result.proposal.id,
             "type": "vacation_decision",
             "payload": result.proposal.draft.canonical(),
-            "request": _request(result.request),
+            "request": request_json(result.request),
             "expires_at": result.proposal.expires_at.isoformat(),
         }
     if _type(body) == "vacation":
@@ -81,7 +82,17 @@ def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str
 
 @router.get("/proposals/{proposal_id}")
 def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[str, Any]:
-    """Confirm-card content (announcements): from the server, never from model text (A-13)."""
+    """Confirm-card content: from the server, never from model text (A-13).
+
+    The proposal's own action says which domain it belongs to; announcements stay the default.
+    """
+    vacation: VacationService = request.app.state.vacation_service
+    try:
+        proposal = vacation.get_proposal(principal, proposal_id)
+    except ApiError:
+        proposal = None
+    if proposal is not None:
+        return vacation_card(vacation, principal, proposal)
     announcements: AnnouncementService = request.app.state.announcement_service
     result = announcements.get_proposal(principal, proposal_id)
     return {
@@ -91,6 +102,26 @@ def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[
         "recipient_count": result.recipient_count,
         "expires_at": result.proposal.expires_at.isoformat(),
     }
+
+
+def vacation_card(
+    service: VacationService, principal: Principal, proposal: Proposal
+) -> dict[str, Any]:
+    """The stored draft plus what the user needs to decide, all computed by the api."""
+    card: dict[str, Any] = {
+        "proposal_id": proposal.id,
+        "payload": proposal.draft.canonical(),
+        "expires_at": proposal.expires_at.isoformat(),
+    }
+    if proposal.action == ACTION_REQUEST:
+        card["type"] = "vacation"
+        card["review"] = review_json(service.review(principal, proposal.draft))
+    else:
+        card["type"] = (
+            "vacation_cancel" if proposal.action == ACTION_CANCEL else "vacation_decision"
+        )
+        card["request"] = request_json(service.get_request(principal, proposal.draft.request_id))
+    return card
 
 
 @router.post("/confirmations")
