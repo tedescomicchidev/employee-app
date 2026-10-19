@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, Request
 
@@ -30,9 +30,20 @@ class Principal:
 
 
 def authorize(principal: Principal, *required: Role) -> None:
-    """Single authorisation function shared by REST and (Phase 6) MCP tools."""
+    """Single authorisation function shared by REST and MCP tools."""
     if required and not any(principal.has_role(r) for r in required):
         raise forbidden()
+
+
+def principal_from_claims(claims: dict[str, Any], token: str) -> Principal:
+    return Principal(
+        oid=claims["oid"],
+        display_name=claims.get("name", ""),
+        upn=claims.get("preferred_username", ""),
+        roles=tuple(claims.get("roles", [])),
+        tenant_id=claims["tid"],
+        assertion=token,
+    )
 
 
 def get_validator(request: Request) -> TokenValidator:
@@ -50,14 +61,7 @@ def current_principal(
         claims = validator.validate(token, required_scope="access_as_user")
     except TokenError as exc:
         raise unauthenticated(str(exc)) from exc
-    principal = Principal(
-        oid=claims["oid"],
-        display_name=claims.get("name", ""),
-        upn=claims.get("preferred_username", ""),
-        roles=tuple(claims.get("roles", [])),
-        tenant_id=claims["tid"],
-        assertion=token,
-    )
+    principal = principal_from_claims(claims, token)
     provisioner = getattr(request.app.state, "provisioner", None)
     if provisioner is not None:
         provisioner.ensure(principal)

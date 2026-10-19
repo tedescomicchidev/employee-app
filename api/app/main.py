@@ -1,6 +1,19 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.routing import Route
 
+from app.agents.foundry import (
+    AgentResponder,
+    AgentSettings,
+    HttpAgentResponder,
+    MsalToolsTokenClient,
+    ToolsTokenClient,
+    load_agent_settings,
+)
+from app.agents.turns import AgentRunLog, TurnRateLimiter
 from app.announcements.service import AnnouncementService
 from app.auth.errors import ApiError
 from app.auth.validator import JwksKeyProvider, TokenValidator
@@ -8,12 +21,14 @@ from app.config import load_settings
 from app.directory.graph import GraphProfileClient, MsalGraphProfileClient
 from app.directory.provisioning import Provisioner
 from app.directory.settings import DirectorySettings, load_directory_settings
+from app.mcp.audit import McpAuditLog
+from app.mcp.server import McpGateway, build_mcp_server
 from app.repositories import (
     InMemoryAnnouncementStore,
     InMemoryConfirmationStore,
     SeedDirectory,
 )
-from app.routes import announcements, events, me, proposals, vacation
+from app.routes import agent, announcements, events, me, proposals, vacation
 from app.telemetry import ApiCallLog, record_api_call
 from app.vacation.service import VacationService
 from app.vacation.store import InMemoryVacationStore
@@ -26,8 +41,16 @@ def create_app(
     directory: SeedDirectory | None = None,
     directory_client: GraphProfileClient | None = None,
     directory_settings: DirectorySettings | None = None,
+    agent_settings: AgentSettings | None = None,
+    tools_token_client: ToolsTokenClient | None = None,
+    agent_responder: AgentResponder | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Employee App API")
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        async with mcp.session_manager.run():
+            yield
+
+    app = FastAPI(title="Employee App API", lifespan=lifespan)
     if validator is None:
         settings = load_settings()
         validator = TokenValidator(settings, JwksKeyProvider(settings.jwks_uri))
@@ -44,6 +67,20 @@ def create_app(
     app.state.provisioner = build_provisioner(directory, directory_client, directory_settings)
     app.state.event_sink = []  # TODO(EXP): replace with the events container (ADR-009)
     app.state.api_call_log = ApiCallLog()
+    app.state.mcp_audit = McpAuditLog()
+    agent_settings = agent_settings or load_agent_settings()
+    app.state.agent_settings = agent_settings
+    app.state.agent_runs = AgentRunLog()
+    app.state.turn_limiter = TurnRateLimiter(agent_settings.turns_per_minute)
+    app.state.tools_token_client = tools_token_client or build_tools_token_client(agent_settings)
+    app.state.agent_responder = agent_responder or (
+        HttpAgentResponder(agent_settings) if agent_settings.enabled else None
+    )
+    # MCP tool server (ADR-005): same Container App, same services, its own audience (ADR-002).
+    mcp = build_mcp_server(app)
+    gateway = McpGateway(mcp.streamable_http_app(), app)
+    for path in ("/mcp", "/mcp/"):  # exact routes: Mount would redirect and capture other paths
+        app.router.routes.append(Route(path, endpoint=gateway))
     app.middleware("http")(record_api_call)
 
     @app.exception_handler(ApiError)
@@ -59,7 +96,17 @@ def create_app(
     app.include_router(proposals.router)
     app.include_router(vacation.router)
     app.include_router(events.router)
+    app.include_router(agent.router)
     return app
+
+
+def build_tools_token_client(settings: AgentSettings) -> ToolsTokenClient | None:
+    api = load_settings()
+    if not (settings.enabled and api.tools_audience and settings.managed_identity_client_id):
+        return None
+    return MsalToolsTokenClient(
+        api.tenant_id, api.api_client_id, api.tools_audience, settings.managed_identity_client_id
+    )
 
 
 def build_provisioner(

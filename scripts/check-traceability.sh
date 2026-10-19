@@ -23,7 +23,7 @@ waived=$(grep -oE '^- [A-Z0-9-]+:' "$waivers" | sed -E 's/^- //; s/:$//' | sort 
 fail=0
 for id in $ids; do
   pattern=$(echo "$id" | sed -E 's/-/[-_]/g')
-  if grep -rqiE "${pattern}([^0-9]|$)" "${dirs[@]}"; then
+  if grep -rqiE --exclude-dir=.venv --exclude-dir=__pycache__ --exclude-dir=.pytest_cache --exclude-dir=.ruff_cache "${pattern}([^0-9]|$)" "${dirs[@]}"; then
     if echo "$waived" | grep -qx "$id"; then echo "stale waiver (has a test): $id"; fail=1; fi
   elif ! echo "$waived" | grep -qx "$id"; then
     echo "no test and no waiver: $id"; fail=1

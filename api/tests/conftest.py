@@ -62,3 +62,13 @@ def make_token(private_key: Any) -> Callable[..., str]:
         return jwt.encode(claims, key or private_key, algorithm="RS256")
 
     return make
+
+
+TOOLS_CLIENT = "33333333-3333-3333-3333-333333333333"
+TOOLS_SETTINGS = Settings(
+    tenant_id=TENANT,
+    api_client_id=CLIENT,
+    api_audience=f"api://{CLIENT}",
+    tools_client_id=TOOLS_CLIENT,
+    tools_audience=f"api://{TOOLS_CLIENT}",
+)

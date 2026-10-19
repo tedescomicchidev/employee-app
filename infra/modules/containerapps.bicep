@@ -14,11 +14,16 @@ param foundryProjectEndpoint string
 // Non-secret Entra ids for token validation (api/app/config.py). Empty until the human registers employee-api.
 param entraTenantId string
 param apiClientId string
+// Resource app that agent tool calls (MCP, /mcp) are validated against; see api/app/config.py.
+param toolsClientId string = ''
 // 'true' fills the employee directory from each signed-in user's own Graph profile (ADR-010). Needs the
 // federated credential and Graph User.Read consent on employee-api first (docs/architecture/auth-flows.md).
 param graphDirectory string = 'false'
 // Placeholder until `azd deploy` pushes the real api image (listens on 80 until then).
-param image string = 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+// After a deploy azd records SERVICE_API_IMAGE_NAME in its environment; main.bicepparam passes it back so a
+// later `azd provision` keeps the deployed image instead of resetting the app to the placeholder.
+param deployedImage string = ''
+var image = empty(deployedImage) ? 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest' : deployedImage
 param targetPort int = 80
 
 resource workspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
@@ -90,6 +95,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'AZURE_CLIENT_ID', value: identityClientId }
             { name: 'ENTRA_TENANT_ID', value: entraTenantId }
             { name: 'API_CLIENT_ID', value: apiClientId }
+            { name: 'TOOLS_CLIENT_ID', value: toolsClientId }
             { name: 'GRAPH_DIRECTORY', value: graphDirectory }
             { name: 'COSMOS_ENDPOINT', value: cosmosEndpoint }
             { name: 'COSMOS_DATABASE', value: cosmosDatabase }

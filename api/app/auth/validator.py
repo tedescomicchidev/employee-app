@@ -42,14 +42,24 @@ class TokenValidator:
         self._settings = settings
         self._keys = keys
 
-    def validate(self, token: str, required_scope: str) -> dict[str, Any]:
+    @property
+    def tools_audiences(self) -> list[str]:
+        return self._settings.tools_audiences
+
+    def validate(
+        self, token: str, required_scope: str, audiences: list[str] | None = None
+    ) -> dict[str, Any]:
+        """`audiences` defaults to the REST API's; MCP passes the tools resource app's."""
+        audiences = self._settings.audiences if audiences is None else audiences
+        if not audiences:
+            self._reject("api_not_configured")
         try:
             key = self._keys.signing_key(token)
             claims = jwt.decode(
                 token,
                 key,
                 algorithms=["RS256"],
-                audience=self._settings.audiences,
+                audience=audiences,
                 issuer=self._settings.issuers,
                 options={"require": ["exp", "iss", "aud"]},
             )

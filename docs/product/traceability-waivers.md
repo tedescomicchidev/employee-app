@@ -16,7 +16,7 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 - EXP-004: mode assignment and counterbalancing are not built; `ModeStore` fixes `.classic` in Release and the setter is DEBUG-only.
 - EXP-006: satisfaction items (Should); not built.
 - EXP-007: participant withdrawal and event deletion; needs the durable events store (ADR-009), not built.
-- NFR-011: rate and payload limits; not built (only per-field length limits exist).
+- NFR-011: rate and payload limits; only the agent turn endpoint has them (per-user rate limit, message count and size, tested in `api/tests/test_agent_turn.py`). REST endpoints and the MCP endpoint have no rate limit (the MCP body is capped at 64 KiB); edge limits are infra.
 - PRIV-004: retention TTLs and deletion job; not built, values are HUMAN_CONFIRMATION_REQUIRED (U-05).
 - PRIV-006: export and delete of one user's data; process owner open, not built.
 - PRIV-009: `PrivacyInfo.xcprivacy` derived from the data inventory; release phase (11).
@@ -24,12 +24,8 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 
 ## AGENT mode or Work IQ only (no CLASSIC surface)
 
-- FR-AUTH-003: agent tool identity and audit; needs the MCP server (phase 6).
 - FR-AUTH-004: on-behalf-of Work IQ consent; needs the agents (phase 6).
-- NFR-008: REST/MCP parity suite; needs the MCP tool server (phase 6).
-- NFR-013: agent safety evals; phase 6.
 - PRIV-003: Work IQ handling; phase 6/8.
-- PRIV-005: agent data boundary; phase 6.
 
 ## Verified by a check that does not name the ID, or by a human
 

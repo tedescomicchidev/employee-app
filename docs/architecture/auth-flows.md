@@ -142,12 +142,29 @@ Human-only per CLAUDE.md. I do not receive secrets. I will prepare exact command
 | 7 | Enterprise apps | On `employee-api`: **Assignment required = Yes**. Assign the 11 seeded users or groups: CEO = Communicator + Manager + Employee; 2 managers = Manager + Employee; 8 employees = Employee. |
 | 8 | Azure RBAC (Foundry) | Create the custom role `Foundry Agent User Identity Impersonation` (data action `Microsoft.CognitiveServices/accounts/AIServices/agents/endpoints/UserIdentityImpersonation/action`, JSON in the hosted-agent-permissions page). Assign it and **Foundry Agent Consumer** to the api's managed identity at the Foundry account/project scope. |
 | 9 | Azure RBAC (Foundry) | Foundry User for the project and agent identities at account and project scope. Foundry Project Manager for whoever creates toolbox connections. |
-| 10 | Foundry (`azd ai`) | Create the toolbox connection(s) from the toolboxes to the api MCP, with the auth type decided in S-1/S-3. Human runs these (CLAUDE.md human-only list). |
+| 10 | Foundry (`azd ai`) | No toolbox connection for `comms` (S-3 resolved without one, ADR-002): the agent calls the api MCP itself with the forwarded token. Revisit only for tools that are not the api. |
 | 11 | Handoff | Export the non-secret user attributes (manager, officeLocation or state, department) of the 11 users to `/Users/Shared/handoff/` (U-07). |
 | 12 | Apple (not Entra) | Create an APNs auth key and upload it to the Notification Hubs namespace yourself. It never enters this session. |
 
 No client secret is created anywhere in this design. If S-2 shows Work IQ needs one for OBO, stop and ask first.
 
+
+## Implementation notes: comms agent (phase 6)
+- Turn request: `POST /v1/agent/comms/turns {messages[], confirmation?}`. After the user taps Confirm on the card
+  (`POST /v1/confirmations`, T-user), the app sends `confirmation {proposal_id, confirmation_token}`. `api/` loads
+  the user's own unexpired proposal and gives the agent one fixed-format user message holding the token and the
+  stored draft, so what is published is what was confirmed. A token-shaped but unknown value fails in
+  `publish_announcement` (`INVALID_CONFIRMATION`).
+- Confirm card content comes from `GET /v1/proposals/{id}` (proposer only, REST only), never from model text.
+- The reply is structured (`kind`: message, clarification, proposal, published; `proposal_id`). `api/` downgrades
+  `published` unless `publish_announcement` succeeded in that turn. The response also lists tool names and success.
+- Audit (FR-AUTH-003): one content-free record per MCP call (user oid, tool, outcome, correlation id = `X-Task-Run-Id`
+  or `X-Correlation-Id`), kept in memory and logged as `mcp_audit ...`. Tokens, arguments and text are never logged.
+- Tool token path: `api/` sends `x-client-api-access-token`; the agent's ASGI middleware moves it into a context variable;
+  the per-request agent's MCP client sends it as `Authorization: Bearer` to `API_MCP_URL`. `x-client-task-run-id` becomes
+  `X-Task-Run-Id` on the MCP call, so the MCP audit record carries the task run as correlation id.
+- Manual step 5 grows: define the three app roles on `employee-tools` and assign the same users or groups.
+  Set `TOOLS_CLIENT_ID` (azd env) so `infra/` passes it to the Container App and `azure.yaml` builds the audience.
 
 ## Flow 4: directory lookup on first sign-in (ADR-010)
 
@@ -183,3 +200,19 @@ azd provision   # applies the setting; then: azd deploy api
 Which Graph properties hold canton/store/region is tenant specific: set `GRAPH_CANTON_ATTRIBUTE`,
 `GRAPH_STORE_ATTRIBUTE`, `GRAPH_REGION_ATTRIBUTE` if the defaults (`state`, `officeLocation`,
 `preferredLanguage`) do not match your tenant.
+
+## Deployment findings (first real run, phase 6)
+Found while bringing `comms` up in the dev environment; each cost a failed turn.
+- `TOOLS_CLIENT_ID` must be the **Application (client) ID of `employee-tools`**. It was set to another app's ID
+  (`employee-ios`), which Entra answers with `invalid_resource` (log: `agent turn failed ... code=invalid_resource`).
+  `az ad app show --id <id>` must show `identifierUris: ["api://<id>"]` and scope `Tools.Invoke`.
+- The custom role **Foundry Agent User Identity Impersonation** is required. Foundry Project Manager and Foundry User do
+  not include the data action, and the API got `foundry_403` until the custom role was created and assigned to the api
+  managed identity (project scope). Project Manager is far more than the api needs; remove it once the turn works.
+- `azd provision` used to reset the Container App to the placeholder image (the API answered with the "Your Azure
+  Container Apps app is live" page). `infra/` now passes `SERVICE_API_IMAGE_NAME` back; if it is not set, run
+  `azd deploy api` after every provision.
+- A turn failure is logged as `agent turn failed: agent=<name> code=<code>` (no content). Codes: `managed_identity`,
+  `invalid_client`/`unauthorized_client` (federated credential), `invalid_resource` (wrong tools app),
+  `consent_required`/`invalid_grant`/`interaction_required` (consent), `foundry_403` (roles), `foundry_404` (agent name).
+- The agent is deployed as source code (no Docker, no ACR build); ACR Tasks may be blocked on the subscription.

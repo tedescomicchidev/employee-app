@@ -15,7 +15,11 @@ param modelSkuName string = 'GlobalStandard'
 param modelCapacity int = 30
 @description('Client id of the employee-api Entra app registration (non-secret). Set after the human-only registration.')
 param apiClientId string = ''
+// Resource app for agent tool calls (Tools.Invoke, ADR-002). Empty until the human registers employee-tools.
+param toolsClientId string = ''
 param graphDirectory string = 'false'
+// Image `azd deploy api` last pushed (SERVICE_API_IMAGE_NAME); empty on a first provision.
+param apiImage string = ''
 
 var tags = {
   'azd-env-name': environmentName
@@ -105,7 +109,9 @@ module containerApps 'modules/containerapps.bicep' = {
     foundryProjectEndpoint: foundry.outputs.projectEndpoint
     entraTenantId: tenant().tenantId
     apiClientId: apiClientId
+    toolsClientId: toolsClientId
     graphDirectory: graphDirectory
+    deployedImage: apiImage
   }
 }
 
@@ -127,3 +133,6 @@ output AZURE_RESOURCE_GROUP string = rg.name
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = registry.outputs.loginServer
 output AZURE_API_URL string = containerApps.outputs.apiUrl
 output AZURE_AI_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+// Name the Foundry azd extensions (azure.ai.project / azure.ai.agent) read from the azd environment.
+output FOUNDRY_PROJECT_ENDPOINT string = foundry.outputs.projectEndpoint
+output AZURE_AI_MODEL_DEPLOYMENT_NAME string = foundry.outputs.modelDeploymentName

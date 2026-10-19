@@ -42,3 +42,26 @@ states `ai.azure.com` is not exposed as a consentable delegated API permission.
 - learn.microsoft.com/azure/foundry/agents/how-to/tools/tool-authentication
 - learn.microsoft.com/answers/a/12695581 (ai.azure.com is RBAC, not an API permission)
 - learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow
+
+## Status update: phase 6, comms slice (2026-10-19)
+Implemented as decided (point 3 stays as written, not the literal OBO to `ai.azure.com` of the original request):
+`api/app/routes/agent.py` + `api/app/agents/foundry.py` (OBO for `employee-tools`, managed-identity token for
+`https://ai.azure.com`, `x-ms-user-identity` from the validated `oid`, `x-client-api-access-token` for T-tools,
+`store:false`); `api/app/mcp/` validates `Tools.Invoke` only (`TOOLS_CLIENT_ID` / `TOOLS_AUDIENCE`).
+- S-1: the default holds. A second resource app `employee-tools` is required; self-OBO is not attempted.
+  The roles `Communicator`, `Manager`, `Employee` must also be defined and assigned on `employee-tools`
+  because the MCP server reads `roles` from the Tools.Invoke token (same `authorize()` as REST).
+- S-3: resolved the ADR-005 way; **no toolbox**. A `UserEntraToken` toolbox connection made Foundry's OBO
+  service reject the call ("Audience for incoming token is incorrect", seen in `azd ai agent run`): it needs a user
+  token for Foundry, which `api/` does not hold (it calls the agent with its own managed-identity token and only
+  names the user). Instead `api/` forwards T-tools in `x-client-api-access-token` (and the run id in
+  `x-client-task-run-id`), Foundry passes `x-client-*` headers to the container, and the agent calls `/mcp` itself with
+  the token as Bearer (`agents/comms/comms_context.py`: ASGI middleware + context variable; `main.py`: per-request
+  agent, MCP tool limited to the six comms tools). The token never enters a prompt or a tool argument. Verified
+  locally with the real Responses host and a recording MCP server (`agents/tests/test_comms_forwarding.py`);
+  not verified on a deployed Foundry. The confirmation token is unaffected: the turn endpoint adds it, with
+  the stored draft, as a fixed-format user message.
+- Agents cannot mint tokens: `POST /v1/confirmations` validates `access_as_user`, so a Tools.Invoke token gets 401.
+Sources (retrieved 2026-10-19): learn.microsoft.com/azure/foundry/agents/how-to/use-on-behalf-of-flow,
+.../how-to/isolate-sessions-per-user, .../how-to/tools/tool-authentication, .../how-to/tools/use-toolbox-hosted-agent,
+.../how-to/author-azure-yaml, agent-framework/hosting/foundry-hosted-agent.

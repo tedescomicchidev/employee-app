@@ -162,6 +162,21 @@ entries:
     retention: HUMAN_CONFIRMATION_REQUIRED
     access: [operators]
     requirements: [FR-AUTH-003, NFR-012, PRIV-010]
+    notes: MCP tool calls write one record per call (oid, tool, outcome, correlation id) in memory and as an `mcp_audit` log line; no arguments or text.
+
+  - id: agent-run-log
+    description: Per agent turn cost and safety counts joined to the experiment task run
+    fields: [task_run_id, model_id, input_tokens, output_tokens, tool_call_count, latency_ms, safety_counters]
+    data_subjects: [participant (pseudonymous task run id)]
+    classification: pseudonymous
+    purpose: cost per task (EXP-005, NFR-006), safety counters (H9)
+    source: api (agent turn endpoint, MCP audit)
+    storage: [api memory until the events container lands (ADR-009)]
+    processors: [Azure Container Apps]
+    shared_with_agents: never
+    retention: HUMAN_CONFIRMATION_REQUIRED
+    access: [operators]
+    requirements: [EXP-005, NFR-006, NFR-013]
 
   - id: announcement-inbox
     description: One document per announcement recipient (fan-out at publish) with read state (ADR-007)
