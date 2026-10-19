@@ -10,7 +10,11 @@ sim=${SIMULATOR_NAME:-iPhone 17}
 bundle=ch.example.employee
 scenarios=(signin signin-failed signin-offline home-employee home-manager home-publisher
            compose-ok compose-validation review-ok review-success review-error review-offline
-           audience-ok feed-ok feed-loading feed-empty feed-error feed-offline detail-ok)
+           audience-ok feed-ok feed-loading feed-empty feed-error feed-offline detail-ok
+           vacation-overview-ok vacation-overview-empty vacation-overview-loading vacation-overview-offline
+           vacation-overview-error vacation-holidays-ok vacation-holidays-canton_missing
+           vacation-request-ok vacation-request-validation_overlap vacation-review-ok
+           vacation-review-validation_insufficient_balance vacation-review-success)
 lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 

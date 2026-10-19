@@ -35,7 +35,8 @@ struct DesignSystemTests {
         let url = colorsDir.deletingLastPathComponent().appending(path: "Localizable.xcstrings")
         let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let strings = try #require(json["strings"] as? [String: [String: Any]])
-        for (key, entry) in strings {
+        // Xcode adds an empty "" entry for `Text("")` literals; it has nothing to translate.
+        for (key, entry) in strings where !key.isEmpty {
             let locs = try #require(entry["localizations"] as? [String: Any])
             #expect(Set(locs.keys) == ["en", "de", "fr", "it"], "\(key)")
         }

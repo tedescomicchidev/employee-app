@@ -10,12 +10,15 @@ from app.repositories import (
     InMemoryConfirmationStore,
     SeedDirectory,
 )
-from app.routes import announcements, events, me
+from app.routes import announcements, events, me, proposals, vacation
+from app.vacation.service import VacationService
+from app.vacation.store import InMemoryVacationStore
 
 
 def create_app(
     validator: TokenValidator | None = None,
     announcement_service: AnnouncementService | None = None,
+    vacation_service: VacationService | None = None,
 ) -> FastAPI:
     app = FastAPI(title="Employee App API")
     if validator is None:
@@ -25,6 +28,9 @@ def create_app(
     # In-memory stores until the Cosmos repositories land (ADR-007).
     app.state.announcement_service = announcement_service or AnnouncementService(
         SeedDirectory.from_file(), InMemoryAnnouncementStore(), InMemoryConfirmationStore()
+    )
+    app.state.vacation_service = vacation_service or VacationService(
+        SeedDirectory.from_file(), InMemoryVacationStore(), InMemoryConfirmationStore()
     )
     app.state.event_sink = []  # TODO(EXP): replace with the events container (ADR-009)
 
@@ -38,6 +44,8 @@ def create_app(
 
     app.include_router(me.router)
     app.include_router(announcements.router)
+    app.include_router(proposals.router)
+    app.include_router(vacation.router)
     app.include_router(events.router)
     return app
 

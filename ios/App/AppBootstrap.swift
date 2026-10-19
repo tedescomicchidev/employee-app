@@ -24,6 +24,8 @@ enum AppBootstrap {
                 auth: msal, me: URLSessionMeService(baseURL: config.apiBaseURL), mode: mode,
                 announcements: URLSessionAnnouncementService(baseURL: config.apiBaseURL),
                 feedCache: FeedCache(fileURL: FeedCache.defaultFileURL()),
+                vacation: URLSessionVacationService(baseURL: config.apiBaseURL),
+                vacationCache: VacationCache(fileURL: VacationCache.defaultFileURL()),
                 events: events, taskContext: taskContext()), clearing: events)
         } catch {
             // Typically "Failed to retrieve teamId from keychain" (-42008) in an unsigned build.
@@ -60,10 +62,12 @@ enum AppBootstrap {
     ) -> AppEnvironment {
         let drafts = environment.drafts
         let feedCache = environment.feedCache
+        let vacationCache = environment.vacationCache
         let cleaner = environment.cleaner
         Task {
             await cleaner.register { await drafts.clear() }
             await cleaner.register { await feedCache.clear() }
+            await cleaner.register { await vacationCache.clear() }
             await cleaner.register { UNUserNotificationCenter.current().removeAllPendingNotificationRequests() }
             await cleaner.register { URLCache.shared.removeAllCachedResponses() }
             if let events { await cleaner.register { await events.clear() } }

@@ -8,6 +8,7 @@ import Foundation
 ///   -signedIn YES            start with a cached account
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline>
+///   -vacationStub <ok|populated|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -35,7 +36,38 @@ enum StubLaunch {
         "feed-error": (.employee, true),
         "feed-offline": (.employee, true),
         "detail-ok": (.employee, true),
+        "vacation-overview-ok": (.employee, true),
+        "vacation-overview-empty": (.employee, true),
+        "vacation-overview-loading": (.employee, true),
+        "vacation-overview-offline": (.employee, true),
+        "vacation-overview-error": (.employee, true),
+        "vacation-holidays-ok": (.employee, true),
+        "vacation-holidays-canton_missing": (.employee, true),
+        "vacation-request-ok": (.employee, true),
+        "vacation-request-validation_overlap": (.employee, true),
+        "vacation-review-ok": (.employee, true),
+        "vacation-review-validation_insufficient_balance": (.employee, true),
+        "vacation-review-success": (.employee, true),
     ]
+
+    /// Vacation scenarios: what the stub API does and the autopilot step (FR-VAC-001/002/006).
+    static let vacationScenarios: [String: (VacationStubScenario, VacationAutopilot?)] = [
+        "vacation-overview-ok": (.populated, nil),
+        "vacation-overview-empty": (.ok, nil),
+        "vacation-overview-loading": (.loading, nil),
+        "vacation-overview-offline": (.offline, nil),
+        "vacation-overview-error": (.error, nil),
+        "vacation-holidays-ok": (.populated, .holidays),
+        "vacation-holidays-canton_missing": (.cantonMissing, .holidays),
+        "vacation-request-ok": (.populated, .requestOK),
+        "vacation-request-validation_overlap": (.populated, .requestOverlap),
+        "vacation-review-ok": (.populated, .reviewOK),
+        "vacation-review-validation_insufficient_balance": (.populated, .reviewInsufficient),
+        "vacation-review-success": (.populated, .reviewSuccess),
+    ]
+
+    /// Monday 2026-10-19, 08:00 Europe/Zurich: the frozen clock of docs/product/test-cases.md.
+    static let fixtureNow = ISO8601DateFormatter().date(from: "2026-10-19T06:00:00Z") ?? Date()
 
     /// Feed scenarios: what the stub API does, and the announcement to open at launch (FR-ANN-003).
     static let feedScenarios: [String: (AnnouncementStubScenario, open: String?)] = [
@@ -79,9 +111,22 @@ enum StubLaunch {
                 userKey: "stub-employee", fetchedAt: fetched, items: StubAnnouncementService.feed(now: fetched))
             Task { await cache.save(snapshot) }
         }
+        let vacationFlow = name.flatMap { vacationScenarios[$0] }
+        let vacationArgument = argument("-vacationStub").flatMap(VacationStubScenario.init)
+        let vacationCache = VacationCache()
+        if name == "vacation-overview-offline" {
+            // The last good fetch, so the offline banner has numbers to show (NFR-007).
+            let fetched = fixtureNow.addingTimeInterval(-3 * 3600)
+            let snapshot = StubVacationService.populatedSnapshot(userKey: "stub-employee", fetchedAt: fetched)
+            Task { await vacationCache.save(snapshot) }
+        }
         var environment = AppEnvironment(
             auth: stub, me: stub, mode: mode,
-            announcements: StubAnnouncementService(scenario: announcementScenario), feedCache: cache)
+            announcements: StubAnnouncementService(scenario: announcementScenario), feedCache: cache,
+            vacation: StubVacationService(scenario: vacationFlow?.0 ?? vacationArgument ?? .ok),
+            vacationCache: vacationCache, clock: { fixtureNow })
+        environment.vacationAutopilot = vacationFlow?.1
+        environment.startOnVacation = vacationFlow != nil || vacationArgument != nil
         environment.openAnnouncementOnLaunch = feedFlow?.open
         environment.announcementAutopilot = flow?.0
         environment.autoSignIn = argument("-scenario").map(autoSignIn.contains) ?? false

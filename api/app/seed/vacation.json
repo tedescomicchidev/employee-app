@@ -1,0 +1,30 @@
+{
+  "status": "HR-CONFIRM",
+  "note": "Placeholder policy values (R1, R2, R7) and demo requests; HR must confirm.",
+  "entitlement_per_year": 25,
+  "carry_over": {},
+  "blackouts": [
+    {
+      "start": "2026-12-14",
+      "end": "2026-12-24",
+      "scope": "all",
+      "value": null
+    }
+  ],
+  "requests": [
+    {
+      "id": "seed-emp1-june",
+      "owner": "00000000-0000-0000-0000-000000000011",
+      "start": "2026-06-01",
+      "end": "2026-06-30",
+      "status": "approved"
+    },
+    {
+      "id": "seed-emp2-nov",
+      "owner": "00000000-0000-0000-0000-000000000012",
+      "start": "2026-11-02",
+      "end": "2026-11-06",
+      "status": "approved"
+    }
+  ]
+}

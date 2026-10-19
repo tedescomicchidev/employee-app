@@ -37,6 +37,17 @@ enum AppTab: String, Identifiable, CaseIterable {
 struct MainTabView: View {
     let model: AppModel
     let environment: AppEnvironment
+    @State private var selection: AppTab
+
+    init(model: AppModel, environment: AppEnvironment) {
+        self.model = model
+        self.environment = environment
+        #if DEBUG
+        _selection = State(initialValue: environment.startOnVacation ? .vacation : .announcements)
+        #else
+        _selection = State(initialValue: .announcements)
+        #endif
+    }
 
     private var session: Session? { model.session }
 
@@ -44,7 +55,8 @@ struct MainTabView: View {
         switch tab {
         case .announcements: FeedView(model: model, environment: environment, title: tab.title)
         case .more: MoreView(model: model, environment: environment)
-        case .vacation, .week, .approvals: PlaceholderTab(title: tab.title, symbol: tab.symbol)
+        case .vacation: VacationView(model: model, environment: environment, title: tab.title)
+        case .week, .approvals: PlaceholderTab(title: tab.title, symbol: tab.symbol)
         }
     }
 
@@ -54,10 +66,11 @@ struct MainTabView: View {
 
     var body: some View {
         @Bindable var model = model
-        TabView {
+        TabView(selection: $selection) {
             ForEach(AppTab.tabs(for: session)) { tab in
                 content(for: tab)
                     .tabItem { tabLabel(tab.title, tab.symbol) }
+                    .tag(tab)
             }
         }
         .sheet(isPresented: $model.needsReauth) {

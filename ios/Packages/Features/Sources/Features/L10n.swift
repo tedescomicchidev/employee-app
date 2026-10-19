@@ -3,7 +3,7 @@ import Foundation
 
 /// Typed keys for Resources/Localizable.xcstrings (DE/FR/IT/EN). No string literals in views.
 enum L10n {
-    private static var bundle: LocalizedStringResource.BundleDescription {
+    static var bundle: LocalizedStringResource.BundleDescription {
         .atURL(Bundle.module.bundleURL)
     }
 

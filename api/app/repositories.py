@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from app.announcements.models import Announcement, Draft, InboxItem
+from app.announcements.models import Announcement, InboxItem
 
 SEED_FILE = Path(__file__).parent / "seed" / "employees.json"
 
@@ -18,6 +18,12 @@ class Employee:
     role: str = "Employee"
     store: str = ""
     region: str = ""
+    canton: str | None = None
+    manager_oid: str | None = None
+
+
+class Payload(Protocol):
+    def payload_hash(self) -> str: ...
 
 
 @dataclass(frozen=True)
@@ -25,7 +31,7 @@ class Proposal:
     id: str
     oid: str
     action: str
-    draft: Draft
+    draft: Payload
     expires_at: datetime
 
 
@@ -37,6 +43,7 @@ class ConfirmationToken:
     payload_hash: str
     expires_at: datetime
     announcement_id: str | None = None
+    request_id: str | None = None
 
 
 class Directory(Protocol):
@@ -77,7 +84,16 @@ class SeedDirectory:
         rows = json.loads(path.read_text())
         return cls(
             [
-                Employee(r["oid"], r["name"], r["active"], r["role"], r["store"], r["region"])
+                Employee(
+                    r["oid"],
+                    r["name"],
+                    r["active"],
+                    r["role"],
+                    r["store"],
+                    r["region"],
+                    r.get("canton"),
+                    r.get("manager_oid"),
+                )
                 for r in rows
             ]
         )

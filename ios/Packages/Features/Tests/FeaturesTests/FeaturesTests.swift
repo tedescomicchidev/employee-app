@@ -146,14 +146,21 @@ struct LocalisationTests {
         let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let strings = try #require(json["strings"] as? [String: [String: Any]])
         #expect(!strings.isEmpty)
-        for (key, entry) in strings {
+        // Xcode adds an empty "" entry for `Text("")` literals; it has nothing to translate.
+        for (key, entry) in strings where !key.isEmpty {
             let locs = try #require(entry["localizations"] as? [String: [String: Any]], "\(key)")
             #expect(Set(locs.keys) == ["en", "de", "fr", "it"], "\(key)")
             for (lang, loc) in locs {
-                let unit = loc["stringUnit"] as? [String: String]
-                let value = unit?["value"] ?? ""
-                #expect(unit?["state"] == "translated", "\(key) \(lang)")
-                #expect(value.isEmpty == false, "\(key) \(lang)")
+                // A plain string has one unit; a plural has one per category (one, other).
+                var units = [loc["stringUnit"] as? [String: String]]
+                if let plural = (loc["variations"] as? [String: Any])?["plural"] as? [String: [String: Any]] {
+                    units = plural.values.map { $0["stringUnit"] as? [String: String] }
+                }
+                #expect(!units.isEmpty, "\(key) \(lang)")
+                for unit in units {
+                    #expect(unit?["state"] == "translated", "\(key) \(lang)")
+                    #expect((unit?["value"] ?? "").isEmpty == false, "\(key) \(lang)")
+                }
             }
         }
     }
