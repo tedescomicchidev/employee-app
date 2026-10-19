@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# requirement traceability, ios build+test, api lint+test, agent unit tests. Run from anywhere.
+# requirement traceability, ios build+test, api/agents/evals lint+test, agent eval gate. Run from anywhere.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 sim=${SIMULATOR_NAME:-iPhone 17}
@@ -31,7 +31,7 @@ for pkg in Core Features; do
   (cd "$root/ios/Packages/$pkg" && swift test)
 done
 
-for dir in api agents; do
+for dir in api agents evals; do
   echo "== $dir =="
   cd "$root/$dir"
   uv sync --frozen
@@ -39,5 +39,18 @@ for dir in api agents; do
   uv run ruff format --check .
   uv run pytest -q
 done
+
+# NFR-013: agent safety evals with pass thresholds (evals/thresholds.json). Offline needs no Azure and
+# no model: it checks dataset coverage and that every scoring rule catches its recorded bad trace.
+# The attack traces are replayed against the real MCP server in api/tests/test_agent_eval_replay.py.
+# Live (the model itself) runs only when the human sets EVAL_API_URL and EVAL_TOKEN_<PERSONA>.
+echo "== evals gate =="
+cd "$root/evals"
+uv run python runner.py offline
+if [ -n "${EVAL_API_URL:-}" ]; then
+  uv run python runner.py live
+else
+  echo "evals live: skipped (set EVAL_API_URL against a deployed dev environment to run it)"
+fi
 
 echo "ci-check: all passed"
