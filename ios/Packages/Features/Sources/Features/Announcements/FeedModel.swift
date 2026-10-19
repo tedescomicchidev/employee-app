@@ -87,7 +87,9 @@ public final class FeedModel {
             return
         }
         do {
-            let fetched = try await service.list(accessToken: token)
+            let fetched = try await TaskRun.$current.withValue(flow?.taskRunId) {
+                try await service.list(accessToken: token)
+            }
             offlineAsOf = nil
             unavailable = []
             state = fetched.isEmpty ? .empty : .content(fetched)
@@ -135,7 +137,9 @@ public final class FeedModel {
             return
         }
         do {
-            try await service.markRead(id: id, accessToken: token)
+            try await TaskRun.$current.withValue(flow?.taskRunId) {
+                try await service.markRead(id: id, accessToken: token)
+            }
             markLocallyRead(id)
             flow?.complete(outcomeValid: true)
         } catch AnnouncementError.notFound {

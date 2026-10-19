@@ -19,7 +19,7 @@ public final class ManagerInboxModel {
     public private(set) var offlineAsOf: Date?
 
     private let service: any VacationService
-    private let access: VacationAccess
+    private var access: VacationAccess
     private let makeFlow: @MainActor () -> TaskFlow
     private let now: @Sendable () -> Date
     private var flow: TaskFlow?
@@ -32,6 +32,7 @@ public final class ManagerInboxModel {
         self.access = access
         self.makeFlow = makeFlow
         self.now = now
+        self.access.runId = { [weak self] in self?.flow?.taskRunId }
     }
 
     public convenience init(

@@ -248,7 +248,8 @@ public final class PublishModel {
         } catch {
             throw AnnouncementError.failed(code: "AUTH", correlationId: nil)
         }
-        return try await work(token)
+        let runId = flow.taskRunId
+        return try await TaskRun.$current.withValue(runId) { try await work(token) }
     }
 
     private func handle(_ error: AnnouncementError, recovered: Bool) {

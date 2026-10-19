@@ -115,7 +115,7 @@ struct VacationView: View {
             service: environment.vacation,
             accessToken: { try await auth.accessToken() },
             onReauthNeeded: { [model] in model.needsReauth = true },
-            flow: flow, today: today)
+            flow: flow, today: today, drafts: environment.drafts, userKey: model.session?.oid ?? "")
         flowItem = RequestFlowItem(model: request)
         return request
     }

@@ -41,7 +41,7 @@ public final class TeamCoverageModel {
     public private(set) var offlineAsOf: Date?
 
     private let service: any VacationService
-    private let access: VacationAccess
+    private var access: VacationAccess
     private let makeFlow: @MainActor () -> TaskFlow
     private let now: @Sendable () -> Date
     private var flow: TaskFlow?
@@ -56,6 +56,7 @@ public final class TeamCoverageModel {
         self.now = now
         start = today
         end = today.addingDays(Self.defaultDays - 1)
+        self.access.runId = { [weak self] in self?.flow?.taskRunId }
     }
 
     public convenience init(

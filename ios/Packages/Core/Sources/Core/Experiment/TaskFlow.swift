@@ -97,6 +97,7 @@ public final class TaskFlow {
         self.now = now
     }
 
+    public var taskRunId: UUID { runId }
     public var tapCount: Int { taps }
     public var isFinished: Bool { finished }
 
@@ -156,5 +157,17 @@ public final class TaskFlow {
         configure(&event)
         let sink = sink
         Task { await sink.record(event) }
+    }
+}
+
+/// EXP-005: ties the REST calls a task makes to its `task_run_id` (the `X-Task-Run-Id` header), so the
+/// server can count calls and latency per task. Task-local: a concurrent call of another flow is never
+/// attributed to this one.
+public enum TaskRun {
+    @TaskLocal public static var current: UUID?
+    public static let header = "X-Task-Run-Id"
+
+    public static func tag(_ request: inout URLRequest) {
+        if let id = current { request.setValue(id.uuidString, forHTTPHeaderField: header) }
     }
 }

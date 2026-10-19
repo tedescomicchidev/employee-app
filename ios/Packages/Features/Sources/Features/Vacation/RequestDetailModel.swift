@@ -66,6 +66,8 @@ public final class RequestDetailModel {
         self.onChanged = onChanged
         self.flow = flow
         self.service = service
+        var access = access
+        access.runId = { flow()?.taskRunId }
         self.access = access
         state = seed.map(State.content) ?? .loading
     }
