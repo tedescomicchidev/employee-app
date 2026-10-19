@@ -200,3 +200,19 @@ azd provision   # applies the setting; then: azd deploy api
 Which Graph properties hold canton/store/region is tenant specific: set `GRAPH_CANTON_ATTRIBUTE`,
 `GRAPH_STORE_ATTRIBUTE`, `GRAPH_REGION_ATTRIBUTE` if the defaults (`state`, `officeLocation`,
 `preferredLanguage`) do not match your tenant.
+
+## Deployment findings (first real run, phase 6)
+Found while bringing `comms` up in the dev environment; each cost a failed turn.
+- `TOOLS_CLIENT_ID` must be the **Application (client) ID of `employee-tools`**. It was set to another app's ID
+  (`employee-ios`), which Entra answers with `invalid_resource` (log: `agent turn failed ... code=invalid_resource`).
+  `az ad app show --id <id>` must show `identifierUris: ["api://<id>"]` and scope `Tools.Invoke`.
+- The custom role **Foundry Agent User Identity Impersonation** is required. Foundry Project Manager and Foundry User do
+  not include the data action, and the API got `foundry_403` until the custom role was created and assigned to the api
+  managed identity (project scope). Project Manager is far more than the api needs; remove it once the turn works.
+- `azd provision` used to reset the Container App to the placeholder image (the API answered with the "Your Azure
+  Container Apps app is live" page). `infra/` now passes `SERVICE_API_IMAGE_NAME` back; if it is not set, run
+  `azd deploy api` after every provision.
+- A turn failure is logged as `agent turn failed: agent=<name> code=<code>` (no content). Codes: `managed_identity`,
+  `invalid_client`/`unauthorized_client` (federated credential), `invalid_resource` (wrong tools app),
+  `consent_required`/`invalid_grant`/`interaction_required` (consent), `foundry_403` (roles), `foundry_404` (agent name).
+- The agent is deployed as source code (no Docker, no ACR build); ACR Tasks may be blocked on the subscription.
