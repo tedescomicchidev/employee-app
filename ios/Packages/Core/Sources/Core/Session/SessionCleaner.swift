@@ -25,4 +25,5 @@ public actor DraftStore {
     public func save(_ fields: [String: String], key: String) { drafts[key] = fields }
     public func draft(key: String) -> [String: String]? { drafts[key] }
     public func clear() { drafts.removeAll() }
+    public func remove(key: String) { drafts[key] = nil }
 }

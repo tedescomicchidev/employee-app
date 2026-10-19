@@ -31,12 +31,30 @@
       }
     },
     "CFBundleName" : {
-      "comment" : "Bundle name",
+      "comment" : "Bundle name (product name, the same in every language)",
       "extractionState" : "extracted_with_value",
       "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EmployeeApp"
+          }
+        },
         "en" : {
           "stringUnit" : {
-            "state" : "new",
+            "state" : "translated",
+            "value" : "EmployeeApp"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EmployeeApp"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
             "value" : "EmployeeApp"
           }
         }

@@ -4,11 +4,14 @@ import Foundation
 public enum AnnouncementStubScenario: String, Sendable, CaseIterable {
     case ok, validation, publishFails, publishOffline, offline, forbidden
     case feedEmpty, feedError, feedLoading, feedOffline
+    /// The first review gets a 401 (revoked token); after signing in again calls succeed (FR-AUTH-005).
+    case sessionRevoked
 }
 
 /// Stub for UI tests and screenshots (DEBUG only). Counts publish calls so tests can assert "once".
 public actor StubAnnouncementService: AnnouncementService {
     public private(set) var publishCalls = 0
+    private var revoked = false
     public private(set) var markReadCalls: [String] = []
     private let scenario: AnnouncementStubScenario
     private let recipients: Int
@@ -48,6 +51,9 @@ public actor StubAnnouncementService: AnnouncementService {
         switch scenario {
         case .forbidden: throw AnnouncementError.forbidden
         case .offline: throw AnnouncementError.offline
+        case .sessionRevoked where !revoked:
+            revoked = true
+            throw AnnouncementError.unauthenticated
         default: break
         }
         if draft.title.isEmpty { throw AnnouncementError.validation(.title) }

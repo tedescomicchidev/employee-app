@@ -16,6 +16,11 @@ func tabsFollowRoles() {
 }
 
 #if DEBUG
+private actor Flag {
+    private(set) var value = false
+    func set() { value = true }
+}
+
 @MainActor
 private func makeModel(_ scenario: StubScenario, signedIn: Bool = false) -> (AppModel, StubAuthService) {
     let stub = StubAuthService(scenario: scenario, signedIn: signedIn)
@@ -114,6 +119,60 @@ struct AppModelTests {
         await #expect(throws: AuthError.interactionRequired) { try await stub.accessToken() }
     }
 
+    @Test("FR-AUTH-005: returning to the foreground with a dead refresh token opens re-sign-in")
+    func foregroundCheck() async {
+        let (model, stub) = makeModel(.employee, signedIn: true)
+        await model.start()
+        await model.checkSession()
+        #expect(!model.needsReauth)
+        await stub.expireSession()
+        await model.checkSession()
+        #expect(model.needsReauth)
+        #expect(model.session != nil)
+    }
+
+    @Test("FR-AUTH-005: sign-out clears local state even when removing the account fails, and says so")
+    func signOutFailureStillClears() async {
+        struct FailingSignOut: AuthService {
+            func hasCachedAccount() async -> Bool { true }
+            func signIn() async throws {}
+            func accessToken() async throws -> String { "t" }
+            func signOut() async throws { throw AuthError.failed(.generic) }
+        }
+        let stub = StubAuthService(scenario: .employee, signedIn: true)
+        let drafts = DraftStore()
+        let cleaner = SessionCleaner()
+        await cleaner.register { await drafts.clear() }
+        await drafts.save(["title": "x"], key: "k")
+        let model = AppModel(auth: FailingSignOut(), me: stub, cleaner: cleaner)
+        await model.start()
+        await model.signOut()
+        #expect(model.phase == .signedOut)
+        #expect(model.issue == .failed)
+        #expect(await drafts.draft(key: "k") == nil)
+    }
+
+    @Test("FR-AUTH-005: sign-out empties drafts, the cached feed, the cached balance and runs the app's hooks")
+    func signOutClearsEveryStore() async {
+        let stub = StubAuthService(scenario: .employee, signedIn: true)
+        let environment = AppEnvironment(auth: stub, me: stub, mode: ModeStore())
+        let ran = Flag()
+        await environment.registerSessionCleanup(also: [{ await ran.set() }])
+        await environment.drafts.save(["title": "x"], key: "k")
+        await environment.feedCache.save(FeedSnapshot(userKey: "u1", fetchedAt: Date(), items: []))
+        await environment.vacationCache.save(VacationSnapshot(
+            userKey: "u1", fetchedAt: Date(),
+            balance: VacationBalance(year: 2026, entitlement: 25, carriedOver: 0, approved: 5, pending: 0, remaining: 20),
+            requests: []))
+        let model = AppModel(auth: stub, me: stub, cleaner: environment.cleaner)
+        await model.start()
+        await model.signOut()
+        #expect(await environment.drafts.draft(key: "k") == nil)
+        #expect(await environment.feedCache.load(userKey: "u1") == nil)
+        #expect(await environment.vacationCache.load(userKey: "u1") == nil)
+        #expect(await ran.value)
+    }
+
     @Test("FR-AUTH-005: offline reload keeps the cached session and flags offline")
     func offlineReload() async {
         actor FlakyMe: MeService {
@@ -138,7 +197,7 @@ struct AppModelTests {
 
 @Suite("Localisation")
 struct LocalisationTests {
-    @Test("every key in the Features catalog has DE, FR, IT and EN")
+    @Test("NFR-009: every key in the Features catalog has DE, FR, IT and EN")
     func catalogComplete() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

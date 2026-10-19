@@ -18,7 +18,7 @@ public final class VacationOverviewModel {
     public private(set) var offlineAsOf: Date?
 
     private let service: any VacationService
-    private let access: VacationAccess
+    private var access: VacationAccess
     private let cache: VacationCache
     private let userKey: String
     private let makeFlow: @MainActor () -> TaskFlow
@@ -35,6 +35,7 @@ public final class VacationOverviewModel {
         self.userKey = userKey
         self.makeFlow = makeFlow
         self.now = now
+        self.access.runId = { [weak self] in self?.flow?.activeRunId }
     }
 
     public convenience init(

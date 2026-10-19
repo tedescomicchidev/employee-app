@@ -277,7 +277,7 @@ def test_fr_vac_002_cross_year_checks_each_years_balance(private_key: Any, make_
 
 
 def test_fr_vac_002_dst_week_counts_four() -> None:
-    """FR-VAC-002 @unit: clock change on 2026-10-25, Mon-Fri only."""
+    """FR-VAC-002 / NFR-010 @unit: clock change on 2026-10-25, Mon-Fri only."""
     assert rules.count_days(date(2026, 10, 23), date(2026, 10, 28), {}).counted == 4
 
 

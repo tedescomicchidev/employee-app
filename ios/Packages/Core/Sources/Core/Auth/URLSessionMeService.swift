@@ -27,6 +27,7 @@ public struct URLSessionMeService: MeService {
     public func me(accessToken: String) async throws -> Session {
         var request = URLRequest(url: baseURL.appending(path: "v1/me"))
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        TaskRun.tag(&request)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         let data: Data
         let response: URLResponse

@@ -263,6 +263,36 @@ entries:
     access: [self]
     requirements: [FR-ANN-003, NFR-007, FR-AUTH-005]
 
+  - id: api-call-log
+    description: Per task run API call records for the experiment (EXP-005): which route, status and latency
+    fields: [task_run_id, method, route_template, status, latency_ms]
+    data_subjects: [participant]
+    classification: pseudonymous (the run id is a random uuid; no user id, path parameter, query, body or token is recorded)
+    purpose: cost and latency per task (NFR-005, NFR-006)
+    source: api middleware, run id sent by the app in X-Task-Run-Id
+    storage: [api process memory, bounded to the newest 50000 records; no durable store yet (ADR-009)]
+    processors: []
+    shared_with_agents: never
+    retention: process lifetime; HUMAN_CONFIRMATION_REQUIRED for the durable store (U-05)
+    access: [api]
+    requirements: [EXP-005, PRIV-007]
+    notes: calls answered 401 are not recorded; the run id is not bound to the caller, see docs/experiment/metrics.md
+
+  - id: device-drafts
+    description: Unsent drafts kept on device so a re-sign-in or a closed sheet loses nothing
+    fields: [announcement_title, announcement_body, announcement_language, vacation_start, vacation_end]
+    data_subjects: [employee, publisher]
+    classification: personal (announcement text is business content; vacation dates are personal)
+    purpose: keep unsent input across session expiry (FR-AUTH-005) and offline (NFR-007)
+    source: user input in the app
+    storage: [ios app, memory only (DraftStore), cleared on sign-out and after a successful send]
+    processors: []
+    shared_with_agents: never
+    retention: until sent, sign-out or app termination; HUMAN_CONFIRMATION_REQUIRED for any time limit
+    access: [self]
+    requirements: [FR-AUTH-005, NFR-007, FR-ANN-001, FR-VAC-002]
+    notes: the manager's rejection reason is free text and is not drafted
+
 not_collected:
   - sick leave and health data
   - payroll and salary data

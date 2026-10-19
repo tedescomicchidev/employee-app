@@ -88,12 +88,26 @@ public final class AppModel {
 
     /// Clears tokens, cached data, notifications and conversation state.
     public func signOut() async {
-        try? await auth.signOut()
+        // Local state is cleared even when removing the cached MSAL account fails.
+        var signOutFailed = false
+        do { try await auth.signOut() } catch { signOutFailed = true }
         await cleaner.clearAll()
         needsReauth = false
         isOffline = false
-        issue = nil
+        issue = signOutFailed ? .failed : nil
         phase = .signedOut
+    }
+
+    /// Silent check on returning to the foreground: opens "Sign in again" when the refresh token is gone.
+    public func checkSession() async {
+        guard session != nil, !needsReauth else { return }
+        do {
+            _ = try await auth.accessToken()
+        } catch AuthError.interactionRequired {
+            needsReauth = true
+        } catch {
+            // Offline or transient: the cached session stays on screen.
+        }
     }
 
     private func loadProfile() async {

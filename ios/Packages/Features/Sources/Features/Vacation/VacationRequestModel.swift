@@ -53,6 +53,10 @@ public final class VacationRequestModel {
     private let service: any VacationService
     private let access: VacationAccess
     private let flow: TaskFlow
+    /// Non-sensitive picks (the two dates) survive a re-sign-in or a closed sheet (FR-AUTH-005, NFR-007).
+    private let drafts: DraftStore?
+    private let draftKey: String
+    private var pendingSave: Task<Void, Never>?
     private var selectingEnd = false
     /// Kept across retries so a replayed submit is idempotent (FR-VAC-002.4).
     private var confirmationToken: String?
@@ -60,23 +64,28 @@ public final class VacationRequestModel {
     private var checkTask: Task<Void, Never>?
 
     init(
-        service: any VacationService, access: VacationAccess, flow: TaskFlow, today: CalendarDay
+        service: any VacationService, access: VacationAccess, flow: TaskFlow, today: CalendarDay,
+        drafts: DraftStore? = nil, userKey: String = ""
     ) {
         self.service = service
+        var access = access
+        access.runId = { flow.activeRunId }
         self.access = access
         self.flow = flow
         self.today = today
+        self.drafts = drafts
+        self.draftKey = "vacation.request.\(userKey)"
     }
 
     public convenience init(
         service: any VacationService,
         accessToken: @escaping @Sendable () async throws -> String,
         onReauthNeeded: @escaping @MainActor () -> Void,
-        flow: TaskFlow, today: CalendarDay
+        flow: TaskFlow, today: CalendarDay, drafts: DraftStore? = nil, userKey: String = ""
     ) {
         self.init(
             service: service, access: VacationAccess(accessToken: accessToken, onReauthNeeded: onReauthNeeded),
-            flow: flow, today: today)
+            flow: flow, today: today, drafts: drafts, userKey: userKey)
     }
 
     public var isBusy: Bool {
@@ -102,6 +111,13 @@ public final class VacationRequestModel {
 
     public func begin() async {
         flow.start()
+        if start == nil, let saved = await drafts?.draft(key: draftKey),
+           let first = saved["start"].flatMap(CalendarDay.init(iso:)),
+           let last = saved["end"].flatMap(CalendarDay.init(iso:)), first >= today, last >= first {
+            start = first
+            end = last
+            validate()
+        }
         await loadHolidays()
     }
 
@@ -115,6 +131,7 @@ public final class VacationRequestModel {
             end = day
             selectingEnd = true
         }
+        persistDraft()
         validate()
     }
 
@@ -124,6 +141,7 @@ public final class VacationRequestModel {
         start = newStart
         end = newEnd
         selectingEnd = false
+        persistDraft()
         validate()
     }
 
@@ -131,6 +149,16 @@ public final class VacationRequestModel {
         flow.tap()
         usesTextEntry.toggle()
         if usesTextEntry, start == nil { setDates(start: today, end: today) }
+    }
+
+    private func persistDraft() {
+        guard let drafts, let start, let end else { return }
+        let key = draftKey, fields = ["start": start.iso, "end": end.iso]
+        let previous = pendingSave
+        pendingSave = Task {
+            await previous?.value
+            await drafts.save(fields, key: key)
+        }
     }
 
     private func loadHolidays() async {
@@ -266,6 +294,8 @@ public final class VacationRequestModel {
             }
             phase = .submitted(request)
             flow.complete(outcomeValid: true)
+            await pendingSave?.value
+            await drafts?.remove(key: draftKey)
         } catch let error as VacationError {
             flow.error(code: error.code, recovered: false)
             switch error {

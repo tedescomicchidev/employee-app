@@ -30,7 +30,7 @@ struct DesignSystemTests {
         #expect(DSSpacing.gutter == 16)
     }
 
-    @Test("DSStrings resolve in DE, FR, IT, EN catalog")
+    @Test("NFR-009: DSStrings are translated and non-empty in DE, FR, IT, EN")
     func stringsCatalog() throws {
         let url = colorsDir.deletingLastPathComponent().appending(path: "Localizable.xcstrings")
         let json = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
@@ -39,6 +39,12 @@ struct DesignSystemTests {
         for (key, entry) in strings where !key.isEmpty {
             let locs = try #require(entry["localizations"] as? [String: Any])
             #expect(Set(locs.keys) == ["en", "de", "fr", "it"], "\(key)")
+            for (lang, loc) in locs {
+                let unit = (loc as? [String: Any])?["stringUnit"] as? [String: Any]
+                #expect(unit?["state"] as? String == "translated", "\(key) \(lang) state")
+                let value = unit?["value"] as? String
+                #expect(value?.isEmpty == false, "\(key) \(lang) empty")
+            }
         }
     }
 }

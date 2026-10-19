@@ -468,6 +468,33 @@ struct VacationRequestModelTests {
         #expect(model.start == day("2026-11-23"))
     }
 
+    @Test("FR-AUTH-005/NFR-007: picked dates are kept for a reopened sheet and dropped once submitted")
+    func draftDates() async throws {
+        let drafts = DraftStore()
+        func make(_ service: FakeVacation) -> VacationRequestModel {
+            VacationRequestModel(
+                service: service, access: access(token: { "bearer" }, reauth: {}),
+                flow: flow("T-VAC-REQ", MemoryEventSink()), today: day("2026-10-19"),
+                drafts: drafts, userKey: "u1")
+        }
+        let first = make(FakeVacation())
+        await pick(first, "2026-11-23", "2026-11-25")
+        try await flush()
+        let reopened = make(FakeVacation())
+        await reopened.begin()
+        #expect(reopened.start == day("2026-11-23") && reopened.end == day("2026-11-25"))
+        reopened.goToReview()
+        await reopened.submit()
+        try await flush()
+        #expect(await drafts.draft(key: "vacation.request.u1") == nil)
+        let other = VacationRequestModel(
+            service: FakeVacation(), access: access(token: { "bearer" }, reauth: {}),
+            flow: flow("T-VAC-REQ", MemoryEventSink()), today: day("2026-10-19"),
+            drafts: drafts, userKey: "u2")
+        await other.begin()
+        #expect(other.start == nil)
+    }
+
     @Test("FR-AUTH-006: an expired confirmation is re-minted on the next try")
     func expiredConfirmation() async {
         let service = FakeVacation()

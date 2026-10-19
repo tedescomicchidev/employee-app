@@ -4,6 +4,7 @@ import SwiftUI
 public struct RootView: View {
     private let environment: AppEnvironment
     @State private var model: AppModel
+    @Environment(\.scenePhase) private var scenePhase
 
     @MainActor
     public init(environment: AppEnvironment) {
@@ -28,6 +29,10 @@ public struct RootView: View {
             #if DEBUG
             if environment.autoSignIn, model.phase == .signedOut { await model.signIn() }
             #endif
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // FR-AUTH-005: silent refresh on return to foreground, else "Sign in again".
+            if phase == .active { Task { await model.checkSession() } }
         }
     }
 }
