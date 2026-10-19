@@ -142,6 +142,18 @@ class AnnouncementService:
         self._confirmations.save_proposal(proposal)
         return ProposalResult(proposal, len(recipients))
 
+    def get_proposal(self, principal: Principal, proposal_id: str) -> ProposalResult:
+        """What the confirm card shows. Only the proposer sees it; anything else is not found."""
+        authorize(principal, Role.COMMUNICATOR)
+        proposal = self._confirmations.get_proposal(proposal_id)
+        if (
+            proposal is None
+            or proposal.oid != principal.oid
+            or proposal.expires_at <= self._clock()
+        ):
+            raise not_found()
+        return ProposalResult(proposal, len(self.resolve(proposal.draft.audience)))
+
     def confirm(self, principal: Principal, proposal_id: str) -> ConfirmationToken:
         """Mint a single-use token for the user's own proposal (the user's tap on Review)."""
         authorize(principal, Role.COMMUNICATOR)

@@ -79,6 +79,20 @@ def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str
     }
 
 
+@router.get("/proposals/{proposal_id}")
+def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[str, Any]:
+    """Confirm-card content (announcements): from the server, never from model text (A-13)."""
+    announcements: AnnouncementService = request.app.state.announcement_service
+    result = announcements.get_proposal(principal, proposal_id)
+    return {
+        "proposal_id": result.proposal.id,
+        "type": "announcement",
+        "payload": result.proposal.draft.canonical(),
+        "recipient_count": result.recipient_count,
+        "expires_at": result.proposal.expires_at.isoformat(),
+    }
+
+
 @router.post("/confirmations")
 def create_confirmation(principal: Caller, request: Request, body: Body) -> dict[str, Any]:
     kind = _type(body)
