@@ -103,7 +103,13 @@ def test_comms_tools_are_exactly_the_tools_the_api_server_defines() -> None:
         "list_pending_approvals", "propose_vacation_request", "create_vacation_request",
         "propose_cancel", "cancel_vacation_request", "propose_decision", "decide_vacation_request",
     }  # fmt: skip
-    assert defined - vacation == set(COMMS_TOOLS)  # the server's other tools belong to vacation
+    briefing = {
+        "get_briefing_status",
+        "get_my_week",
+        "propose_briefing_optin",
+        "set_briefing_optin",
+    }
+    assert defined - vacation - briefing == set(COMMS_TOOLS)  # the rest belong to the other agents
 
 
 def test_contract_matches_the_api_reply_model() -> None:

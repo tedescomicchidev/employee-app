@@ -138,7 +138,13 @@ def test_vacation_tools_are_exactly_the_vacation_tools_the_api_server_defines() 
         "list_announcements", "get_announcement", "list_audience_options", "resolve_audience",
         "propose_announcement", "publish_announcement",
     }  # fmt: skip
-    assert defined - comms == set(TOOLS)
+    briefing = {
+        "get_briefing_status",
+        "get_my_week",
+        "propose_briefing_optin",
+        "set_briefing_optin",
+    }
+    assert defined - comms - briefing == set(TOOLS)
     assert not set(TOOLS) & comms  # neither agent is offered the other's tools
 
 

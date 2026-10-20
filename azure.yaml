@@ -72,3 +72,31 @@ services:
       resources:
         cpu: "0.5"
         memory: 1Gi
+  briefing:
+    host: azure.ai.agent
+    project: ./agents/briefing
+    language: python
+    kind: hosted
+    name: briefing
+    description: Weekly briefing assistant (FR-BRF-001..005 AGENT). Acts only through api/ MCP tools; the opt-in toggle needs the app's confirmation token.
+    # Source-code deploy, same as comms and vacation: azd zips agents/briefing, Foundry installs requirements.txt remotely.
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+      dependencyResolution: remote_build
+    uses:
+      - ai-project
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    env:
+      AZURE_AI_MODEL_DEPLOYMENT_NAME: ${AZURE_AI_MODEL_DEPLOYMENT_NAME}
+      # Same as comms and vacation: the agent calls api/'s MCP server with the token api/ forwards each turn (ADR-002).
+      # No toolbox and no Work IQ connection: api/ reads Work IQ on behalf of the user inside get_my_week (ADR-004).
+      API_MCP_URL: ${AZURE_API_URL}/mcp
+      BRIEFING_INSTRUCTIONS_VERSION: v1
+    startupCommand: python main.py
+    container:
+      resources:
+        cpu: "0.5"
+        memory: 1Gi
