@@ -56,9 +56,19 @@ struct MainTabView: View {
 
     @ViewBuilder private func content(for tab: AppTab) -> some View {
         switch tab {
-        case .announcements: FeedView(model: model, environment: environment, title: tab.title)
+        case .announcements:
+            if environment.mode.current == .agent {
+                AnnouncementAgentView(model: model, environment: environment)
+            } else {
+                FeedView(model: model, environment: environment, title: tab.title)
+            }
         case .more: MoreView(model: model, environment: environment)
-        case .vacation: VacationView(model: model, environment: environment, title: tab.title)
+        case .vacation:
+            if environment.mode.current == .agent {
+                VacationAgentView(model: model, environment: environment)
+            } else {
+                VacationView(model: model, environment: environment, title: tab.title)
+            }
         case .approvals:
             if let inbox, let team {
                 ManagerInboxView(

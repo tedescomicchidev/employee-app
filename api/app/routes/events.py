@@ -45,6 +45,9 @@ class ExperimentEvent(BaseModel):
     recovered: bool | None = None
     action: Literal["publish", "request", "cancel", "decide", "opt_in"] | None = None
     latency_ms: int | None = Field(default=None, ge=0)
+    latency_first_token_ms: int | None = Field(default=None, ge=0)  # agent_turn
+    latency_total_ms: int | None = Field(default=None, ge=0)  # agent_turn
+    tool_calls: int | None = Field(default=None, ge=0, le=100)  # agent_turn: a count, never names
     score: int | None = Field(default=None, ge=1, le=5)
 
 

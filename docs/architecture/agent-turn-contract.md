@@ -36,7 +36,7 @@ Exactly one `final` or `error` ends a stream. A stream that ends without either 
 Common: `kind`, `text` (<= 4000), `proposal_id`.
 - comms kinds: `message | clarification | proposal | published | refusal`; extra `sources: [{announcement_id, title}]` (<= 10), `reason`.
 - vacation kinds: `message | clarification | options | proposal | submitted | cancelled | decided | refusal`; extra `options: [{proposal_id, start, end}]` (<= 3), `reason`.
-- `reason` (refusal only): a short code `^[a-z][a-z_]{0,39}$`; the device maps known codes to copy and shows `text` for the rest.
+- `reason` (refusal only): a short code `^[a-z][a-z_]{0,39}$` (`write_without_confirmation`, `role_not_allowed`, `rule_bypass`, `out_of_scope`, `other_users_data`, `untrusted_instructions`, `unsupported_action`). The device always shows `text` (a generic line if it is empty); the code is not shown and is not logged by the device.
 - Grounding (api): a claimed write is kept only if the matching tool succeeded this turn; `proposal_id` must be the caller's own unexpired proposal; vacation option dates and comms source titles come from the store; sources the caller cannot see are dropped, and sources are cleared unless `kind = message`.
 - `tool_calls`: `[{name, ok}]`. Names only; the device maps them to localized labels.
 
@@ -44,3 +44,10 @@ Common: `kind`, `text` (<= 4000), `proposal_id`.
 Unchanged (auth-flows.md flow 3): the card is rendered from `GET /v1/proposals/{id}`; a tap calls
 `POST /v1/confirmations`; the next turn carries `confirmation`. Editing a draft is a new
 proposal from the agent (the old card becomes superseded on the device). Rejecting is device-side only.
+
+## Device behaviour (iOS)
+- History: the device keeps it, sends at most the last 20 messages, each cut to 4000 characters; a longer user message is not sent.
+- `delta` text is shown while it arrives and replaced by `final.reply.text`; VoiceOver is told once, when the reply is complete.
+- A line of the reply that starts with `>` is shown in the quoted data block (agent quoting an announcement); nothing in a reply is rendered as markup or a link.
+- Retry after a failure resends the same turn; after a failed confirmation turn it resends the same `confirmation_token` (idempotent).
+- `Retry-After` on 429 blocks the composer until it passes.

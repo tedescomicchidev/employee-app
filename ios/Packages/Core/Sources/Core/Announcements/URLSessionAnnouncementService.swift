@@ -11,7 +11,7 @@ public struct URLSessionAnnouncementService: AnnouncementService {
     }
 
     /// `"all"` or `{regions, stores, roles}`, exactly what `api/` hashes for the confirmation token.
-    private enum AudienceBody: Codable {
+    enum AudienceBody: Codable {
         case all
         case rule(regions: [String], stores: [String], roles: [String])
 
@@ -58,7 +58,7 @@ public struct URLSessionAnnouncementService: AnnouncementService {
         }
     }
 
-    private struct DraftBody: Codable {
+    struct DraftBody: Codable {
         let title: String, body: String, language: String, audience: AudienceBody
         init(_ draft: AnnouncementDraft) {
             title = draft.title; body = draft.body; language = draft.language.rawValue

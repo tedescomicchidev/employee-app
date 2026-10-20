@@ -36,7 +36,6 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 - NFR-005: latency targets will be measured from EXP-005 `api_call` records, which now exist per task run; no threshold test or dev measurement yet.
 - NFR-006: cost per task needs the EXP-005 records (CLASSIC call count and latency exist per task run) plus a computation that is not built.
 - A11Y-004: Reduce Motion, Bold Text, Increase Contrast and Reduce Transparency are not asserted by an automated test and have not been checked by hand in this phase; the high-contrast colour sets exist and are covered by the DesignSystem colour test.
-- A11Y-006: chat accessibility; AGENT mode only (phase 6).
 - A11Y-007: localised labels come from the same catalogs as NFR-009 (tested); the release-metadata claims half is phase 11.
 - NFR-014: `ci-check.sh` greps Bicep for four key-based-access patterns (`listKeys`, `listSecrets`, `adminUserEnabled: true`, `disableLocalAuth: false`). Not a general secret check; there is no secret scanner on code, plist or logs yet.
 - PRIV-001: `docs/privacy/data-inventory.yml` is maintained by hand in each PR; no automated diff check yet.

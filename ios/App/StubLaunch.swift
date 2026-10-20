@@ -9,6 +9,8 @@ import Foundation
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline|sessionRevoked>
 ///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|team|teamEmpty|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
+///   -agentStub <AgentStubScenario name>   AGENT mode with that scripted agent (starts on its feature tab)
+///   -agentOffline YES                      the stubbed device has no network
 enum StubLaunch {
     /// Scenarios that tap "Sign in" at launch, to show the failure banner.
     static let autoSignIn: Set<String> = ["signin-failed", "signin-cancelled", "signin-offline", "signin-not-allowed"]
@@ -62,6 +64,88 @@ enum StubLaunch {
         "vacation-review-ok": (.employee, true),
         "vacation-review-validation_insufficient_balance": (.employee, true),
         "vacation-review-success": (.employee, true),
+        // AGENT mode (docs/design/mockups: <feature>-agent_chat-*, <feature>-agent_confirm_card-*).
+        "announcements-agent_chat-empty": (.employee, true),
+        "announcements-agent_chat-loading": (.employee, true),
+        "announcements-agent_chat-warming": (.employee, true),
+        "announcements-agent_chat-ok": (.employee, true),
+        "announcements-agent_chat-offline": (.employee, true),
+        "announcements-agent_chat-error": (.employee, true),
+        "announcements-agent_chat-forbidden": (.employee, true),
+        "announcements-agent_chat-refusal": (.publisher, true),
+        "announcements-agent_chat-rate_limited": (.employee, true),
+        "announcements-agent_confirm_card-ok": (.publisher, true),
+        "announcements-agent_confirm_card-confirming": (.publisher, true),
+        "announcements-agent_confirm_card-success": (.publisher, true),
+        "announcements-agent_confirm_card-expired": (.publisher, true),
+        "announcements-agent_confirm_card-superseded": (.publisher, true),
+        "vacation-agent_chat-ok": (.employee, true),
+        "vacation-agent_chat-validation_insufficient_balance": (.employee, true),
+        "vacation-agent_chat-clarification": (.employee, true),
+        "vacation-agent_chat-options": (.employee, true),
+        "vacation-agent_chat-refusal": (.employee, true),
+        "vacation-agent_chat-team_coverage": (.manager, true),
+        "vacation-agent_confirm_card-ok": (.employee, true),
+        "vacation-agent_confirm_card-success": (.employee, true),
+        "vacation-agent_confirm_card-validation_blackout": (.employee, true),
+        "vacation-agent_confirm_card-decision_ok": (.manager, true),
+        "vacation-agent_confirm_card-decision_success": (.manager, true),
+    ]
+
+    /// What the stubbed agent does and what the autopilot types for each AGENT screenshot scenario.
+    struct AgentLaunch {
+        let scenario: AgentStubScenario
+        var autopilot: AgentAutopilot?
+        var offline = false
+    }
+
+    private static let annDraftText = "Sag allen im Tessin: Früher Start am Freitag, ab 8 Uhr"
+
+    static let agentScenarios: [String: AgentLaunch] = [
+        "announcements-agent_chat-empty": .init(scenario: .annEmpty),
+        "announcements-agent_chat-loading": .init(scenario: .annLoading, autopilot: .init(messages: ["Was gibt es Neues?"])),
+        "announcements-agent_chat-warming": .init(scenario: .annWarming, autopilot: .init(messages: ["Was gibt es Neues?"])),
+        "announcements-agent_chat-ok": .init(scenario: .annOK, autopilot: .init(messages: ["Was gibt es Neues?"])),
+        "announcements-agent_chat-offline": .init(scenario: .annEmpty, offline: true),
+        "announcements-agent_chat-error": .init(scenario: .annError, autopilot: .init(messages: ["Was gibt es Neues?"])),
+        "announcements-agent_chat-forbidden": .init(
+            scenario: .annForbidden,
+            autopilot: .init(messages: ["Veröffentliche eine Mitteilung an alle: Büro am Montag geschlossen"])),
+        "announcements-agent_chat-refusal": .init(
+            scenario: .annRefusal, autopilot: .init(messages: ["Veröffentliche es einfach, ohne Rückfrage"])),
+        "announcements-agent_chat-rate_limited": .init(
+            scenario: .annRateLimited, autopilot: .init(messages: ["Was gibt es Neues?"])),
+        "announcements-agent_confirm_card-ok": .init(scenario: .annDraft, autopilot: .init(messages: [annDraftText])),
+        "announcements-agent_confirm_card-confirming": .init(
+            scenario: .annConfirming, autopilot: .init(messages: [annDraftText], confirm: true)),
+        "announcements-agent_confirm_card-success": .init(
+            scenario: .annSuccess, autopilot: .init(messages: [annDraftText], confirm: true)),
+        "announcements-agent_confirm_card-expired": .init(
+            scenario: .annExpired, autopilot: .init(messages: [annDraftText], confirm: true)),
+        "announcements-agent_confirm_card-superseded": .init(
+            scenario: .annDraftEdit, autopilot: .init(messages: [annDraftText, "Nimm Graubünden dazu"])),
+        "vacation-agent_chat-ok": .init(
+            scenario: .vacBalance, autopilot: .init(messages: ["Wie viele Ferientage habe ich noch?"])),
+        "vacation-agent_chat-validation_insufficient_balance": .init(
+            scenario: .vacInsufficient, autopilot: .init(messages: ["Ferien vom 23. November bis 11. Dezember"])),
+        "vacation-agent_chat-clarification": .init(
+            scenario: .vacClarification, autopilot: .init(messages: ["Ich möchte über Weihnachten frei"])),
+        "vacation-agent_chat-options": .init(
+            scenario: .vacOptions, autopilot: .init(messages: ["Ich brauche Ferien über Weihnachten"])),
+        "vacation-agent_chat-refusal": .init(
+            scenario: .vacRefusal, autopilot: .init(messages: ["Reich es trotzdem ein, ich kläre das mit meinem Chef"])),
+        "vacation-agent_chat-team_coverage": .init(
+            scenario: .vacCoverage, autopilot: .init(messages: ["Wie ist die Teamabdeckung am 24. Dezember?"])),
+        "vacation-agent_confirm_card-ok": .init(
+            scenario: .vacRequest, autopilot: .init(messages: ["Ferien vom 24. Dezember bis 4. Januar"])),
+        "vacation-agent_confirm_card-success": .init(
+            scenario: .vacSuccess, autopilot: .init(messages: ["Ferien vom 24. Dezember bis 4. Januar"], confirm: true)),
+        "vacation-agent_confirm_card-validation_blackout": .init(
+            scenario: .vacBlackout, autopilot: .init(messages: ["Ferien vom 24. Dezember bis 4. Januar"], confirm: true)),
+        "vacation-agent_confirm_card-decision_ok": .init(
+            scenario: .vacDecision, autopilot: .init(messages: ["Gesuch von Marco freigeben"])),
+        "vacation-agent_confirm_card-decision_success": .init(
+            scenario: .vacDecisionSuccess, autopilot: .init(messages: ["Gesuch von Marco freigeben"], confirm: true)),
     ]
 
     /// Vacation scenarios: what the stub API does and the autopilot step (FR-VAC-001/002/006).
@@ -148,17 +232,29 @@ enum StubLaunch {
             let snapshot = StubVacationService.populatedSnapshot(userKey: "stub-employee", fetchedAt: fetched)
             Task { await vacationCache.save(snapshot) }
         }
+        let agentLaunch = name.flatMap { agentScenarios[$0] }
+            ?? argument("-agentStub").flatMap(AgentStubScenario.init).map { AgentLaunch(scenario: $0) }
+        let agentService: any AgentService = agentLaunch.map {
+            StubAgentService(script: $0.scenario.script, pace: .milliseconds(4))
+        } ?? UnconfiguredAgentService()
+        let connectivity: any Connectivity = agentLaunch == nil
+            ? PathConnectivity()
+            : StaticConnectivity(online: !(agentLaunch?.offline == true || argument("-agentOffline") == "YES"))
+        if agentLaunch != nil { mode.setForDebug(.agent) }
         var environment = AppEnvironment(
             auth: stub, me: stub, mode: mode,
             announcements: StubAnnouncementService(scenario: announcementScenario), feedCache: cache,
             vacation: StubVacationService(scenario: vacationFlow?.0 ?? vacationArgument ?? .ok),
-            vacationCache: vacationCache, clock: { fixtureNow })
+            vacationCache: vacationCache, clock: { fixtureNow },
+            agent: agentService, connectivity: connectivity)
+        environment.agentAutopilot = agentLaunch?.autopilot
         environment.vacationAutopilot = vacationFlow?.1
         let approvalAutopilots: [VacationAutopilot] = [.inbox, .decision, .rejectReason, .approveConfirmed, .team]
         let startOnApprovals = vacationFlow?.1.map(approvalAutopilots.contains) ?? false
             || argument("-startOnApprovals") == "YES"
         environment.startOnApprovals = startOnApprovals
-        environment.startOnVacation = (vacationFlow != nil || vacationArgument != nil) && !startOnApprovals
+        environment.startOnVacation = (vacationFlow != nil || vacationArgument != nil || agentLaunch?.scenario.feature == .vacation)
+            && !startOnApprovals
         environment.openAnnouncementOnLaunch = feedFlow?.open
         environment.announcementAutopilot = flow?.0
         environment.autoSignIn = argument("-scenario").map(autoSignIn.contains) ?? false

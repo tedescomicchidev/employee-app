@@ -12,7 +12,7 @@ public struct URLSessionVacationService: VacationService {
 
     // MARK: Wire types
 
-    private struct BalanceResponse: Decodable {
+    struct BalanceResponse: Decodable {
         let year: Int, entitlement: Int, approved: Int, pending: Int, remaining: Int
         let carriedOver: Int
         enum CodingKeys: String, CodingKey {
@@ -20,11 +20,11 @@ public struct URLSessionVacationService: VacationService {
             case carriedOver = "carried_over"
         }
     }
-    private struct ExcludedResponse: Decodable {
+    struct ExcludedResponse: Decodable {
         let date: String, kind: String
         let names: [String: String]?
     }
-    private struct ReviewResponse: Decodable {
+    struct ReviewResponse: Decodable {
         let countedDays: Int
         let perYear: [String: Int]
         let excluded: [ExcludedResponse]
@@ -47,7 +47,7 @@ public struct URLSessionVacationService: VacationService {
         let confirmationToken: String
         enum CodingKeys: String, CodingKey { case confirmationToken = "confirmation_token" }
     }
-    private struct RequestResponse: Decodable {
+    struct RequestResponse: Decodable {
         let id: String, status: String, start: String, end: String, approver: String
         let countedDays: Int
         let ownerName: String?
@@ -283,7 +283,7 @@ public struct URLSessionVacationService: VacationService {
         names[languageCode] ?? names["de"] ?? names["en"] ?? names.values.first
     }
 
-    private static func summary(_ r: RequestResponse) throws -> VacationRequestSummary {
+    static func summary(_ r: RequestResponse) throws -> VacationRequestSummary {
         guard let status = VacationStatus(rawValue: r.status), let start = CalendarDay(iso: r.start),
               let end = CalendarDay(iso: r.end)
         else { throw VacationError.failed(code: nil, correlationId: nil) }
@@ -298,7 +298,7 @@ public struct URLSessionVacationService: VacationService {
             })
     }
 
-    private static func review(_ r: ReviewResponse) -> VacationReview {
+    static func review(_ r: ReviewResponse) -> VacationReview {
         VacationReview(
             countedDays: r.countedDays,
             perYear: Dictionary(uniqueKeysWithValues: r.perYear.compactMap { key, value in Int(key).map { ($0, value) } }),

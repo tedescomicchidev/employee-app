@@ -32,6 +32,9 @@ public struct AppEnvironment: Sendable {
     public let clock: @Sendable () -> Date
     public let events: any EventSink
     public let taskContext: TaskContext
+    /// AGENT mode: chat turns, confirm cards and confirmations, always through `api/` (never Foundry).
+    public let agent: any AgentService
+    public let connectivity: any Connectivity
     #if DEBUG
     public var debug: DebugHooks?
     /// Screenshots: tap "Sign in" at launch so failure states are visible.
@@ -46,6 +49,8 @@ public struct AppEnvironment: Sendable {
     public var startOnVacation = false
     /// Screenshots and UI tests: start on the manager's approvals tab.
     public var startOnApprovals = false
+    /// Screenshots and UI tests: send these messages in the agent chat at launch, then optionally tap confirm.
+    public var agentAutopilot: AgentAutopilot?
     #endif
 
     public init(
@@ -60,7 +65,9 @@ public struct AppEnvironment: Sendable {
         vacationCache: VacationCache = VacationCache(),
         clock: @escaping @Sendable () -> Date = { Date() },
         events: any EventSink = MemoryEventSink(),
-        taskContext: TaskContext = TaskContext(participantId: UUID())
+        taskContext: TaskContext = TaskContext(participantId: UUID()),
+        agent: any AgentService = UnconfiguredAgentService(),
+        connectivity: any Connectivity = PathConnectivity()
     ) {
         self.auth = auth
         self.me = me
@@ -74,11 +81,14 @@ public struct AppEnvironment: Sendable {
         self.clock = clock
         self.events = events
         self.taskContext = taskContext
+        self.agent = agent
+        self.connectivity = connectivity
     }
 
     /// What sign-out removes (FR-AUTH-005): unsent drafts, the cached feed and the cached balance and
     /// requests, then whatever the app target owns (scheduled notifications, URL cache, queued events,
-    /// later agent conversation state). A re-sign-in after expiry does not run these.
+    /// agent conversation state, which lives in the chat models and goes with the signed-in screens).
+    /// A re-sign-in after expiry does not run these.
     public func registerSessionCleanup(also extra: [SessionCleaner.Hook] = []) async {
         let drafts = drafts, feedCache = feedCache, vacationCache = vacationCache
         await cleaner.register { await drafts.clear() }
@@ -126,6 +136,23 @@ public enum VacationAutopilot: String, Sendable {
         case .reviewInsufficient: ("2026-11-23", "2026-12-11")
         case .holidays, .mine, .detail, .cancelDialog, .inbox, .decision, .rejectReason, .approveConfirmed, .team: nil
         }
+    }
+}
+#endif
+
+#if DEBUG
+/// Drives the agent chat without taps so `screenshot.sh` can capture each state (AGENT UX).
+public struct AgentAutopilot: Sendable, Equatable {
+    public var messages: [String]
+    /// Tap the confirm card after the messages (the last card).
+    public var confirm: Bool
+    /// Pick the first offered range after the messages.
+    public var chooseFirstOption: Bool
+
+    public init(messages: [String], confirm: Bool = false, chooseFirstOption: Bool = false) {
+        self.messages = messages
+        self.confirm = confirm
+        self.chooseFirstOption = chooseFirstOption
     }
 }
 #endif

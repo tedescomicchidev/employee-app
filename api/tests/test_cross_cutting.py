@@ -49,6 +49,25 @@ def test_exp_003_task_error_carries_a_code_and_whether_the_user_recovered(env: E
     assert (stored.code, stored.recovered) == ("BLACKOUT", True)
 
 
+def test_exp_002_agent_turn_carries_latencies_and_a_tool_count_only(env: Env) -> None:
+    turn = event(
+        event="agent_turn", mode="agent", latency_first_token_ms=900, latency_total_ms=4200,
+        tool_calls=2,
+    )  # fmt: skip
+    r = env.client.post("/v1/events", json={"events": [turn]}, headers=env.headers("emp1"))
+    assert r.status_code == 202
+    stored = env.client.app.state.event_sink[-1]  # type: ignore[attr-defined]
+    assert (stored.latency_first_token_ms, stored.latency_total_ms, stored.tool_calls) == (
+        900,
+        4200,
+        2,
+    )
+    names = event(event="agent_turn", mode="agent", tool_calls=["list_announcements"])
+    assert env.client.post(
+        "/v1/events", json={"events": [names]}, headers=env.headers("emp1")
+    ).status_code == 422  # a count, never tool names  # fmt: skip
+
+
 @pytest.mark.parametrize(
     "bad",
     [
