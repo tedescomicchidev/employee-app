@@ -237,7 +237,10 @@ class MsalWorkIQClient:
         token = result.get("access_token")
         if not token:
             error = str(result.get("error") or "")  # an OAuth error code, never the description
-            raise WorkIQError(error_for_obo(error), f"obo:{error or 'unknown'}")
+            # The numeric AADSTS codes (for example 700211) say which setting Entra rejected.
+            numbers = [str(c) for c in result.get("error_codes") or [] if isinstance(c, int)]
+            suffix = f":{'+'.join(numbers)}" if numbers else ""
+            raise WorkIQError(error_for_obo(error), f"obo:{error or 'unknown'}{suffix}")
         rpc = _Rpc(self._url, str(token), self._timeout)
         rpc.start()
 

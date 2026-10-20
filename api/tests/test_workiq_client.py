@@ -239,3 +239,20 @@ def test_fr_brf_005_a_failure_names_its_stage_and_never_its_content(
     assert exc.value.code == UNAVAILABLE
     assert exc.value.stage == "rpc:-32602:call_function"
     assert secret not in caplog.text and "workiq-token" not in caplog.text
+
+
+def test_fr_brf_005_an_obo_failure_logs_its_entra_error_numbers_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = workiq.MsalWorkIQClient.__new__(workiq.MsalWorkIQClient)
+    rejected = {
+        "error": "invalid_client",
+        "error_codes": [700211],
+        "error_description": "AADSTS700211: No matching federated identity record for jane@example.com",
+    }
+    app = type("App", (), {"acquire_token_on_behalf_of": lambda self, a, scopes: rejected})()
+    monkeypatch.setattr(client, "_app_for", lambda _: app)
+    with pytest.raises(WorkIQError) as exc:
+        client.fetch_week("u", DAYS)
+    assert exc.value.stage == "obo:invalid_client:700211"
+    assert "jane" not in exc.value.stage and exc.value.code == UNAVAILABLE
