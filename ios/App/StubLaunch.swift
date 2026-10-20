@@ -9,6 +9,8 @@ import Foundation
 ///   -scenario <name>         screenshot.sh names, see `scenarios`
 ///   -announcementStub <ok|validation|publishFails|publishOffline|offline|forbidden|feedEmpty|feedError|feedLoading|feedOffline|sessionRevoked>
 ///   -vacationStub <ok|populated|history|cancelFails|manager|managerEmpty|managerDecided|managerBlocked|managerForbidden|decideFails|team|teamEmpty|loading|offline|error|cantonMissing|submitFails|submitOffline>   (starts on the vacation tab)
+///   -briefingStub <BriefingStubScenario name>   (starts on the Week tab)
+///   -notifications notDetermined               the device has not been asked about notifications yet
 ///   -agentStub <AgentStubScenario name>   AGENT mode with that scripted agent (starts on its feature tab)
 ///   -agentOffline YES                      the stubbed device has no network
 enum StubLaunch {
@@ -90,6 +92,46 @@ enum StubLaunch {
         "vacation-agent_confirm_card-validation_blackout": (.employee, true),
         "vacation-agent_confirm_card-decision_ok": (.manager, true),
         "vacation-agent_confirm_card-decision_success": (.manager, true),
+        // Weekly briefing (docs/design/mockups: briefing-<screen>-<state>).
+        "briefing-opt_in-ok": (.employee, true),
+        "briefing-opt_in-consent_in_progress": (.employee, true),
+        "briefing-opt_in-notification_permission": (.employee, true),
+        "briefing-week-ok": (.employee, true),
+        "briefing-week-loading": (.employee, true),
+        "briefing-week-empty": (.employee, true),
+        "briefing-week-partial": (.employee, true),
+        "briefing-week-offline": (.employee, true),
+        "briefing-week-error_workiq_unavailable": (.employee, true),
+        "briefing-week-error_no_licence": (.employee, true),
+        "briefing-week-error_consent_required": (.employee, true),
+        "briefing-day-ok": (.employee, true),
+        "briefing-settings-ok": (.employee, true),
+        "briefing-agent_chat-opt_in_offer": (.employee, true),
+        "briefing-agent_chat-loading": (.employee, true),
+        "briefing-agent_chat-ok": (.employee, true),
+        "briefing-agent_chat-declined_other_calendar": (.employee, true),
+        "briefing-agent_chat-error_workiq_unavailable": (.employee, true),
+        "briefing-agent_chat-consent_required": (.employee, true),
+        "briefing-agent_confirm_card-ok": (.employee, true),
+        "briefing-agent_confirm_card-success": (.employee, true),
+    ]
+
+    /// Briefing CLASSIC scenarios: what the stub API does, the autopilot step, and whether the device
+    /// has already decided about notifications (FR-BRF-001/002/003/005).
+    static let briefingScenarios: [String: (BriefingStubScenario, BriefingAutopilot, NotificationAuthorization)] = [
+        "briefing-opt_in-ok": (.optIn, .optIn, .allowed),
+        "briefing-opt_in-consent_in_progress": (.optInWorking, .consentInProgress, .allowed),
+        "briefing-opt_in-notification_permission": (.optIn, .notificationPermission, .notDetermined),
+        "briefing-week-ok": (.ok, .week, .allowed),
+        "briefing-week-loading": (.loading, .week, .allowed),
+        "briefing-week-empty": (.empty, .week, .allowed),
+        "briefing-week-partial": (.partial, .week, .allowed),
+        "briefing-week-offline": (.offline, .week, .allowed),
+        "briefing-week-error_workiq_unavailable": (.workIQUnavailable, .week, .allowed),
+        "briefing-week-error_no_licence": (.noLicence, .week, .allowed),
+        "briefing-week-error_consent_required": (.consentRequired, .week, .allowed),
+        "briefing-day-ok": (.ok, .day, .allowed),
+        "briefing-settings-ok": (.ok, .settings, .allowed),
     ]
 
     /// What the stubbed agent does and what the autopilot types for each AGENT screenshot scenario.
@@ -146,6 +188,22 @@ enum StubLaunch {
             scenario: .vacDecision, autopilot: .init(messages: ["Gesuch von Marco freigeben"])),
         "vacation-agent_confirm_card-decision_success": .init(
             scenario: .vacDecisionSuccess, autopilot: .init(messages: ["Gesuch von Marco freigeben"], confirm: true)),
+        "briefing-agent_chat-opt_in_offer": .init(
+            scenario: .brfOffer, autopilot: .init(messages: ["Wie sieht meine Woche aus?"])),
+        "briefing-agent_chat-loading": .init(
+            scenario: .brfLoading, autopilot: .init(messages: ["Wie sieht meine Woche aus?"])),
+        "briefing-agent_chat-ok": .init(
+            scenario: .brfOK, autopilot: .init(messages: ["Wie sieht meine Woche aus?"])),
+        "briefing-agent_chat-declined_other_calendar": .init(
+            scenario: .brfDeclined, autopilot: .init(messages: ["Was hat Anna am Donnerstag für Termine?"])),
+        "briefing-agent_chat-error_workiq_unavailable": .init(
+            scenario: .brfUnavailable, autopilot: .init(messages: ["Wie sieht meine Woche aus?"])),
+        "briefing-agent_chat-consent_required": .init(
+            scenario: .brfConsent, autopilot: .init(messages: ["Wie sieht meine Woche aus?"])),
+        "briefing-agent_confirm_card-ok": .init(
+            scenario: .brfOffer, autopilot: .init(messages: ["Schalte das Wochenbriefing ein"])),
+        "briefing-agent_confirm_card-success": .init(
+            scenario: .brfOptedIn, autopilot: .init(messages: ["Schalte das Wochenbriefing ein"], confirm: true)),
     ]
 
     /// Vacation scenarios: what the stub API does and the autopilot step (FR-VAC-001/002/006).
@@ -241,12 +299,20 @@ enum StubLaunch {
             ? PathConnectivity()
             : StaticConnectivity(online: !(agentLaunch?.offline == true || argument("-agentOffline") == "YES"))
         if agentLaunch != nil { mode.setForDebug(.agent) }
+        let briefingFlow = name.flatMap { briefingScenarios[$0] }
+        let briefingArgument = argument("-briefingStub").flatMap(BriefingStubScenario.init)
         var environment = AppEnvironment(
             auth: stub, me: stub, mode: mode,
             announcements: StubAnnouncementService(scenario: announcementScenario), feedCache: cache,
             vacation: StubVacationService(scenario: vacationFlow?.0 ?? vacationArgument ?? .ok),
-            vacationCache: vacationCache, clock: { fixtureNow },
+            vacationCache: vacationCache,
+            briefing: StubBriefingService(scenario: briefingFlow?.0 ?? briefingArgument ?? .ok),
+            briefingReminder: BriefingReminder(centre: StubNotificationCentre(
+                briefingFlow?.2 ?? (argument("-notifications") == "notDetermined" ? .notDetermined : .allowed))),
+            clock: { fixtureNow },
             agent: agentService, connectivity: connectivity)
+        environment.briefingAutopilot = briefingFlow?.1
+        environment.startOnWeek = briefingArgument != nil || agentLaunch?.scenario.feature == .briefing
         environment.agentAutopilot = agentLaunch?.autopilot
         environment.vacationAutopilot = vacationFlow?.1
         let approvalAutopilots: [VacationAutopilot] = [.inbox, .decision, .rejectReason, .approveConfirmed, .team]

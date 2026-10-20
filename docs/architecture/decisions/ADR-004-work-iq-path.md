@@ -1,6 +1,6 @@
 # ADR-004: Work IQ path
 
-Status: proposed, depends on spike S-2. Requirements: FR-BRF-001..005, FR-AUTH-004, PRIV-003, NFR-008.
+Status: accepted for implementation (phase 8); spike S-2 is **still unverified against the tenant**. Requirements: FR-BRF-001..005, FR-AUTH-004, PRIV-003, NFR-008.
 
 ## Context
 Goal 1 is to prove Work IQ works from a custom iOS app. Foundry offers a Work IQ tool (`work_iq_preview`) over A2A
@@ -39,3 +39,8 @@ Learn warns data may be processed outside the Azure compliance boundary.
 - learn.microsoft.com/microsoft-365/copilot/extensibility/work-iq/permissions
 - learn.microsoft.com/microsoft-365/copilot/extensibility/work-iq/mcp/overview
 - learn.microsoft.com/microsoft-365/copilot/extensibility/work-iq/mcp/quickstart/foundry
+
+## Implementation notes (phase 8)
+- Built as decided: `api/app/briefing/` (`MsalWorkIQClient`, OBO only), no Foundry Work IQ connection, no toolbox, no `ASWebAuthenticationSession`. A request to use a toolbox and `WORKIQ_CONNECTION_NAME` was set aside in favour of this ADR.
+- Consent: the iOS opt-in is the per-user consent record; a missing administrator consent is `CONSENT_REQUIRED` and the app tells the user to ask their administrator (no in-app consent flow exists on this path).
+- Calendar read: one `call_function /me/calendarView` per Zurich day (S-2 to confirm the surface and the response shape).

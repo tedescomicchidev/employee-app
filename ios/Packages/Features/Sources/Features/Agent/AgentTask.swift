@@ -7,6 +7,8 @@ import Foundation
 public enum AgentTask: Equatable, Sendable {
     case announcementsRead, announcementsPublish
     case vacationBalance, vacationRequest, vacationApproval, vacationCoverage
+    /// FR-BRF-001/002: asking for the week, including turning the briefing on first.
+    case briefingView
 
     public var taskId: String {
         switch self {
@@ -16,12 +18,14 @@ public enum AgentTask: Equatable, Sendable {
         case .vacationRequest: "T-VAC-REQ"
         case .vacationApproval: "T-VAC-APR"
         case .vacationCoverage: "T-VAC-COV"
+        case .briefingView: "T-BRF-VIEW"
         }
     }
 
     public var feature: String {
         switch self {
         case .announcementsRead, .announcementsPublish: "ann"
+        case .briefingView: "brf"
         default: "vac"
         }
     }
@@ -31,6 +35,7 @@ public enum AgentTask: Equatable, Sendable {
         switch self {
         case .announcementsPublish: .publish
         case .vacationApproval: .decide
+        case .briefingView: .optIn
         default: .request
         }
     }
@@ -63,6 +68,9 @@ public enum AgentTask: Equatable, Sendable {
                 return .vacationApproval
             case (.vacation, "get_team_coverage"):
                 return .vacationCoverage
+            case (.briefing, "get_briefing_status"), (.briefing, "get_my_week"),
+                 (.briefing, "propose_briefing_optin"), (.briefing, "set_briefing_optin"):
+                return .briefingView
             default: continue
             }
         }
@@ -71,6 +79,8 @@ public enum AgentTask: Equatable, Sendable {
 
     /// Whether this reply ends the task: a write result for writes, a plain answer for reads.
     func isCompleted(by reply: AgentReply, toolCalls: [AgentToolCall]) -> Bool {
+        // The week is shown: a summary backed by a successful `get_my_week` (or the "No events" answer).
+        if self == .briefingView { return reply.kind == .summary && toolCalls.contains { $0.name == "get_my_week" && $0.ok } }
         if isWrite { return reply.kind.isWriteResult }
         return reply.kind == .message && toolCalls.contains { $0.ok }
     }

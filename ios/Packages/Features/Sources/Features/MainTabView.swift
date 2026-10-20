@@ -46,11 +46,20 @@ struct MainTabView: View {
         self.environment = environment
         #if DEBUG
         _selection = State(
-            initialValue: environment.startOnApprovals ? .approvals : environment.startOnVacation ? .vacation : .announcements)
+            initialValue: Self.initialTab(environment, openedByNotification: model.briefingOpenRequests > 0))
         #else
-        _selection = State(initialValue: .announcements)
+        _selection = State(initialValue: model.briefingOpenRequests > 0 ? .week : .announcements)
         #endif
     }
+
+    #if DEBUG
+    private static func initialTab(_ environment: AppEnvironment, openedByNotification: Bool) -> AppTab {
+        if openedByNotification { return .week }
+        if let autopilot = environment.briefingAutopilot { return autopilot == .settings ? .more : .week }
+        if environment.startOnWeek { return .week }
+        return environment.startOnApprovals ? .approvals : environment.startOnVacation ? .vacation : .announcements
+    }
+    #endif
 
     private var session: Session? { model.session }
 
@@ -77,7 +86,12 @@ struct MainTabView: View {
             } else {
                 PlaceholderTab(title: tab.title, symbol: tab.symbol)
             }
-        case .week: PlaceholderTab(title: tab.title, symbol: tab.symbol)
+        case .week:
+            if environment.mode.current == .agent {
+                BriefingAgentView(model: model, environment: environment)
+            } else {
+                BriefingView(model: model, environment: environment, title: tab.title)
+            }
         }
     }
 
@@ -95,6 +109,8 @@ struct MainTabView: View {
                     .tag(tab)
             }
         }
+        // FR-BRF-003.2: the tap on "Your week is ready" opens the week, which reads the calendar at that moment.
+        .onChange(of: model.briefingOpenRequests) { selection = .week }
         .sheet(isPresented: $model.needsReauth) {
             ReauthSheet(model: model)
                 .interactiveDismissDisabled()

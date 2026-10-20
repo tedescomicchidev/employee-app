@@ -19,6 +19,7 @@ enum AgentCardPresenter {
         case .vacationCancel: L10n.agentCardDoneCancel
         case let .vacationDecision(decision, _, _):
             decision == .approve ? L10n.agentCardDoneApprove : L10n.agentCardDoneReject
+        case let .briefing(enabled): enabled ? L10n.brfCardDoneOn : L10n.brfCardDoneOff
         }
     }
 
@@ -70,6 +71,17 @@ enum AgentCardPresenter {
                 title: approve ? L10n.agentCardApproveTitle : L10n.agentCardRejectTitle, lines: lines,
                 confirmTitle: approve ? L10n.agentCardApproveConfirm : L10n.agentCardRejectConfirm,
                 footnote: L10n.agentCardDecisionFootnote)
+        case let .briefing(enabled):
+            // Names what is accessed, as the opt-in screen does (FR-BRF-001.2).
+            return AgentCardPresentation(
+                title: enabled ? L10n.brfCardOnTitle : L10n.brfCardOffTitle,
+                lines: [
+                    .init(L10n.brfCardFieldAccess, String(localized: L10n.brfCardValueCalendar)),
+                    .init(L10n.brfCardFieldVia, String(localized: L10n.brfCardValueWorkiq)),
+                    .init(L10n.brfCardFieldStored, String(localized: L10n.brfCardValueNothing)),
+                ],
+                confirmTitle: enabled ? L10n.brfCardOnConfirm : L10n.brfCardOffConfirm,
+                footnote: L10n.brfCardFootnote)
         }
     }
 }

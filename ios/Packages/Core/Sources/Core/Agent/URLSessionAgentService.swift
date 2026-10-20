@@ -44,8 +44,10 @@ public struct URLSessionAgentService: AgentService {
             let options: [Option]?
             let reason: String?
             let sources: [Source]?
+            let omittedCount: Int?
             enum CodingKeys: String, CodingKey {
                 case kind, text, options, reason, sources, proposalId = "proposal_id"
+                case omittedCount = "omitted_count"
             }
         }
         let reply: Reply
@@ -62,7 +64,8 @@ public struct URLSessionAgentService: AgentService {
                         return AgentOption(proposalId: raw.proposalId, start: start, end: end)
                     },
                     reason: reply.reason,
-                    sources: (reply.sources ?? []).map { AgentSource(announcementId: $0.announcementId, title: $0.title ?? "") }),
+                    sources: (reply.sources ?? []).map { AgentSource(announcementId: $0.announcementId, title: $0.title ?? "") },
+                    omittedCount: reply.omittedCount),
                 toolCalls: (toolCalls ?? []).map { AgentToolCall(name: $0.name, ok: $0.ok) })
         }
     }
@@ -72,6 +75,7 @@ public struct URLSessionAgentService: AgentService {
         let audience: URLSessionAnnouncementService.AudienceBody?
         let start: String?, end: String?
         let decision: String?, reason: String?
+        let enabled: Bool?
     }
     private struct CardResponse: Decodable {
         let proposalId: String
@@ -233,6 +237,9 @@ public struct URLSessionAgentService: AgentService {
             else { throw invalid }
             content = .vacationDecision(
                 decision: decision, reason: r.payload.reason, request: try URLSessionVacationService.summary(request))
+        case .briefing:
+            guard let enabled = r.payload.enabled else { throw invalid }
+            content = .briefing(enabled: enabled)
         }
         return AgentProposalCard(id: r.proposalId, kind: kind, content: content, expiresAt: expires)
     }

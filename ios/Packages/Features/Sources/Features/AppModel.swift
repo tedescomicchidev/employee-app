@@ -24,6 +24,9 @@ public final class AppModel {
     /// Last refresh failed for lack of network; the cached session stays on screen.
     public private(set) var isOffline = false
     public private(set) var isReauthenticating = false
+    /// FR-BRF-003.2: bumped when the Monday notification is tapped. The Week tab opens and reads the
+    /// week at that moment; a counter, not a flag, so a second tap reloads it again.
+    public private(set) var briefingOpenRequests = 0
 
     private let auth: any AuthService
     private let meService: any MeService
@@ -86,6 +89,9 @@ public final class AppModel {
         }
     }
 
+    /// The tap on "Your week is ready".
+    public func openBriefing() { briefingOpenRequests += 1 }
+
     /// Clears tokens, cached data, notifications and conversation state.
     public func signOut() async {
         // Local state is cleared even when removing the cached MSAL account fails.
@@ -94,6 +100,7 @@ public final class AppModel {
         await cleaner.clearAll()
         needsReauth = false
         isOffline = false
+        briefingOpenRequests = 0
         issue = signOutFailed ? .failed : nil
         phase = .signedOut
     }

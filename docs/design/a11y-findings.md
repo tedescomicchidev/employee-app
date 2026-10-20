@@ -12,6 +12,7 @@ agent. The audit test lists each as a known finding; a new finding fails the tes
 | F3 | News | announcement preview at the largest text size | Text clipped | `lineLimit(2)` on the preview in `FeedView`; the full text is one tap away, so decide whether the preview counts as critical content (A11Y-002). |
 | F4 | Vacation | "My requests" row | Contrast **failed** | Not confirmed which token pair; needs a design check. |
 | F5 | More | avatar initials "AM"; debug button | Contrast "nearly passed" | Avatar token pair. The debug button exists in DEBUG builds only. |
+| F6 | Week | "No events" row of an empty day (briefing) | Contrast **failed** | Found 2026-10-20. The row is `DSListRow` title text on the card colour, reported at the bottom edge of the screen where the translucent tab bar sits, so the cause may be the audit sampling the blurred bar and not the token pair; not confirmed on a device or by moving the row. Needs a design check. |
 
 Passing in the same run: element descriptions (A11Y-001) and hit regions (A11Y-005) on News, Vacation,
 Week, More and Approvals. A11Y-004 (Reduce Motion, Bold Text, Increase Contrast, Reduce Transparency) is

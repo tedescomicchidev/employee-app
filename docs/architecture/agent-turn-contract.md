@@ -1,6 +1,6 @@
 # Agent turn contract (device <-> api)
 
-`POST /v1/agent/{comms|vacation}/turns`. Bearer = the user's Entra token (`access_as_user`).
+`POST /v1/agent/{comms|vacation|briefing}/turns`. Bearer = the user's Entra token (`access_as_user`).
 The device never calls Foundry. Implemented in `api/app/routes/agent.py`, `api/app/agents/stream.py`.
 
 Foundry streaming source: Responses API server-sent events (`response.created`,
@@ -36,6 +36,7 @@ Exactly one `final` or `error` ends a stream. A stream that ends without either 
 Common: `kind`, `text` (<= 4000), `proposal_id`.
 - comms kinds: `message | clarification | proposal | published | refusal`; extra `sources: [{announcement_id, title}]` (<= 10), `reason`.
 - vacation kinds: `message | clarification | options | proposal | submitted | cancelled | decided | refusal`; extra `options: [{proposal_id, start, end}]` (<= 3), `reason`.
+- briefing kinds: `message | clarification | proposal | opted_in | summary | refusal`; extra `omitted_count` (summary only: events the text leaves out, 0 if none; the full week is the Briefing screen), `reason` (`write_without_confirmation`, `other_users_data`, `out_of_scope`, `untrusted_instructions`, `unsupported_action`). `proposal` is an opt-in or opt-out card (`GET /v1/proposals/{id}` type `briefing`). `opted_in` and `summary` are believed only if `set_briefing_optin` / `get_my_week` succeeded this turn.
 - `reason` (refusal only): a short code `^[a-z][a-z_]{0,39}$` (`write_without_confirmation`, `role_not_allowed`, `rule_bypass`, `out_of_scope`, `other_users_data`, `untrusted_instructions`, `unsupported_action`). The device always shows `text` (a generic line if it is empty); the code is not shown and is not logged by the device.
 - Grounding (api): a claimed write is kept only if the matching tool succeeded this turn; `proposal_id` must be the caller's own unexpired proposal; vacation option dates and comms source titles come from the store; sources the caller cannot see are dropped, and sources are cleared unless `kind = message`.
 - `tool_calls`: `[{name, ok}]`. Names only; the device maps them to localized labels.

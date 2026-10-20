@@ -55,9 +55,9 @@ entries:
     classification: personal
     purpose: unread badge
     source: app
-    storage: [cosmos]
+    storage: [in-memory store in api/ until the Cosmos repository lands (ADR-007); the record is deleted on opt-out]
     processors: [Azure Cosmos DB]
-    shared_with_agents: own state only
+    shared_with_agents: own state only (get_briefing_status)
     retention: HUMAN_CONFIRMATION_REQUIRED
     access: [self, api]
     requirements: [FR-ANN-003]
@@ -128,7 +128,8 @@ entries:
     classification: personal (potentially sensitive)
     purpose: weekly briefing for that user only
     source: Work IQ via user-delegated token (U-03)
-    storage: [none by default; in-memory per request (A-09)]
+    storage: [none; in-memory per request in api/, never cached, logged or written (A-09); on the device only in the screen that shows it, never on disk]
+    # AGENT mode: get_my_week results (event titles, locations, times) go to the model as untrusted tool output.
     processors: [Microsoft Work IQ / Microsoft 365, Foundry agent runtime when AGENT mode]
     shared_with_agents: own events only, as untrusted data, never reused for other users
     retention: not stored by default; HUMAN_CONFIRMATION_REQUIRED if that changes
