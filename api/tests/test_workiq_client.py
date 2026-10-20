@@ -256,3 +256,23 @@ def test_fr_brf_005_an_obo_failure_logs_its_entra_error_numbers_only(
         client.fetch_week("u", DAYS)
     assert exc.value.stage == "obo:invalid_client:700211"
     assert "jane" not in exc.value.stage and exc.value.code == UNAVAILABLE
+
+
+@pytest.mark.parametrize(
+    ("error", "numbers", "code"),
+    [
+        (
+            "invalid_grant",
+            [65001],
+            CONSENT_REQUIRED,
+        ),  # the app was not consented: an administrator's job
+        ("invalid_grant", [90094], CONSENT_REQUIRED),
+        ("invalid_grant", [50173], REAUTH),  # the sign-in was revoked: sign in again
+        ("invalid_grant", [], REAUTH),
+        ("invalid_client", [700211], UNAVAILABLE),
+    ],
+)
+def test_fr_brf_005_invalid_grant_is_consent_only_when_entra_says_so(
+    error: str, numbers: list[int], code: str
+) -> None:
+    assert error_for_obo(error, numbers) == code

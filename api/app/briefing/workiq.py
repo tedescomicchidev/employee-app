@@ -71,8 +71,14 @@ def error_for_status(status: int, body: str) -> str:
     return UNAVAILABLE
 
 
-def error_for_obo(error: str) -> str:
-    if error == "consent_required":
+# Entra codes for "the app was not consented for this permission" (65001) or "no administrator
+# approved it for the tenant" (90094, 90095, 65005). `invalid_grant` carries them, so it is not
+# always a session problem: only the other codes (revoked or expired sign-in) mean "sign in again".
+_CONSENT_CODES = frozenset({65001, 65005, 90094, 90095, 90008})
+
+
+def error_for_obo(error: str, numbers: Sequence[int] = ()) -> str:
+    if error == "consent_required" or _CONSENT_CODES & set(numbers):
         return CONSENT_REQUIRED
     if error in ("interaction_required", "invalid_grant"):
         return REAUTH
@@ -238,9 +244,9 @@ class MsalWorkIQClient:
         if not token:
             error = str(result.get("error") or "")  # an OAuth error code, never the description
             # The numeric AADSTS codes (for example 700211) say which setting Entra rejected.
-            numbers = [str(c) for c in result.get("error_codes") or [] if isinstance(c, int)]
-            suffix = f":{'+'.join(numbers)}" if numbers else ""
-            raise WorkIQError(error_for_obo(error), f"obo:{error or 'unknown'}{suffix}")
+            codes = [c for c in result.get("error_codes") or [] if isinstance(c, int)]
+            suffix = f":{'+'.join(str(c) for c in codes)}" if codes else ""
+            raise WorkIQError(error_for_obo(error, codes), f"obo:{error or 'unknown'}{suffix}")
         rpc = _Rpc(self._url, str(token), self._timeout)
         rpc.start()
 
