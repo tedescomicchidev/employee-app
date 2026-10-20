@@ -44,6 +44,7 @@ struct AnnouncementAgentView: View {
     let model: AppModel
     let environment: AppEnvironment
     @State private var chat: AgentChatModel?
+    @State private var chatOwner: String?
     @State private var feed: FeedModel?
     @State private var path: [String] = []
     #if DEBUG
@@ -69,16 +70,18 @@ struct AnnouncementAgentView: View {
                     Button { chat?.newConversation() } label: {
                         Label { Text(L10n.agentNew) } icon: { Image(systemName: "square.and.pencil") }
                     }
-                    .disabled(chat?.isEmpty ?? true)
+                    .disabled(chat.map { $0.isEmpty || !$0.canStartOver } ?? true)
                     .accessibilityIdentifier("agent.new")
                 }
             }
         }
         .task(id: model.session?.oid) {
             guard let session = model.session else { return }
-            if chat == nil {
+            if chat == nil || chatOwner != session.oid {  // another account never sees this one's chat
                 chat = AgentChat.make(feature: .comms, model: model, environment: environment)
                 feed = makeFeed(session)
+                chatOwner = session.oid
+                path = []
             }
             #if DEBUG
             if let chat, !autopilotRan, let autopilot = environment.agentAutopilot {
@@ -126,6 +129,7 @@ struct VacationAgentView: View {
     let model: AppModel
     let environment: AppEnvironment
     @State private var chat: AgentChatModel?
+    @State private var chatOwner: String?
     @State private var overview: VacationOverviewModel?
     @State private var path: [VacationView.Route] = []
     #if DEBUG
@@ -155,16 +159,18 @@ struct VacationAgentView: View {
                     Button { chat?.newConversation() } label: {
                         Label { Text(L10n.agentNew) } icon: { Image(systemName: "square.and.pencil") }
                     }
-                    .disabled(chat?.isEmpty ?? true)
+                    .disabled(chat.map { $0.isEmpty || !$0.canStartOver } ?? true)
                     .accessibilityIdentifier("agent.new")
                 }
             }
         }
         .task(id: model.session?.oid) {
             guard let session = model.session else { return }
-            if chat == nil {
+            if chat == nil || chatOwner != session.oid {  // another account never sees this one's chat
                 chat = AgentChat.make(feature: .vacation, model: model, environment: environment)
                 overview = makeOverview(session)
+                chatOwner = session.oid
+                path = []
             }
             #if DEBUG
             if let chat, !autopilotRan, let autopilot = environment.agentAutopilot {

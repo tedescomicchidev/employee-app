@@ -113,7 +113,8 @@ struct AgentChatView: View {
             VStack(alignment: .leading, spacing: DSSpacing.xxs) {
                 switch problem {
                 case .offline:
-                    DSBanner(.offline, message: Text(L10n.agentProblemOffline))
+                    DSBanner(.offline, message: Text(L10n.agentProblemOffline),
+                             actionTitle: L10n.agentRetry, action: model.retry)
                 case .signedOut:
                     DSBanner(.error, message: Text(L10n.agentProblemSignedOut),
                              actionTitle: L10n.agentRetry, action: model.retry)
@@ -245,9 +246,9 @@ private struct AgentCardView: View {
                         DSButton(L10n.agentSuccessRequests, kind: .soft, action: openRequests)
                             .accessibilityIdentifier("agent.card.requests")
                     }
-                    if case .failed = card.state {
-                        DSButton(L10n.agentRetry, kind: .soft) { model.retry() }
-                            .disabled(model.problem == nil)
+                    if case .failed(nil) = card.state {
+                        DSButton(L10n.agentRetry, kind: .soft) { model.retryCard(proposalId: card.proposalId) }
+                            .disabled(!model.canRetryCard(card.proposalId))
                             .accessibilityIdentifier("agent.card.retry")
                     }
                 } else {
@@ -273,8 +274,9 @@ private struct AgentCardView: View {
     private var stateMessage: Text? {
         switch card.state {
         case .loading, .proposal, .executing: nil
-        case let .success(text): Text(verbatim: text.isEmpty ? String(localized: L10n.agentCardSuccess) : text)
-        case let .failed(text): Text(verbatim: text ?? String(localized: L10n.agentCardFailed))
+        case .success: card.card.map { Text(AgentCardPresenter.successText($0.content)) }
+        case .failed(nil): Text(L10n.agentCardFailed)
+        case .failed: Text(L10n.agentCardNotDone)  // the agent's explanation is the reply above
         case .expired: Text(L10n.agentCardExpired)
         case .superseded: Text(L10n.agentCardSuperseded)
         case .cancelled: Text(L10n.agentCardCancelled)

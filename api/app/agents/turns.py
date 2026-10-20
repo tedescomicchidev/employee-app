@@ -6,6 +6,7 @@ only ever carries a proposal *id* (auth-flows.md flow 3, assumption A-13).
 
 import json
 import math
+import re
 import threading
 import time
 from collections import defaultdict, deque
@@ -14,7 +15,7 @@ from datetime import date
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from app.vacation.models import ACTION_REQUEST
 
@@ -62,8 +63,24 @@ class TurnRequest(BaseModel):
     confirmation: Confirmation | None = None
 
 
-REASON_PATTERN = r"^[a-z][a-z_]{0,39}$"
+COMMS_REASONS = (
+    "write_without_confirmation", "role_not_allowed", "out_of_scope", "other_users_data",
+    "untrusted_instructions", "unsupported_action",
+)  # fmt: skip
+VACATION_REASONS = (
+    "write_without_confirmation", "role_not_allowed", "rule_bypass", "out_of_scope",
+    "other_users_data", "untrusted_instructions", "unsupported_action",
+)  # fmt: skip
+FALLBACK_REASON = "unsupported_action"
 MAX_SOURCES = 10
+
+
+def _known_reason(value: Any, allowed: tuple[str, ...]) -> Any:
+    """A refusal reason is a closed set. An unknown code is still a refusal, so it is mapped to the
+    generic one instead of failing the whole reply (which would show the model's raw output)."""
+    if value is None or value in allowed:
+        return value
+    return FALLBACK_REASON
 
 
 class Source(BaseModel):
@@ -81,8 +98,13 @@ class AgentReply(BaseModel):
     kind: Literal["message", "clarification", "proposal", "published", "refusal"] = "message"
     text: str = Field(default="", max_length=4000)
     proposal_id: UUID | None = None
-    reason: str | None = Field(default=None, pattern=REASON_PATTERN)
+    reason: str | None = None
     sources: list[Source] = Field(default_factory=list, max_length=MAX_SOURCES)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _reason(cls, value: Any) -> Any:
+        return _known_reason(value, COMMS_REASONS)
 
 
 class VacationOption(BaseModel):
@@ -111,7 +133,12 @@ class VacationReply(BaseModel):
     text: str = Field(default="", max_length=4000)
     proposal_id: UUID | None = None
     options: list[VacationOption] = Field(default_factory=list, max_length=3)
-    reason: str | None = Field(default=None, pattern=REASON_PATTERN)
+    reason: str | None = None
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _reason(cls, value: Any) -> Any:
+        return _known_reason(value, VACATION_REASONS)
 
 
 @dataclass(frozen=True)
@@ -190,9 +217,16 @@ def parse_reply(response: dict[str, Any], agent: str = "comms") -> AgentReply | 
     text = output_text(response)
     model = VacationReply if agent == "vacation" else AgentReply
     try:
-        reply = model.model_validate(json.loads(text))
-    except (ValueError, ValidationError):
-        return model(kind="message", text=text[:4000])
+        data = json.loads(text)
+    except ValueError:
+        return model(kind="message", text=text[:4000])  # plain text, as the model wrote it
+    try:
+        reply = model.model_validate(data)
+    except ValidationError:
+        # A structured reply that broke the schema (too many sources, a bad kind, an extra field):
+        # keep only its text. The raw JSON is never shown to the user.
+        salvaged = data.get("text") if isinstance(data, dict) else None
+        return model(kind="message", text=salvaged[:4000] if isinstance(salvaged, str) else "")
     # A claimed write is only believed when the tool really succeeded in this turn.
     claim_tool = CLAIM_TOOLS.get(agent, {}).get(reply.kind)
     if claim_tool and not any(
@@ -225,7 +259,13 @@ def ground_vacation_reply(reply: VacationReply, service: Any, principal: Any) ->
 
     if reply.kind == "proposal" and stored(reply.proposal_id) is None:
         return VacationReply(kind="message", text=reply.text)
+    if reply.kind not in ("proposal", "options"):
+        # No card and no chooser for this kind: a stray id or range cannot become one.
+        reply = reply.model_copy(update={"proposal_id": None, "options": []})
+    if reply.kind != "refusal" and reply.reason is not None:
+        reply = reply.model_copy(update={"reason": None})
     if reply.kind == "options":
+        reply = reply.model_copy(update={"proposal_id": None})
         grounded = []
         for option in reply.options:
             proposal = stored(option.proposal_id, ACTION_REQUEST)
@@ -243,22 +283,48 @@ def ground_vacation_reply(reply: VacationReply, service: Any, principal: Any) ->
     return reply
 
 
-def ground_comms_reply(reply: AgentReply, service: Any, principal: Any) -> AgentReply:
+TOOL_ID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+ANNOUNCEMENT_TOOLS = ("list_announcements", "get_announcement")
+
+
+def announcement_ids_read(response: dict[str, Any]) -> set[str]:
+    """Ids of the announcements this turn's read tools returned. An answer may only cite these, so
+    the model cannot cite one it did not read (one it never opened, or one a tool result named)."""
+    found: set[str] = set()
+    for call in tool_calls(response):
+        if call.get("name") not in ANNOUNCEMENT_TOOLS or call.get("error"):
+            continue
+        output = call.get("output")
+        text = output if isinstance(output, str) else json.dumps(output, default=str)
+        found.update(match.lower() for match in TOOL_ID.findall(text))
+    return found
+
+
+def ground_comms_reply(
+    reply: AgentReply, service: Any, principal: Any, read_ids: set[str] | None = None
+) -> AgentReply:
     """Tie the reply to what the api stored or shows this user (FR-ANN-001, FR-ANN-003).
 
-    A proposal id must be the caller's own, unexpired proposal. A source must be an announcement
-    this user can see; its title comes from the store, never from the model. Sources only
-    accompany a plain answer. Anything that does not resolve is dropped or downgraded.
+    A proposal id must be the caller's own, unexpired proposal. A source must be an announcement the
+    turn's tools returned AND this user can see; its title comes from the store, not from the model.
+    Fields that do not belong to the reply's kind are cleared, so a stray id cannot become a card.
+    Anything that does not resolve is dropped or downgraded.
     """
     if reply.kind == "proposal":
         try:
             service.get_proposal(principal, str(reply.proposal_id))
         except Exception:  # ApiError: unknown, someone else's or expired look the same
             return AgentReply(kind="message", text=reply.text)
-    if reply.kind != "message":
-        return reply.model_copy(update={"sources": []})
+    update: dict[str, Any] = {}
+    if reply.kind != "proposal":
+        update["proposal_id"] = None
+    if reply.kind != "refusal":
+        update["reason"] = None
+    allowed = read_ids if read_ids is not None else set()
     sources: list[Source] = []
-    for source in reply.sources:
+    for source in reply.sources if reply.kind == "message" else []:
+        if str(source.announcement_id).lower() not in allowed:
+            continue
         if any(s.announcement_id == source.announcement_id for s in sources):
             continue
         try:
@@ -266,13 +332,20 @@ def ground_comms_reply(reply: AgentReply, service: Any, principal: Any) -> Agent
         except Exception:
             continue
         sources.append(Source(announcement_id=source.announcement_id, title=announcement.title))
-    return reply.model_copy(update={"sources": sources})
+    update["sources"] = sources
+    return reply.model_copy(update=update)
 
 
-def ground_reply(reply: AgentReply | VacationReply, state: Any, principal: Any) -> Any:
+def ground_reply(
+    reply: AgentReply | VacationReply,
+    state: Any,
+    principal: Any,
+    response: dict[str, Any] | None = None,
+) -> Any:
     if isinstance(reply, VacationReply):
         return ground_vacation_reply(reply, state.vacation_service, principal)
-    return ground_comms_reply(reply, state.announcement_service, principal)
+    read_ids = announcement_ids_read(response) if response is not None else set()
+    return ground_comms_reply(reply, state.announcement_service, principal, read_ids)
 
 
 def run_record(response: dict[str, Any], task_run_id: UUID | None, latency_ms: int) -> AgentRun:

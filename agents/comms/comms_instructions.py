@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-DEFAULT_VERSION = "v1"
+DEFAULT_VERSION = "v2"
 _DIR = Path(__file__).parent / "prompts"
 
 

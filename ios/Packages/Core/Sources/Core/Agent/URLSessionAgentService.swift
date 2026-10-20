@@ -141,6 +141,8 @@ public struct URLSessionAgentService: AgentService {
                     continuation.finish(throwing: error)
                 } catch let error as URLError where error.code == .cancelled {
                     continuation.finish()
+                } catch let error as URLError where error.code == .timedOut {
+                    continuation.finish(throwing: AgentError.unavailable)  // slow, not offline
                 } catch let error as URLError where Self.offlineCodes.contains(error.code) {
                     continuation.finish(throwing: AgentError.offline)
                 } catch {
@@ -263,6 +265,8 @@ public struct URLSessionAgentService: AgentService {
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw AgentError.unavailable  // slow, not offline
         } catch let error as URLError where Self.offlineCodes.contains(error.code) {
             throw AgentError.offline
         } catch {
@@ -295,6 +299,6 @@ public struct URLSessionAgentService: AgentService {
     }
 
     private static let offlineCodes: Set<URLError.Code> = [
-        .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .timedOut, .dataNotAllowed,
+        .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .dataNotAllowed,
     ]
 }

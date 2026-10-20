@@ -10,6 +10,18 @@ struct AgentCardPresentation {
 }
 
 enum AgentCardPresenter {
+    /// What the card says once the write is done: the app's own words, from the stored proposal. The agent's
+    /// sentence appears in the transcript, but a model-written claim is never what the card asserts (A-13).
+    static func successText(_ content: AgentProposalCard.Content) -> LocalizedStringResource {
+        switch content {
+        case let .announcement(_, count): L10n.annSuccessTitle(count)
+        case .vacation: L10n.agentCardDoneRequest
+        case .vacationCancel: L10n.agentCardDoneCancel
+        case let .vacationDecision(decision, _, _):
+            decision == .approve ? L10n.agentCardDoneApprove : L10n.agentCardDoneReject
+        }
+    }
+
     static func present(_ content: AgentProposalCard.Content) -> AgentCardPresentation {
         switch content {
         case let .announcement(draft, count):

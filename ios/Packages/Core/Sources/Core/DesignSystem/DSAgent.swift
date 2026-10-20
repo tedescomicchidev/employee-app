@@ -248,7 +248,7 @@ public struct DSComposer: View {
                 Button(action: onStop) {
                     Image(systemName: "stop.fill").font(DSFont.button).foregroundStyle(Color.white)
                         .frame(width: DSSize.touch, height: DSSize.touch)
-                        .background(DSColor.ink, in: Circle())
+                        .background(DSColor.tint, in: Circle())
                 }
                 .accessibilityLabel(Text(stopLabel))
                 .accessibilityIdentifier("agent.stop")

@@ -91,10 +91,27 @@ public final class AgentChatModel {
     private var turnTask: Task<Void, Never>?
     private var rateLimitTask: Task<Void, Never>?
     /// What a retry sends again: the confirmation of the failed turn, if it was one (the token is idempotent).
-    private var retryConfirmation: AgentConfirmation?
-    private var retryProposalId: String?
-    /// A failure while minting the token: retry asks for the token again (nothing was sent to the agent).
-    private var retryMint: String?
+    /// What "try again" repeats. One value, replaced by every new turn, so a retry can never repeat a
+    /// confirmation the user is no longer looking at (FR-AUTH-006).
+    private enum Retry: Equatable {
+        /// A plain turn: the history is resent.
+        case turn
+        /// Minting the token failed: ask for it again (nothing reached the agent).
+        case mint(proposalId: String)
+        /// The confirmation turn failed: resend it with the same token (idempotent).
+        case confirmationTurn(AgentConfirmation)
+    }
+
+    private var retryAction: Retry?
+    /// Bumped by `newConversation`: work started in an older conversation must not touch the new one.
+    private var generation = 0
+    /// The proposal the user is meant to look at: the newest one asked for. A card that finishes loading
+    /// for any other id (two quick taps on offered ranges) is superseded instead of becoming confirmable.
+    private var activeProposalId: String?
+    private var expiryTasks: [String: Task<Void, Never>] = [:]
+    /// Events of a chat whose task is not known yet; flushed once the first tool names it.
+    private var pendingErrors: [String] = []
+    private var pendingTaps = 0
 
     private var flow: TaskFlow?
     private var flowTask: AgentTask?
@@ -136,6 +153,18 @@ public final class AgentChatModel {
     }
 
     public var canType: Bool { !isOffline && phase != .executing }
+    /// Starting over while a confirmed write is in flight would hide its result.
+    public var canStartOver: Bool { phase != .executing }
+
+    /// The card's own "try again": only for the card whose confirmation failed, whatever the banner says.
+    public func canRetryCard(_ proposalId: String) -> Bool {
+        guard !isBusy, !isOffline, !isRateLimited else { return false }
+        switch retryAction {
+        case let .mint(id): return id == proposalId
+        case let .confirmationTurn(confirmation): return confirmation.proposalId == proposalId
+        default: return false
+        }
+    }
 
     public var canSend: Bool {
         !isBusy && !isOffline && !isRateLimited
@@ -175,7 +204,7 @@ public final class AgentChatModel {
     public func monitorConnectivity() async {
         for await online in connectivity.updates() {
             isOffline = !online
-            if online, problem == .offline { problem = nil }
+            if online, problem == .offline { problem = nil }  // the banner's cause is gone
         }
     }
 
@@ -190,7 +219,7 @@ public final class AgentChatModel {
             return
         }
         draft = ""
-        flow?.tap()
+        tap()
         noteUserMessage()
         append(.user(message))
         history.append(AgentMessage(role: .user, content: message))
@@ -200,25 +229,42 @@ public final class AgentChatModel {
     /// A vacation range the agent offered: shown as the user's choice, then its stored proposal becomes a card.
     public func choose(_ option: AgentOption, label: String) {
         guard !isBusy else { return }
-        flow?.tap()
+        tap()
         noteUserMessage()
         append(.user(label))
         history.append(AgentMessage(role: .user, content: label))
         problem = nil
+        retryAction = nil
+        activeProposalId = option.proposalId
         supersedeOpenCards(except: option.proposalId)
-        Task { await showCard(option.proposalId) }
+        let id = option.proposalId
+        Task { [weak self] in await self?.showCard(id) }
     }
 
-    /// Resends the failed turn. A failed confirmation turn resends the same token, so a write that did
-    /// happen is not repeated (FR-AUTH-006, idempotent).
+    /// Resends the failed turn (the banner's "try again"). A failed confirmation turn resends the same
+    /// token, so a write that did happen is not repeated (FR-AUTH-006, idempotent).
     public func retry() {
-        guard !isBusy, problem != nil, problem != .stopped else { return }
-        flow?.tap()
-        if let id = retryMint, let content = card(id)?.card {
-            retryMint = nil
+        guard !isBusy, !isOffline, !isRateLimited, problem != nil, problem != .stopped, let action = retryAction
+        else { return }
+        perform(retry: action)
+    }
+
+    /// The card's button: the same as the banner's, but it does not depend on the banner being there.
+    public func retryCard(proposalId: String) {
+        guard canRetryCard(proposalId), let action = retryAction else { return }
+        perform(retry: action)
+    }
+
+    private func perform(retry action: Retry) {
+        tap()
+        switch action {
+        case .turn:
+            run(confirmation: nil, proposalId: nil)
+        case let .mint(id):
+            guard let content = card(id)?.card else { return }
             startConfirmation(id, content)
-        } else {
-            run(confirmation: retryConfirmation, proposalId: retryProposalId)
+        case let .confirmationTurn(confirmation):
+            run(confirmation: confirmation, proposalId: confirmation.proposalId)
         }
     }
 
@@ -229,21 +275,25 @@ public final class AgentChatModel {
         removeStreaming()
         phase = .idle
         problem = .stopped
+        announce(L10n.agentProblemStopped)
     }
 
     public func newConversation() {
+        guard canStartOver else { return }
+        generation += 1
+        activeProposalId = nil
         turnTask?.cancel()
         turnTask = nil
         rateLimitTask?.cancel()
+        expiryTasks.values.forEach { $0.cancel() }
+        expiryTasks = [:]
         flow?.abandon(lastState: "new_conversation")
         items = []
         history = []
         phase = .idle
         problem = nil
         draft = ""
-        retryConfirmation = nil
-        retryProposalId = nil
-        retryMint = nil
+        retryAction = nil
         resetTask()
     }
 
@@ -256,15 +306,21 @@ public final class AgentChatModel {
             setCard(proposalId, .expired)
             return
         }
-        flow?.tap()
+        tap()
         flow?.confirmAccepted()
         startConfirmation(proposalId, content)
     }
 
     private func startConfirmation(_ proposalId: String, _ content: AgentProposalCard) {
+        guard content.expiresAt > now() else {
+            setCard(proposalId, .expired)
+            return
+        }
         setCard(proposalId, .executing)
         phase = .executing
         problem = nil
+        retryAction = nil
+        expiryTasks[proposalId]?.cancel()
         turnTask = Task {
             do {
                 let token = try await TaskRun.$current.withValue(runId) {
@@ -273,21 +329,17 @@ public final class AgentChatModel {
                 }
                 guard !Task.isCancelled else { return }
                 let confirmation = AgentConfirmation(proposalId: proposalId, token: token)
-                retryConfirmation = confirmation
-                retryProposalId = proposalId
+                retryAction = .confirmationTurn(confirmation)  // the same token on every retry
                 await perform(confirmation: confirmation, proposalId: proposalId)
             } catch {
+                guard !Task.isCancelled, !(error is CancellationError) else { return }
                 phase = .idle
-                switch error as? AgentError {
+                switch normalized(error) {
                 case .invalidConfirmation, .notFound:
                     setCard(proposalId, .expired)
-                case .offline:
-                    setCard(proposalId, .proposal)
-                    isOffline = true
-                    problem = .offline
                 default:
                     setCard(proposalId, .failed(nil))
-                    retryMint = proposalId
+                    retryAction = .mint(proposalId: proposalId)
                     fail(error)
                 }
             }
@@ -296,7 +348,7 @@ public final class AgentChatModel {
 
     public func cancel(proposalId: String) {
         guard !isBusy, card(proposalId)?.state == .proposal else { return }
-        flow?.tap()
+        tap()
         flow?.confirmRejected()
         setCard(proposalId, .cancelled)
         // The agent only knows what the history says; a declined card must not look pending to it.
@@ -306,8 +358,8 @@ public final class AgentChatModel {
     // MARK: Turn
 
     private func run(confirmation: AgentConfirmation?, proposalId: String?) {
-        retryConfirmation = confirmation
-        retryProposalId = proposalId
+        // A new turn replaces whatever a retry would have repeated, so the banner can only ever retry this one.
+        retryAction = confirmation.map(Retry.confirmationTurn) ?? .turn
         problem = nil
         phase = confirmation == nil ? .thinking : .executing
         if let proposalId { setCard(proposalId, .executing) }
@@ -344,24 +396,34 @@ public final class AgentChatModel {
                     showStreaming(streamed)
                     if confirmation == nil { phase = .streaming }
                 case let .final(result):
+                    guard !Task.isCancelled else { return }  // stopped or superseded: do not apply a late reply
                     await finish(result, confirmation: confirmation, proposalId: proposalId)
                     return
                 }
             }
             if Task.isCancelled { return }  // stopped: `stop()` already cleaned up
             throw AgentError.interrupted
-        } catch is CancellationError {
-            return
-        } catch AuthError.interactionRequired {
-            removeStreaming()
-            onReauthNeeded()
-            failTurn(.signedOut, code: "UNAUTHENTICATED", proposalId: proposalId)
         } catch {
-            if Task.isCancelled { return }
+            if Task.isCancelled || error is CancellationError { return }
             removeStreaming()
-            if let proposalId { setCard(proposalId, .failed(nil)) }
             phase = .idle
+            if case .invalidConfirmation = normalized(error), let proposalId {
+                setCard(proposalId, .expired)  // the token expired or was already used
+                retryAction = nil
+                return
+            }
+            if let proposalId { setCard(proposalId, .failed(nil)) }
             fail(error)
+        }
+    }
+
+    /// Auth and transport errors in the vocabulary the screen understands.
+    private func normalized(_ error: Error) -> AgentError {
+        switch error {
+        case let error as AgentError: error
+        case AuthError.offline: .offline
+        case AuthError.interactionRequired: .unauthenticated
+        default: .failed(code: nil, correlationId: nil)
         }
     }
 
@@ -369,11 +431,8 @@ public final class AgentChatModel {
         removeStreaming()
         let reply = result.reply
         phase = .idle
-        isOffline = false
         problem = nil
-        retryConfirmation = nil
-        retryProposalId = nil
-        retryMint = nil
+        retryAction = nil
 
         resolveFlow(result.toolCalls)
         let elapsed = Int(now().timeIntervalSince(turnStartedAt) * 1000)
@@ -384,15 +443,20 @@ public final class AgentChatModel {
         if !reply.text.isEmpty {
             history.append(AgentMessage(role: .assistant, content: String(reply.text.prefix(Self.maxMessageCharacters))))
         }
-        announcement = Announcement(text: reply.text)
+        if !reply.text.isEmpty {
+            announce(reply.text)
+        } else if reply.kind == .refusal {
+            announce(L10n.agentRefusalGeneric)
+        }
 
         if let proposalId {
             // The confirmation turn: a write result is the only success; anything else wrote nothing.
+            // The card says so in the app's own words; the agent's explanation is the reply above it.
             if reply.kind.isWriteResult {
                 setCard(proposalId, .success(reply.text))
             } else {
                 setCard(proposalId, .failed(reply.text))
-                flow?.error(code: "AGENT_TOOL_FAILURE", recovered: false)
+                recordError("AGENT_TOOL_FAILURE")
             }
         }
 
@@ -402,24 +466,18 @@ public final class AgentChatModel {
         }
 
         if reply.kind == .proposal, let id = reply.proposalId {
+            activeProposalId = id
             supersedeOpenCards(except: id)
-            await showCard(id)
+            // Its own task: a new message while the card loads must not cancel the load.
+            Task { [weak self] in await self?.showCard(id) }
         }
     }
 
-    private func failTurn(_ problem: Problem, code: String, proposalId: String?) {
-        if let proposalId { setCard(proposalId, .failed(nil)) }
-        phase = .idle
-        self.problem = problem
-        flow?.error(code: code, recovered: false)
-    }
-
     private func fail(_ error: Error) {
-        let agentError = error as? AgentError ?? .failed(code: nil, correlationId: nil)
+        let agentError = normalized(error)
         switch agentError {
         case .offline:
-            isOffline = true
-            problem = .offline
+            problem = .offline  // `isOffline` comes from the network monitor only, so it can always recover
         case .unauthenticated:
             onReauthNeeded()
             problem = .signedOut
@@ -434,7 +492,20 @@ public final class AgentChatModel {
         default:
             problem = .unavailable(code: agentError.code)
         }
-        flow?.error(code: agentError.code, recovered: false)
+        recordError(agentError.code)
+        announce(problemText(problem))
+    }
+
+    private func problemText(_ problem: Problem?) -> LocalizedStringResource {
+        switch problem {
+        case .offline: L10n.agentProblemOffline
+        case .signedOut: L10n.agentProblemSignedOut
+        case .forbidden: L10n.agentProblemForbidden
+        case .tooLong: L10n.agentProblemTooLong
+        case .rateLimited: L10n.agentProblemRateLimited
+        case .stopped: L10n.agentProblemStopped
+        case .unavailable, nil: L10n.agentProblemUnavailable
+        }
     }
 
     private func scheduleRateLimitEnd(_ until: Date) {
@@ -450,24 +521,48 @@ public final class AgentChatModel {
     // MARK: Cards
 
     private func showCard(_ id: String) async {
-        let existing = card(id)
-        if existing == nil { append(.card(Card(proposalId: id, card: nil, state: .loading))) }
+        let generation = generation
+        if card(id) == nil { append(.card(Card(proposalId: id, card: nil, state: .loading))) }
         else { setCard(id, .loading) }
         do {
             let token = try await accessToken()
             let loaded = try await TaskRun.$current.withValue(runId) {
                 try await service.proposal(id: id, accessToken: token)
             }
-            updateCard(id) { $0.card = loaded; $0.state = loaded.expiresAt > now() ? .proposal : .expired }
-            if card(id)?.state == .proposal { flow?.confirmShown() }
-        } catch AgentError.notFound {
-            setCard(id, .expired)
-        } catch AuthError.interactionRequired {
-            onReauthNeeded()
-            setCard(id, .failed(nil))
+            // Superseded (or the conversation restarted) while loading: it must not become confirmable.
+            guard generation == self.generation, card(id)?.state == .loading else { return }
+            guard activeProposalId == id else {  // a newer proposal was asked for while this one loaded
+                setCard(id, .superseded)
+                return
+            }
+            let open = loaded.expiresAt > now()
+            updateCard(id) { $0.card = loaded; $0.state = open ? .proposal : .expired }
+            if open {
+                flow?.confirmShown()
+                scheduleExpiry(id, at: loaded.expiresAt)
+            }
         } catch {
-            if case .offline = error as? AgentError { isOffline = true }
-            setCard(id, .failed(nil))
+            guard generation == self.generation, card(id)?.state == .loading else { return }
+            switch normalized(error) {
+            case .notFound:
+                setCard(id, .expired)
+            case .unauthenticated:
+                onReauthNeeded()
+                setCard(id, .failed(nil))
+            default:
+                setCard(id, .failed(nil))
+            }
+        }
+    }
+
+    /// The server enforces the validity; this only stops the card offering a tap that cannot work.
+    private func scheduleExpiry(_ id: String, at date: Date) {
+        expiryTasks[id]?.cancel()
+        let delay = max(date.timeIntervalSince(now()), 0)
+        expiryTasks[id] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self, card(id)?.state == .proposal else { return }
+            setCard(id, .expired)
         }
     }
 
@@ -486,12 +581,26 @@ public final class AgentChatModel {
         }
     }
 
-    private func setCard(_ id: String, _ state: Card.State) { updateCard(id) { $0.state = state } }
+    private func setCard(_ id: String, _ state: Card.State) {
+        updateCard(id) { $0.state = state }
+        switch state {
+        case .expired: announce(L10n.agentCardExpired)
+        case .superseded: announce(L10n.agentCardSuperseded)
+        case .cancelled: announce(L10n.agentCardCancelled)
+        case .failed(nil): announce(L10n.agentCardFailed)
+        case .failed: announce(L10n.agentCardNotDone)
+        case .proposal:
+            break
+        case .loading, .executing, .success:
+            break
+        }
+    }
 
-    /// A newer proposal makes the earlier open ones obsolete: only the latest can be confirmed.
+    /// A newer proposal makes the earlier ones obsolete, loaded or still loading: only the latest can be confirmed.
     private func supersedeOpenCards(except id: String) {
         for item in items {
-            if case let .card(card) = item.content, card.proposalId != id, card.state == .proposal {
+            if case let .card(card) = item.content, card.proposalId != id, card.state == .proposal || card.state == .loading {
+                expiryTasks[card.proposalId]?.cancel()
                 setCard(card.proposalId, .superseded)
             }
         }
@@ -522,6 +631,18 @@ public final class AgentChatModel {
 
     // MARK: Experiment events
 
+    private func tap() {
+        if let flow { flow.tap() } else { pendingTaps += 1 }
+    }
+
+    private func recordError(_ code: String) {
+        if let flow { flow.error(code: code, recovered: false) } else { pendingErrors.append(code) }
+    }
+
+    private func announce(_ resource: LocalizedStringResource) { announce(String(localized: resource)) }
+
+    private func announce(_ text: String) { announcement = Announcement(text: text) }
+
     private func noteUserMessage() {
         if firstMessageAt == nil { firstMessageAt = now() }
         userMessages += 1
@@ -534,6 +655,11 @@ public final class AgentChatModel {
         started.start(at: firstMessageAt ?? now())
         flow = started
         flowTask = task
+        // What happened before the task had a name still belongs to it.
+        for _ in 0..<pendingTaps { started.tap() }
+        for code in pendingErrors { started.error(code: code, recovered: false) }
+        pendingTaps = 0
+        pendingErrors = []
     }
 
     private func resetTask() {
@@ -542,5 +668,7 @@ public final class AgentChatModel {
         pendingRunId = UUID()
         firstMessageAt = nil
         userMessages = 0
+        pendingTaps = 0
+        pendingErrors = []
     }
 }

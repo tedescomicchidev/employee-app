@@ -32,10 +32,13 @@ def load_vacation_main() -> ModuleType:
     return module
 
 
-def test_instructions_are_versioned_and_default_to_v1(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_instructions_are_versioned_and_default_to_v2(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("VACATION_INSTRUCTIONS_VERSION", raising=False)
-    assert available_versions() == ["v1"]
-    assert load_instructions()[0] == "v1"
+    assert available_versions() == [
+        "v1",
+        "v2",
+    ]  # v1 is what is deployed; every change is a new version
+    assert load_instructions()[0] == "v2"
     with pytest.raises(ValueError):
         load_instructions("v99")
 
@@ -60,11 +63,11 @@ def test_instructions_are_versioned_and_default_to_v1(monkeypatch: pytest.Monkey
     ],
 )
 def test_instructions_carry_the_safety_rules(rule: str) -> None:
-    assert rule in load_instructions("v1")[1]
+    assert rule in load_instructions("v2")[1]
 
 
 def test_instructions_name_only_tools_the_api_exposes() -> None:
-    text = load_instructions("v1")[1]
+    text = load_instructions("v2")[1]
     for tool in TOOLS:
         assert f"`{tool}`" in text
     named = set(re.findall(r"`([a-z]+(?:_[a-z]+)+)`", text))
@@ -114,7 +117,7 @@ def test_agent_wiring_uses_api_mcp_with_the_forwarded_token_and_only_vacation_to
 
     agent = main.build_agent(FakeChatClient(), "tok-123", "run-1")
     assert agent.name == "vacation"
-    assert agent.default_options["instructions"] == load_instructions("v1")[1]
+    assert agent.default_options["instructions"] == load_instructions("v2")[1]
     assert agent.default_options["response_format"] is VacationReply
     assert agent.default_options["store"] is False
     assert agent.default_options["tools"] == []  # no tools of its own
@@ -177,7 +180,7 @@ def test_forwarded_context_is_the_same_code_as_comms() -> None:
 
 def test_code_deploy_layout_is_flat_and_dependencies_match_comms() -> None:
     folder = Path(__file__).parents[1] / "vacation"
-    assert (folder / "main.py").is_file() and (folder / "prompts" / "v1.md").is_file()
+    assert (folder / "main.py").is_file() and (folder / "prompts" / "v2.md").is_file()
     assert not (folder / "__init__.py").exists()  # a package wrapper would break the flat imports
     assert (folder / "requirements.txt").read_text() == (
         folder.parent / "comms" / "requirements.txt"
@@ -191,4 +194,29 @@ def test_reply_schema_accepts_refusal_with_a_code() -> None:
     assert reply.reason == "rule_bypass"
     with pytest.raises(ValidationError):
         VacationReply.model_validate({"kind": "refusal", "text": "no", "reason": "Not a code!"})
-    assert "kind=refusal" in load_instructions("v1")[1]
+    assert "kind=refusal" in load_instructions("v2")[1]
+
+
+def test_refusal_reasons_are_the_same_closed_set_as_the_api() -> None:
+    import ast
+    from typing import get_args
+
+    from vacation_schemas import Reason
+
+    tree = ast.parse((ROOT / "api/app/agents/turns.py").read_text())
+    api = next(
+        tuple(ast.literal_eval(n.value))
+        for n in tree.body
+        if isinstance(n, ast.Assign)
+        and any(getattr(t, "id", "") == "VACATION_REASONS" for t in n.targets)
+    )
+    assert set(get_args(Reason)) == set(api) and "rule_bypass" in api
+
+
+def test_v2_instructions_propose_instead_of_refusing_an_immediate_write() -> None:
+    text = " ".join(load_instructions("v2")[1].split())  # the prompt wraps lines
+    assert "is not a refusal: prepare the proposal" in text
+    assert (
+        "kind=refusal" in text and "kind=message" in text
+    )  # a tool-reported rejection stays a message
+    assert "kind=refusal" not in load_instructions("v1")[1]  # v1 is untouched

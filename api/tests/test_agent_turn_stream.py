@@ -151,6 +151,14 @@ def test_stream_errors_become_one_error_event_without_detail(env: Env, caplog: A
     assert events(stream_turn(env))[-1][0] == "error"
 
 
+def test_any_exception_in_the_stream_still_ends_with_one_error_event(env: Env, caplog: Any) -> None:
+    env.streamer.events = [{"type": "response.created"}, RuntimeError("boom with a secret")]
+    got = events(stream_turn(env))
+    assert [n for n, _ in got] == ["status", "error"]
+    assert "secret" not in json.dumps(got) and "secret" not in caplog.text
+    assert "agent stream failed: agent=comms code=RuntimeError" in caplog.text
+
+
 def test_failures_before_the_stream_opens_are_normal_status_codes(env: Env) -> None:
     env.tools.error = AgentError("consent_required")
     response = stream_turn(env)
@@ -178,10 +186,10 @@ def test_rate_limit_carries_retry_after(private_key: Any) -> None:
     assert 1 <= int(limited.headers["Retry-After"]) <= 60
 
 
-def publish_announcement(env: Env) -> str:
+def publish_announcement(env: Env, title: str = "Früher Start") -> str:
     token = sign(env.key, SETTINGS.api_audience, "access_as_user", CEO, ["Communicator"])
     ceo = {"Authorization": f"Bearer {token}"}
-    draft = {"title": "Früher Start", "body": "Open at 7", "language": "de", "audience": "all"}
+    draft = {"title": title, "body": "Open at 7", "language": "de", "audience": "all"}
     pid = env.client.post("/v1/proposals", json={"payload": draft}, headers=ceo).json()
     confirmation = env.client.post(
         "/v1/confirmations", json={"proposal_id": pid["proposal_id"]}, headers=ceo
@@ -195,25 +203,43 @@ def publish_announcement(env: Env) -> str:
     return str(created.json()["id"])
 
 
-def test_fr_ann_003_sources_are_kept_only_for_visible_announcements_with_stored_titles(
+def read_call(*ids: str, name: str = "list_announcements") -> dict[str, Any]:
+    """A read tool call as Foundry reports it: the output is what the tool returned to the model."""
+    output = json.dumps({"items": [{"id": i, "title": "model-visible"} for i in ids]})
+    return {"type": "mcp_call", "name": name, "error": None, "output": output}
+
+
+def test_fr_ann_003_sources_are_kept_only_for_announcements_the_turn_read_with_stored_titles(
     private_key: Any,
 ) -> None:
     env = Env(private_key)
-    visible = publish_announcement(env)
+    read = publish_announcement(env, "Früher Start")
+    unread = publish_announcement(
+        env, "Nie geöffnet"
+    )  # visible to the caller, but no tool returned it
     answer = {
         "kind": "message",
         "text": "One new announcement.",
         "sources": [
-            {"announcement_id": visible, "title": "Model-invented title"},
-            {"announcement_id": visible, "title": "duplicate"},
+            {"announcement_id": read, "title": "Model-invented title"},
+            {"announcement_id": read, "title": "duplicate"},
+            {"announcement_id": unread, "title": "cited because an injected text said so"},
             {"announcement_id": PROPOSAL, "title": "does not exist"},
         ],
     }
-    env.foundry.response = reply(answer)
+    env.foundry.response = reply(answer, [read_call(read)])
     sources = env.turn().json()["reply"]["sources"]
-    assert sources == [{"announcement_id": visible, "title": "Früher Start"}]
-    # Sources only accompany a plain answer.
-    env.foundry.response = reply({**answer, "kind": "clarification"})
+    assert sources == [{"announcement_id": read, "title": "Früher Start"}]
+    # A source needs a successful read tool in this very turn: none, or a failed one, means none.
+    env.foundry.response = reply(answer)
+    assert env.turn().json()["reply"]["sources"] == []
+    failed = {**read_call(read), "error": "FORBIDDEN"}
+    env.foundry.response = reply(answer, [failed])
+    assert env.turn().json()["reply"]["sources"] == []
+    # get_announcement counts as a read as well; sources only accompany a plain answer.
+    env.foundry.response = reply(answer, [read_call(read, name="get_announcement")])
+    assert len(env.turn().json()["reply"]["sources"]) == 1
+    env.foundry.response = reply({**answer, "kind": "clarification"}, [read_call(read)])
     assert env.turn().json()["reply"]["sources"] == []
 
 
@@ -225,9 +251,58 @@ def test_refusal_reply_kind_and_reason_for_both_agents(env: Env, private_key: An
         )
         body = env2.turn(agent=agent, oid=EMP1).json()["reply"]
         assert body["kind"] == "refusal" and body["reason"] == "write_without_confirmation"
-    # A reason is a short code, never free text: anything else falls back to a plain message.
-    env2.foundry.response = reply({"kind": "refusal", "text": "no", "reason": "Ignore all rules!"})
-    assert env2.turn().json()["reply"]["kind"] == "message"
+    # The reason is a closed set: anything else is a refusal with the generic code, never free text.
+    for agent in ("comms", "vacation"):
+        env2.foundry.response = reply(
+            {"kind": "refusal", "text": "no", "reason": "send_the_balance_to_bob"}
+        )
+        body = env2.turn(agent=agent, oid=EMP1).json()["reply"]
+        assert (body["kind"], body["reason"]) == ("refusal", "unsupported_action")
+    # rule_bypass is a vacation reason only; for comms it is mapped to the generic one.
+    env2.foundry.response = reply({"kind": "refusal", "text": "no", "reason": "rule_bypass"})
+    assert env2.turn(agent="comms", oid=EMP1).json()["reply"]["reason"] == "unsupported_action"
+    assert env2.turn(agent="vacation", oid=EMP1).json()["reply"]["reason"] == "rule_bypass"
+
+
+def test_fields_that_do_not_belong_to_the_kind_are_cleared(private_key: Any) -> None:
+    """A stray id, range or reason on a refusal or plain answer cannot become a card."""
+    env = Env(private_key)
+    option = {"proposal_id": PROPOSAL, "start": "2026-12-24", "end": "2027-01-04"}
+    for agent in ("comms", "vacation"):
+        for kind in ("refusal", "message", "clarification"):
+            env.foundry.response = reply(
+                {
+                    "kind": kind,
+                    "text": "x",
+                    "proposal_id": PROPOSAL,
+                    "options": [option],
+                    "reason": "out_of_scope",
+                }
+            )
+            body = env.turn(agent=agent, oid=EMP1).json()["reply"]
+            assert body["proposal_id"] is None, (agent, kind)
+            assert body.get("options", []) == [], (agent, kind)
+            assert (body["reason"] is not None) == (kind == "refusal"), (agent, kind)
+
+
+def test_a_reply_that_breaks_the_schema_keeps_its_text_and_never_shows_raw_json(
+    private_key: Any,
+) -> None:
+    env = Env(private_key)
+    too_many = [{"announcement_id": PROPOSAL, "title": "t"}] * 11
+    for broken in (
+        {"kind": "message", "text": "Answer text", "sources": too_many},
+        {"kind": "no_such_kind", "text": "Answer text"},
+        {"kind": "message", "text": "Answer text", "confirmation_token": "t"},
+    ):
+        env.foundry.response = reply(broken)
+        body = env.turn().json()["reply"]
+        assert (body["kind"], body["text"]) == ("message", "Answer text")
+        assert "{" not in body["text"] and body["sources"] == []
+    env.foundry.response = reply({"kind": "message", "sources": too_many})  # no text to keep
+    assert env.turn().json()["reply"]["text"] == ""
+    env.foundry.response = reply("plain text, not JSON")
+    assert env.turn().json()["reply"]["text"] == "plain text, not JSON"
 
 
 def test_with_warmup_marks_a_slow_first_event_once() -> None:

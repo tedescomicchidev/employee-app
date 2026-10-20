@@ -69,6 +69,9 @@ public final class StubAgentService: AgentService, @unchecked Sendable {
     }
 
     public var turns: [SentTurn] { lock.withLock { sent } }
+
+    /// Tests: change how confirmation behaves mid-scenario (a failure that goes away).
+    public func setConfirmFailure(_ failure: AgentError?) { lock.withLock { script.confirmFailure = failure } }
     /// Proposal ids a confirmation token was minted for, in order.
     public var confirmedProposals: [String] { lock.withLock { confirmed } }
 

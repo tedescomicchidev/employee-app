@@ -49,5 +49,8 @@ proposal from the agent (the old card becomes superseded on the device). Rejecti
 - History: the device keeps it, sends at most the last 20 messages, each cut to 4000 characters; a longer user message is not sent.
 - `delta` text is shown while it arrives and replaced by `final.reply.text`; VoiceOver is told once, when the reply is complete.
 - A line of the reply that starts with `>` is shown in the quoted data block (agent quoting an announcement); nothing in a reply is rendered as markup or a link.
-- Retry after a failure resends the same turn; after a failed confirmation turn it resends the same `confirmation_token` (idempotent).
+- Retry repeats exactly one thing, the most recent failed step: a plain turn, minting the token again, or the confirmation turn with the same `confirmation_token` (idempotent). A new message replaces it, so a retry can never repeat a confirmation the user is no longer looking at. A failed card has its own retry that does not depend on the error banner.
+- Offline means the network monitor says so (the composer is disabled). A request that fails with no connection shows a recoverable notice; a timeout on a working network is `AGENT_UNAVAILABLE`, not offline.
+- The confirm card states the outcome in the app's own words, from the stored proposal; the agent's sentence is in the transcript, never what the card asserts.
+- A card stops offering its tap when its validity (`expires_at`) runs out; the api enforces it as well.
 - `Retry-After` on 429 blocks the composer until it passes.

@@ -8,6 +8,7 @@ private final class Canned: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var status = 200
     nonisolated(unsafe) static var headers: [String: String] = [:]
     nonisolated(unsafe) static var body = Data()
+    nonisolated(unsafe) static var failure: URLError.Code?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -26,6 +27,10 @@ private final class Canned: URLProtocol, @unchecked Sendable {
             copy.httpBody = data
         }
         Self.requests.append(copy)
+        if let failure = Self.failure {
+            client?.urlProtocol(self, didFailWithError: URLError(failure))
+            return
+        }
         let response = HTTPURLResponse(
             url: request.url!, statusCode: Self.status, httpVersion: nil, headerFields: Self.headers)!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
@@ -42,6 +47,7 @@ private func service(status: Int = 200, body: String = "", headers: [String: Str
     Canned.status = status
     Canned.headers = headers
     Canned.body = Data(body.utf8)
+    Canned.failure = nil
     return URLSessionAgentService(baseURL: URL(string: "https://api.test")!, session: URLSession(configuration: config))
 }
 
@@ -172,6 +178,21 @@ struct AgentCoreTests {
             await #expect(throws: expected) {
                 try await collect(agent.turn(.comms, messages: hello, confirmation: nil, accessToken: "T"))
             }
+        }
+    }
+
+    @Test("NFR-007 AGENT: no network is offline; a timeout on a working network is only unavailable")
+    func offlineVersusTimeout() async {
+        let cases: [(URLError.Code, AgentError)] = [
+            (.notConnectedToInternet, .offline), (.networkConnectionLost, .offline), (.timedOut, .unavailable),
+        ]
+        for (code, expected) in cases {
+            let agent = service()
+            Canned.failure = code
+            await #expect(throws: expected) {
+                try await collect(agent.turn(.comms, messages: hello, confirmation: nil, accessToken: "T"))
+            }
+            await #expect(throws: expected) { try await agent.confirm(proposalId: "p", kind: .announcement, accessToken: "T") }
         }
     }
 

@@ -211,9 +211,11 @@ def turn_events(
             elif kind in ("response.failed", "response.incomplete", "error"):
                 raise AgentError(kind.removeprefix("response."))
         raise AgentError("stream_ended")
-    except AgentError as exc:
-        # The stable code only (never a token, prompt or reply): foundry_403, stream_ended, ...
-        logger.warning("agent stream failed: agent=%s code=%s", agent, exc.code)
+    except Exception as exc:  # the stream must always end with one final or one error
+        # The stable code only (never a token, prompt or reply): foundry_403, stream_ended, or the
+        # exception's class name for anything unexpected (an httpx stream error, a grounding bug).
+        code = exc.code if isinstance(exc, AgentError) else type(exc).__name__
+        logger.warning("agent stream failed: agent=%s code=%s", agent, code)
         yield sse(
             "error", {"code": "AGENT_UNAVAILABLE", "message": "The assistant could not be reached"}
         )

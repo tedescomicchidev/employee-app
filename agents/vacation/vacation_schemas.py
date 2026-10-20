@@ -12,6 +12,16 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+Reason = Literal[
+    "write_without_confirmation",
+    "role_not_allowed",
+    "rule_bypass",
+    "out_of_scope",
+    "other_users_data",
+    "untrusted_instructions",
+    "unsupported_action",
+]
+
 
 class VacationOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -55,12 +65,7 @@ class VacationReply(BaseModel):
         max_length=3,
         description="Required for kind=options: one entry per proposed range, at most three.",
     )
-    reason: str | None = Field(
+    reason: Reason | None = Field(
         default=None,
-        pattern=r"^[a-z][a-z_]{0,39}$",
-        description=(
-            "Required for kind=refusal: one short code, lowercase with underscores: "
-            "write_without_confirmation, role_not_allowed, rule_bypass, out_of_scope, "
-            "other_users_data, untrusted_instructions or unsupported_action."
-        ),
+        description="Required for kind=refusal and only then: why you decline, one code from the list.",
     )

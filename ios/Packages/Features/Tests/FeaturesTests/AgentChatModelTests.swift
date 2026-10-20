@@ -12,6 +12,16 @@ private final class TestClock: @unchecked Sendable {  // guarded by `lock`
     func advance(_ seconds: TimeInterval) { lock.withLock { current = current.addingTimeInterval(seconds) } }
 }
 
+/// A network path the test switches by hand (the real monitor only reports changes).
+private final class ToggleConnectivity: Connectivity, @unchecked Sendable {  // guarded by `lock`
+    private let lock = NSLock()
+    private var continuation: AsyncStream<Bool>.Continuation?
+    func updates() -> AsyncStream<Bool> {
+        AsyncStream { continuation in lock.withLock { self.continuation = continuation } }
+    }
+    func set(_ online: Bool) { lock.withLock { continuation }?.yield(online) }
+}
+
 @MainActor
 private final class Rig {
     let model: AgentChatModel
@@ -21,14 +31,18 @@ private final class Rig {
     var reauthCalls = 0
     var tasks: [AgentTask] = []
 
-    init(_ script: StubAgentScript, feature: AgentFeature = .comms, online: Bool = true, ttl: TimeInterval = 300) {
+    init(
+        _ script: StubAgentScript, feature: AgentFeature = .comms, online: Bool = true, ttl: TimeInterval = 300,
+        accessToken: @escaping @Sendable () async throws -> String = { "bearer" },
+        connectivity: (any Connectivity)? = nil
+    ) {
         let clock = clock
         let stub = StubAgentService(script: script, ttl: ttl, now: { clock.now })
         self.stub = stub
         let sink = sink
         let holder = Holder()
         model = AgentChatModel(
-            feature: feature, service: stub, accessToken: { "bearer" },
+            feature: feature, service: stub, accessToken: accessToken,
             onReauthNeeded: { holder.reauth() },
             makeFlow: { task, runId in
                 holder.tasks.append(task)
@@ -37,7 +51,7 @@ private final class Rig {
                     context: TaskContext(participantId: UUID()), sink: sink, confirmAction: task.confirmAction,
                     runId: runId, now: { clock.now })
             },
-            connectivity: StaticConnectivity(online: online), now: { clock.now })
+            connectivity: connectivity ?? StaticConnectivity(online: online), now: { clock.now })
         self.holder = holder
     }
 
@@ -301,20 +315,35 @@ struct AgentChatModelTests {
         #expect(rig.stub.confirmedProposals == ["p-ann-1"])  // the token was minted once
     }
 
-    @Test("NFR-007 AGENT: offline disables sending; coming back online clears the notice")
+    @Test("NFR-007 AGENT: a failed request while offline shows a notice that goes away when the network is back")
     func offline() async {
-        let rig = Rig(AgentStubScenario.annOffline.script)
+        let path = ToggleConnectivity()
+        let rig = Rig(AgentStubScenario.annOffline.script, connectivity: path)
+        let monitor = Task { await rig.model.monitorConnectivity() }
+        try? await Task.sleep(for: .milliseconds(20))
         rig.model.send("Hallo")
         await rig.settle()
-        #expect(rig.model.problem == .offline && rig.model.isOffline && !rig.model.canType)
+        // The error alone does not disable typing: only the network monitor does, so it can always recover.
+        #expect(rig.model.problem == .offline && !rig.model.isOffline)
+        path.set(false)
+        for _ in 0..<200 where !rig.model.isOffline { try? await Task.sleep(for: .milliseconds(5)) }
+        #expect(rig.model.isOffline && !rig.model.canType)
         rig.model.draft = "nochmal"
         #expect(!rig.model.canSend)
         rig.model.send()
         #expect(rig.stub.turns.count == 1)
-        let monitor = Task { await rig.model.monitorConnectivity() }
+        path.set(true)
         for _ in 0..<200 where rig.model.isOffline { try? await Task.sleep(for: .milliseconds(5)) }
         monitor.cancel()
         #expect(!rig.model.isOffline && rig.model.problem == nil && rig.model.canSend)
+    }
+
+    @Test("NFR-007 AGENT: no connection while fetching the token is offline too, not an unknown error")
+    func offlineToken() async {
+        let rig = Rig(AgentStubScenario.annOK.script, accessToken: { throw AuthError.offline })
+        rig.model.send("Hallo")
+        await rig.settle()
+        #expect(rig.model.problem == .offline && rig.stub.turns.isEmpty)
     }
 
     @Test("NFR-007 AGENT: the device starts offline when the network path says so")
@@ -426,6 +455,152 @@ struct AgentChatModelTests {
         #expect(!AgentTask.vacationBalance.isCompleted(by: plain, toolCalls: [AgentToolCall(name: "get_balance", ok: false)]))
         #expect(!AgentTask.vacationRequest.isCompleted(by: plain, toolCalls: ok))
         #expect(AgentTask.vacationRequest.isCompleted(by: AgentReply(kind: .submitted, text: "x"), toolCalls: ok))
+    }
+
+    @Test("FR-AUTH-006 AGENT: a banner retry never mints a token for an old card")
+    func staleMintIsNotRetried() async throws {
+        let script = StubAgentScript(
+            turns: [
+                StubTurn([.final(AgentTurnResult(reply: AgentReply(kind: .proposal, text: "Prüfe", proposalId: "p-ann-1"), toolCalls: [AgentToolCall(name: "propose_announcement", ok: true)]))]),
+                StubTurn([], ending: .fail(.unavailable)),
+            ],
+            cards: AgentStubScenario.annDraft.script.cards, confirmFailure: .unavailable)
+        let rig = Rig(script)
+        rig.model.send("Entwurf")
+        await rig.settle()
+        rig.model.confirm(proposalId: "p-ann-1")  // minting the token fails
+        await rig.settle()
+        #expect(rig.cards.first?.state == .failed(nil) && rig.model.canRetryCard("p-ann-1"))
+        rig.model.send("Mach es kürzer")  // a different request; it fails too
+        await rig.settle()
+        #expect(rig.model.problem == .unavailable(code: "AGENT_UNAVAILABLE"))
+        #expect(!rig.model.canRetryCard("p-ann-1"))
+        rig.stub.setConfirmFailure(nil)
+        rig.model.retry()  // the banner retries the message, not the confirmation
+        await rig.settle()
+        #expect(rig.stub.confirmedProposals.isEmpty)
+        #expect(rig.stub.turns.allSatisfy { $0.confirmation == nil })
+    }
+
+    @Test("FR-AUTH-006 AGENT: the card's retry survives the banner going away and reuses nothing stale")
+    func cardRetryIndependentOfBanner() async throws {
+        let script = StubAgentScript(
+            turns: [
+                StubTurn([.final(AgentTurnResult(reply: AgentReply(kind: .proposal, text: "Prüfe", proposalId: "p-ann-1"), toolCalls: [AgentToolCall(name: "propose_announcement", ok: true)]))]),
+                StubTurn([.final(AgentTurnResult(reply: AgentReply(kind: .published, text: "Fertig"), toolCalls: [AgentToolCall(name: "publish_announcement", ok: true)]))]),
+            ],
+            cards: AgentStubScenario.annDraft.script.cards, confirmFailure: .rateLimited(retryAfter: 1))
+        let rig = Rig(script)
+        rig.model.send("Entwurf")
+        await rig.settle()
+        rig.model.confirm(proposalId: "p-ann-1")
+        await rig.settle()
+        #expect(rig.cards.first?.state == .failed(nil) && rig.model.isRateLimited)
+        #expect(!rig.model.canRetryCard("p-ann-1"))  // not while the limit lasts
+        try await Task.sleep(for: .milliseconds(1_200))
+        #expect(rig.model.problem == nil)  // the banner is gone ...
+        #expect(rig.model.canRetryCard("p-ann-1"))  // ... the card can still be retried
+        rig.stub.setConfirmFailure(nil)
+        rig.model.retryCard(proposalId: "p-ann-1")
+        await rig.settle()
+        #expect(rig.cards.first?.state == .success("Fertig"))
+        #expect(rig.stub.confirmedProposals == ["p-ann-1"])
+    }
+
+    @Test("AGENT UX: starting over is not possible while a confirmed write is in flight")
+    func newConversationBlockedWhileExecuting() async {
+        let rig = Rig(AgentStubScenario.annConfirming.script)
+        rig.model.send("Entwurf")
+        await rig.settle()
+        rig.model.confirm(proposalId: "p-ann-1")
+        for _ in 0..<200 where rig.model.phase != .executing { try? await Task.sleep(for: .milliseconds(5)) }
+        #expect(rig.model.phase == .executing && !rig.model.canStartOver)
+        let before = rig.model.items
+        rig.model.newConversation()
+        #expect(rig.model.items == before && rig.model.phase == .executing)
+        rig.model.stop()  // a write in flight cannot be stopped either
+        #expect(rig.model.phase == .executing)
+    }
+
+    @Test("FR-VAC-002 AGENT: two quick taps on offered ranges leave only the newest confirmable")
+    func quickOptionTaps() async throws {
+        let rig = Rig(AgentStubScenario.vacOptions.script, feature: .vacation)
+        rig.model.send("Weihnachten frei")
+        await rig.settle()
+        let options = try #require(rig.replies.first?.options)
+        rig.model.choose(options[0], label: "A")
+        rig.model.choose(options[1], label: "B")
+        await rig.settle()
+        let states = Dictionary(uniqueKeysWithValues: rig.cards.map { ($0.proposalId, $0.state) })
+        #expect(states["p-vac-b"] == .proposal)
+        #expect(states["p-vac-a"] == nil || states["p-vac-a"] == .superseded)
+        #expect(rig.cards.filter { $0.state == .proposal }.count == 1)
+    }
+
+    @Test("A-13 AGENT: a card loaded for a proposal that is no longer the newest is superseded")
+    func lateCardIsSuperseded() async {
+        let rig = Rig(AgentStubScenario.annDraftEdit.script)
+        rig.model.send("Entwurf")
+        await rig.settle()
+        rig.model.send("Mit Graubünden")
+        await rig.settle()
+        #expect(rig.cards.map(\.state) == [.superseded, .proposal])
+    }
+
+    @Test("AGENT UX: a card stops being confirmable when its validity runs out, without a tap")
+    func cardExpiresByItself() async throws {
+        let rig = Rig(AgentStubScenario.annDraft.script, ttl: 0.3)
+        rig.model.send("Entwurf")
+        await rig.settle()
+        #expect(rig.cards.first?.state == .proposal)
+        try await Task.sleep(for: .milliseconds(600))
+        #expect(rig.cards.first?.state == .expired)
+        #expect(rig.model.announcement?.text == String(localized: L10n.agentCardExpired))
+    }
+
+    @Test("A11Y-006 AGENT: problems, card changes and empty refusals are announced, not only replies")
+    func announcements() async {
+        let failing = Rig(AgentStubScenario.annError.script)
+        failing.model.send("Was gibt es Neues?")
+        await failing.settle()
+        #expect(failing.model.announcement?.text == String(localized: L10n.agentProblemUnavailable))
+        let refusal = Rig(StubAgentScript(turns: [StubTurn([.final(AgentTurnResult(reply: AgentReply(kind: .refusal, text: "", reason: "out_of_scope"), toolCalls: []))])]))
+        refusal.model.send("Hallo")
+        await refusal.settle()
+        #expect(refusal.model.announcement?.text == String(localized: L10n.agentRefusalGeneric))
+        let draft = Rig(AgentStubScenario.annDraft.script)
+        draft.model.send("Entwurf")
+        await draft.settle()
+        draft.model.cancel(proposalId: "p-ann-1")
+        #expect(draft.model.announcement?.text == String(localized: L10n.agentCardCancelled))
+    }
+
+    @Test("EXP-001 AGENT: errors and taps from before the task is known are reported once it is")
+    func eventsBeforeTheTaskIsKnown() async {
+        let rig = Rig(AgentStubScenario.annError.script)  // first turn fails before any tool ran
+        rig.model.send("Was gibt es Neues?")
+        await rig.settle()
+        #expect((await rig.events()).isEmpty)  // nothing can be attributed yet
+        rig.model.retry()
+        await rig.settle()
+        let events = await rig.events()
+        #expect(events.map(\.event).first == .taskStarted)
+        let error = events.first { $0.event == .taskError }
+        #expect(error?.code == "AGENT_UNAVAILABLE" && error?.taskId == "T-ANN-READ")
+        #expect(events.first { $0.event == .taskCompleted }?.tapCount == 2)  // the send and the retry
+    }
+
+    @Test("FR-ANN-001 AGENT: the card says the write is done in the app's words, not the agent's")
+    func cardUsesFixedWords() {
+        let announcement = AgentProposalCard.Content.announcement(AnnouncementDraft(title: "T", body: "B"), recipientCount: 47)
+        #expect("\(AgentCardPresenter.successText(announcement))" == "\(L10n.annSuccessTitle(47))")
+        let request = VacationRequestSummary(
+            id: "r", status: .pending, start: CalendarDay(year: 2026, month: 11, day: 9),
+            end: CalendarDay(year: 2026, month: 11, day: 12), countedDays: 4, approver: "A")
+        let approve = AgentProposalCard.Content.vacationDecision(decision: .approve, reason: nil, request: request)
+        let reject = AgentProposalCard.Content.vacationDecision(decision: .reject, reason: nil, request: request)
+        #expect("\(AgentCardPresenter.successText(approve))" != "\(AgentCardPresenter.successText(reject))")
+        #expect("\(AgentCardPresenter.successText(.vacationCancel(request)))" != "\(AgentCardPresenter.successText(approve))")
     }
 }
 #endif

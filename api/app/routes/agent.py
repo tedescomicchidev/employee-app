@@ -76,7 +76,7 @@ def agent_turn(
         log: AgentRunLog = state.agent_runs
         latency = round((time.perf_counter() - started) * 1000)
         log.runs.append(run_record(response, run_id, latency))
-        reply = ground_reply(parse_reply(response, agent), state, principal)
+        reply = ground_reply(parse_reply(response, agent), state, principal, response)
         return {"reply": reply.model_dump(mode="json"), "tool_calls": tool_trace(response)}
 
     def fail(exc: AgentError) -> ApiError:

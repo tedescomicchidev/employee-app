@@ -73,7 +73,11 @@ extension L10n {
     static var agentCardExpired: LocalizedStringResource { .init("agent.card.state.expired", bundle: bundle) }
     static var agentCardSuperseded: LocalizedStringResource { .init("agent.card.state.superseded", bundle: bundle) }
     static var agentCardCancelled: LocalizedStringResource { .init("agent.card.state.cancelled", bundle: bundle) }
-    static var agentCardSuccess: LocalizedStringResource { .init("agent.card.state.success", bundle: bundle) }
+    static var agentCardNotDone: LocalizedStringResource { .init("agent.card.state.notdone", bundle: bundle) }
+    static var agentCardDoneRequest: LocalizedStringResource { .init("agent.card.done.request", bundle: bundle) }
+    static var agentCardDoneCancel: LocalizedStringResource { .init("agent.card.done.cancel", bundle: bundle) }
+    static var agentCardDoneApprove: LocalizedStringResource { .init("agent.card.done.approve", bundle: bundle) }
+    static var agentCardDoneReject: LocalizedStringResource { .init("agent.card.done.reject", bundle: bundle) }
     static var agentSuccessRequests: LocalizedStringResource { .init("agent.success.requests", bundle: bundle) }
     static func agentProblemReference(_ code: String) -> LocalizedStringResource {
         .init("agent.problem.reference", defaultValue: "Reference: \(code)", bundle: bundle)
