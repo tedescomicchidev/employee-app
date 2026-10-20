@@ -6,7 +6,7 @@ public struct ExperimentEvent: Sendable, Equatable, Encodable {
         case taskStarted = "task_started", taskCompleted = "task_completed"
         case taskAbandoned = "task_abandoned", taskError = "task_error"
         case confirmShown = "confirm_shown", confirmAccepted = "confirm_accepted"
-        case confirmRejected = "confirm_rejected"
+        case confirmRejected = "confirm_rejected", agentTurn = "agent_turn"
     }
     public enum Action: String, Sendable, Encodable { case publish, request, cancel, decide, optIn = "opt_in" }
 
@@ -30,6 +30,11 @@ public struct ExperimentEvent: Sendable, Equatable, Encodable {
     public var recovered: Bool?
     public var action: Action?
     public var latencyMs: Int?
+    /// AGENT mode: user messages sent in the task (`task_completed`), and per-turn timings (`agent_turn`).
+    public var messageCount: Int?
+    public var latencyFirstTokenMs: Int?
+    public var latencyTotalMs: Int?
+    public var toolCalls: Int?
 
     enum CodingKeys: String, CodingKey {
         case event, ts, feature, mode, locale, code, recovered, action
@@ -37,6 +42,8 @@ public struct ExperimentEvent: Sendable, Equatable, Encodable {
         case taskId = "task_id", orderIndex = "order_index", appVersion = "app_version"
         case osVersion = "os_version", elapsedMs = "elapsed_ms", tapCount = "tap_count"
         case outcomeValid = "outcome_valid", lastState = "last_state", latencyMs = "latency_ms"
+        case messageCount = "message_count", latencyFirstTokenMs = "latency_first_token_ms"
+        case latencyTotalMs = "latency_total_ms", toolCalls = "tool_calls"
     }
 }
 
@@ -77,7 +84,7 @@ public final class TaskFlow {
     private let context: TaskContext
     private let sink: any EventSink
     private let now: @Sendable () -> Date
-    private let runId = UUID()
+    private let runId: UUID
     private var startedAt: Date?
     private var shownAt: Date?
     private var taps = 0
@@ -86,8 +93,10 @@ public final class TaskFlow {
     public init(
         taskId: String, feature: String, mode: AppMode, context: TaskContext, sink: any EventSink,
         confirmAction: ExperimentEvent.Action = .publish,
+        runId: UUID = UUID(),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
+        self.runId = runId
         self.taskId = taskId
         self.feature = feature
         self.mode = mode
@@ -104,10 +113,12 @@ public final class TaskFlow {
     public var tapCount: Int { taps }
     public var isFinished: Bool { finished }
 
-    public func start() {
+    /// `date` back-dates the start: an AGENT chat only learns which task it is (from the tools the agent
+    /// used) after the first reply, but the task began with the first message.
+    public func start(at date: Date? = nil) {
         guard startedAt == nil else { return }
-        startedAt = now()
-        emit(.taskStarted)
+        startedAt = date ?? now()
+        emit(.taskStarted, at: startedAt)
     }
 
     public func tap() { if !finished { taps += 1 } }
@@ -124,8 +135,17 @@ public final class TaskFlow {
         emit(.taskError) { $0.code = code; $0.recovered = recovered }
     }
 
-    public func complete(outcomeValid: Bool) {
-        finish(.taskCompleted) { $0.outcomeValid = outcomeValid }
+    public func complete(outcomeValid: Bool, messageCount: Int? = nil) {
+        finish(.taskCompleted) { $0.outcomeValid = outcomeValid; $0.messageCount = messageCount }
+    }
+
+    /// One completed agent response (EXP-002/005): timings and a tool-call count, never names or text.
+    public func agentTurn(firstTokenMs: Int?, totalMs: Int, toolCalls: Int) {
+        emit(.agentTurn) {
+            $0.latencyFirstTokenMs = firstTokenMs
+            $0.latencyTotalMs = totalMs
+            $0.toolCalls = toolCalls
+        }
     }
 
     public func abandon(lastState: String) {
@@ -150,13 +170,15 @@ public final class TaskFlow {
         finished = true
     }
 
-    private func emit(_ name: ExperimentEvent.Name, _ configure: (inout ExperimentEvent) -> Void = { _ in }) {
+    private func emit(
+        _ name: ExperimentEvent.Name, at date: Date? = nil, _ configure: (inout ExperimentEvent) -> Void = { _ in }
+    ) {
         guard startedAt != nil, !finished else { return }
         var event = ExperimentEvent(
             event: name, participantId: context.participantId, sessionId: context.sessionId,
             taskRunId: runId, taskId: taskId, feature: feature, mode: mode.rawValue,
             orderIndex: context.orderIndex, appVersion: context.appVersion, osVersion: context.osVersion,
-            locale: context.locale, ts: now())
+            locale: context.locale, ts: date ?? now())
         configure(&event)
         let sink = sink
         Task { await sink.record(event) }

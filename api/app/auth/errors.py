@@ -2,8 +2,12 @@ from fastapi import HTTPException
 
 
 class ApiError(HTTPException):
-    def __init__(self, status_code: int, code: str, message: str) -> None:
-        super().__init__(status_code=status_code, detail={"code": code, "message": message})
+    def __init__(
+        self, status_code: int, code: str, message: str, headers: dict[str, str] | None = None
+    ) -> None:
+        super().__init__(
+            status_code=status_code, detail={"code": code, "message": message}, headers=headers
+        )
 
 
 def unauthenticated(message: str = "Missing or invalid access token") -> ApiError:

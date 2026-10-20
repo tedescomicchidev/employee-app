@@ -18,7 +18,18 @@ scenarios=(signin signin-failed signin-offline home-employee home-manager home-p
            vacation-request_decision-invalid_state vacation-request_decision-blocked vacation-team_coverage-ok vacation-team_coverage-empty
            vacation-team_coverage-forbidden vacation-holidays-ok vacation-holidays-canton_missing
            vacation-request-ok vacation-request-validation_overlap vacation-review-ok
-           vacation-review-validation_insufficient_balance vacation-review-success)
+           vacation-review-validation_insufficient_balance vacation-review-success
+           announcements-agent_chat-empty announcements-agent_chat-loading announcements-agent_chat-warming
+           announcements-agent_chat-ok announcements-agent_chat-offline announcements-agent_chat-error
+           announcements-agent_chat-forbidden announcements-agent_chat-refusal announcements-agent_chat-rate_limited
+           announcements-agent_confirm_card-ok announcements-agent_confirm_card-confirming
+           announcements-agent_confirm_card-success announcements-agent_confirm_card-expired
+           announcements-agent_confirm_card-superseded
+           vacation-agent_chat-ok vacation-agent_chat-validation_insufficient_balance vacation-agent_chat-clarification
+           vacation-agent_chat-options vacation-agent_chat-refusal vacation-agent_chat-team_coverage
+           vacation-agent_confirm_card-ok vacation-agent_confirm_card-success
+           vacation-agent_confirm_card-validation_blackout vacation-agent_confirm_card-decision_ok
+           vacation-agent_confirm_card-decision_success)
 lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 

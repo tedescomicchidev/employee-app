@@ -26,14 +26,22 @@ class ReplyOption(Strict):
     end: str
 
 
+class ReplySource(Strict):
+    announcement_id: str
+    title: str = ""
+
+
 class Reply(Strict):
     kind: Literal[
         "message", "clarification", "proposal", "published",  # comms
         "options", "submitted", "cancelled", "decided",  # vacation
+        "refusal",  # both
     ] = "message"  # fmt: skip
     text: str = ""
     proposal_id: str | None = None
     options: list[ReplyOption] = Field(default_factory=list)
+    reason: str | None = None
+    sources: list[ReplySource] = Field(default_factory=list)
 
 
 class Trace(Strict):

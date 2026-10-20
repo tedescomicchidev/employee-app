@@ -85,7 +85,7 @@ def create_app(
 
     @app.exception_handler(ApiError)
     def api_error(_: Request, exc: ApiError) -> JSONResponse:
-        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+        return JSONResponse(status_code=exc.status_code, content=exc.detail, headers=exc.headers)
 
     @app.get("/health")
     def health() -> dict[str, str]:

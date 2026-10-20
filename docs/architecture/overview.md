@@ -25,7 +25,7 @@ iOS app (SwiftUI, MSAL)
 api/  FastAPI on Container Apps (Switzerland North)
    |-- REST /v1/*            app-facing, scope access_as_user
    |-- MCP  /mcp             agent-facing, scope Tools.Invoke
-   |-- agent gateway         /v1/agent/{agent}/turns (SSE), calls Foundry
+   |-- agent gateway         /v1/agent/{agent}/turns (SSE, see agent-turn-contract.md), calls Foundry
    |-- domain services       the only place business rules live
    |-- Work IQ client        OBO, after opt-in only
    v

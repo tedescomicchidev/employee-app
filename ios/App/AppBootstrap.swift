@@ -26,7 +26,8 @@ enum AppBootstrap {
                 feedCache: FeedCache(fileURL: FeedCache.defaultFileURL()),
                 vacation: URLSessionVacationService(baseURL: config.apiBaseURL),
                 vacationCache: VacationCache(fileURL: VacationCache.defaultFileURL()),
-                events: events, taskContext: taskContext()), clearing: events)
+                events: events, taskContext: taskContext(),
+                agent: URLSessionAgentService(baseURL: config.apiBaseURL)), clearing: events)
         } catch {
             // Typically "Failed to retrieve teamId from keychain" (-42008) in an unsigned build.
             // Codes only: no tokens, no identifiers.
