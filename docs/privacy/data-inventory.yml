@@ -21,14 +21,14 @@ entries:
     requirements: [FR-AUTH-001, FR-AUTH-002, FR-AUTH-003]
 
   - id: employee-directory
-    description: Employee attributes needed for routing and targeting
-    fields: [oid, work_canton, store_or_hq, region, role, manager_oid, language]
+    description: Employee attributes needed for routing and targeting (the tenant's employees, read from Graph)
+    fields: [oid, display_name, account_enabled, work_canton, store_or_hq, region, role, manager_oid]
     data_subjects: [employee]
     classification: personal
-    purpose: audience targeting, approver routing, holiday counting
-    source: Entra attributes or seeded directory file (A-12, U-07)
-    storage: [cosmos]
-    processors: [Azure Cosmos DB]
+    purpose: audience targeting, approver routing, holiday counting, team coverage
+    source: Microsoft Graph, read by the api with the managed identity (application permissions User.Read.All and Application.Read.All), only users holding an app role of employee-api (ADR-010 update); the seed file only in tests and local runs
+    storage: [in memory in api/, replaced on every read (startup, then every 15 minutes); cosmos later (ADR-007)]
+    processors: [Microsoft Entra ID, Azure Container Apps, Azure Cosmos DB (later)]
     shared_with_agents: only as resolved results of tools for the calling user
     retention: HUMAN_CONFIRMATION_REQUIRED
     access: [api]
@@ -316,17 +316,3 @@ not_collected:
   - precise location
   - advertising identifiers or third-party analytics
   - calendar content persisted server-side (by default)
-
-  - id: employee-directory
-    description: The tenant's employees as the api knows them (names, role, store, region, canton, manager)
-    fields: [oid, display_name, account_enabled, app_role, store, region, canton, manager_oid]
-    data_subjects: [employee]
-    classification: personal
-    purpose: audience targeting, approver routing, holiday counting, team coverage (FR-ANN-002, FR-VAC-004/005/006)
-    source: Microsoft Graph, read by the api with the managed identity (application permissions User.Read.All and Application.Read.All); only users holding an app role of employee-api; ADR-010 update
-    storage: [in memory in api/, refilled from Graph at startup and every 15 minutes (ADR-007 for the later Cosmos store)]
-    processors: [Microsoft Entra ID, Azure Container Apps]
-    shared_with_agents: own record only, through tool results; never the list
-    retention: not stored; replaced on every read
-    access: [api]
-    requirements: [FR-ANN-002, FR-VAC-004, PRIV-001]
