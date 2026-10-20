@@ -602,5 +602,17 @@ struct AgentChatModelTests {
         #expect("\(AgentCardPresenter.successText(approve))" != "\(AgentCardPresenter.successText(reject))")
         #expect("\(AgentCardPresenter.successText(.vacationCancel(request)))" != "\(AgentCardPresenter.successText(approve))")
     }
+
+    @Test("AGENT UX: a 404 from the turn endpoint means this environment has no such agent, not a glitch")
+    func agentNotDeployed() async {
+        let rig = Rig(StubAgentScript(turns: [StubTurn([], ending: .fail(.notFound))]), feature: .vacation)
+        rig.model.send("Wie viele Ferientage habe ich noch?")
+        await rig.settle()
+        #expect(rig.model.problem == .notAvailable)
+        #expect(rig.model.announcement?.text == String(localized: L10n.agentProblemNotAvailable))
+        rig.model.retry()  // nothing is kept to retry: it would fail the same way
+        await rig.settle()
+        #expect(rig.stub.turns.count == 1 && rig.model.phase == .idle)
+    }
 }
 #endif

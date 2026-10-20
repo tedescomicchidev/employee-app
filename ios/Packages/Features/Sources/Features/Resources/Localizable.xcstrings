@@ -9787,6 +9787,34 @@
           }
         }
       }
+    },
+    "agent.problem.notavailable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieser Assistent ist in dieser Umgebung nicht eingerichtet. Erneutes Versuchen hilft nicht."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This assistant is not set up in this environment. Trying again will not help."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cet assistant n’est pas configuré dans cet environnement. Réessayer n’y changera rien."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questo assistente non è configurato in questo ambiente. Riprovare non servirà."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

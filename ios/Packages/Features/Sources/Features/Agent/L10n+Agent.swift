@@ -41,6 +41,7 @@ extension L10n {
     static var agentProblemTooLong: LocalizedStringResource { .init("agent.problem.toolong", bundle: bundle) }
     static var agentProblemRateLimited: LocalizedStringResource { .init("agent.problem.ratelimited", bundle: bundle) }
     static var agentProblemUnavailable: LocalizedStringResource { .init("agent.problem.unavailable", bundle: bundle) }
+    static var agentProblemNotAvailable: LocalizedStringResource { .init("agent.problem.notavailable", bundle: bundle) }
     static var agentProblemStopped: LocalizedStringResource { .init("agent.problem.stopped", bundle: bundle) }
     static var agentCardFieldTitle: LocalizedStringResource { .init("agent.card.field.title", bundle: bundle) }
     static var agentCardFieldBody: LocalizedStringResource { .init("agent.card.field.body", bundle: bundle) }

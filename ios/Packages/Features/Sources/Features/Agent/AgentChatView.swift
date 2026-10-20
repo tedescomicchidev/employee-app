@@ -122,6 +122,10 @@ struct AgentChatView: View {
                     DSBanner(.error, message: Text(L10n.agentProblemForbidden))
                 case .tooLong:
                     DSBanner(.info, message: Text(L10n.agentProblemTooLong))
+                case .notAvailable:
+                    DSBanner(.error, message: Text(L10n.agentProblemNotAvailable))
+                    Text(L10n.agentProblemReference("NOT_FOUND")).font(DSFont.code).foregroundStyle(DSColor.ink2)
+                        .padding(.horizontal, DSSpacing.s)
                 case let .rateLimited(until):
                     DSBanner(.error, message: Text(L10n.agentProblemRateLimited) + Text(" ") + Text(until, style: .timer))
                 case let .unavailable(code):

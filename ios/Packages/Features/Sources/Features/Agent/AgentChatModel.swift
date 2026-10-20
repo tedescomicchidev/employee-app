@@ -25,6 +25,9 @@ public final class AgentChatModel {
         case signedOut
         case forbidden
         case tooLong
+        /// 404 from the turn endpoint: this api has no such agent (not deployed or not configured here).
+        /// Not a glitch, so there is nothing to retry.
+        case notAvailable
         case rateLimited(until: Date)
         case unavailable(code: String)
         case stopped
@@ -485,6 +488,9 @@ public final class AgentChatModel {
             problem = .forbidden
         case .tooLong:
             problem = .tooLong
+        case .notFound:
+            problem = .notAvailable
+            retryAction = nil  // it would fail the same way: there is no such agent here
         case let .rateLimited(retryAfter):
             let until = now().addingTimeInterval(TimeInterval(max(retryAfter ?? 30, 1)))
             problem = .rateLimited(until: until)
@@ -502,6 +508,7 @@ public final class AgentChatModel {
         case .signedOut: L10n.agentProblemSignedOut
         case .forbidden: L10n.agentProblemForbidden
         case .tooLong: L10n.agentProblemTooLong
+        case .notAvailable: L10n.agentProblemNotAvailable
         case .rateLimited: L10n.agentProblemRateLimited
         case .stopped: L10n.agentProblemStopped
         case .unavailable, nil: L10n.agentProblemUnavailable
