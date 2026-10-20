@@ -46,12 +46,12 @@ done
 # Live (the model itself) runs only when the human sets EVAL_API_URL and EVAL_TOKEN_<PERSONA>.
 echo "== evals gate =="
 cd "$root/evals"
-for agent in comms vacation; do
+for agent in comms vacation briefing; do
   echo "-- $agent --"
   uv run python runner.py offline --agent "$agent"
 done
 if [ -n "${EVAL_API_URL:-}" ]; then
-  for agent in comms vacation; do
+  for agent in comms vacation briefing; do
     uv run python runner.py live --agent "$agent"
   done
 else
