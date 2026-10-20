@@ -44,7 +44,7 @@ class WorkIQError(Exception):
     def __init__(self, code: str, stage: str = "") -> None:
         super().__init__(code)
         self.code = code
-        # Where it failed (`obo:interaction_required`, `http:403:tools/call`, ...): for the log only.
+        # Where it failed (`obo:...`, `http:403:...`, `rpc:...`): for the log only.
         self.stage = stage
 
 
