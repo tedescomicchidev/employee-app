@@ -41,9 +41,11 @@ REAUTH = "reauth"
 class WorkIQError(Exception):
     """`code` is one of the constants above; it never holds tokens, event text or descriptions."""
 
-    def __init__(self, code: str) -> None:
+    def __init__(self, code: str, stage: str = "") -> None:
         super().__init__(code)
         self.code = code
+        # Where it failed (`obo:interaction_required`, `http:403:tools/call`, ...): for the log only.
+        self.stage = stage
 
 
 class WorkIQClient(Protocol):
@@ -127,10 +129,13 @@ class _Rpc:
             response = self._http.post(
                 self._url, json=body, headers=self._headers, timeout=self._timeout
             )
-        except requests.RequestException:
-            raise WorkIQError(UNAVAILABLE) from None
+        except requests.RequestException as exc:
+            raise WorkIQError(UNAVAILABLE, f"http:unreachable:{type(exc).__name__}") from None
         if response.status_code >= 400:
-            raise WorkIQError(error_for_status(response.status_code, response.text))
+            raise WorkIQError(
+                error_for_status(response.status_code, response.text),
+                f"http:{response.status_code}:{method}",
+            )
         session = response.headers.get("Mcp-Session-Id")
         if session:
             self._headers["Mcp-Session-Id"] = session
@@ -153,7 +158,9 @@ class _Rpc:
         message = self._post("tools/call", {"name": tool, "arguments": arguments})
         result = message.get("result") or {}
         if message.get("error") or result.get("isError"):
-            raise WorkIQError(UNAVAILABLE)
+            # The JSON-RPC error code, or "tool_error"; never the message, which may carry content.
+            code = (message.get("error") or {}).get("code", "tool_error")
+            raise WorkIQError(UNAVAILABLE, f"rpc:{code}:{tool}")
         structured = result.get("structuredContent")
         return structured if isinstance(structured, dict) else {}
 
@@ -166,11 +173,11 @@ def _decode(response: requests.Response) -> dict[str, Any]:
                     return dict(json.loads(line[5:].strip()))
                 except ValueError:
                     continue
-        raise WorkIQError(UNAVAILABLE)
+        raise WorkIQError(UNAVAILABLE, "rpc:bad_event_stream")
     try:
         return dict(response.json())
     except ValueError:
-        raise WorkIQError(UNAVAILABLE) from None
+        raise WorkIQError(UNAVAILABLE, "rpc:bad_json") from None
 
 
 @dataclass(frozen=True)
@@ -202,7 +209,7 @@ class MsalWorkIQClient:
     def _assertion(self) -> str:
         token = self._identity.acquire_token_for_client(resource="api://AzureADTokenExchange")
         if not token.get("access_token"):
-            raise WorkIQError(UNAVAILABLE)
+            raise WorkIQError(UNAVAILABLE, "obo:managed_identity")
         return str(token["access_token"])
 
     def _app_for(self, user_assertion: str) -> msal.ConfidentialClientApplication:
@@ -214,7 +221,7 @@ class MsalWorkIQClient:
             if aud in app.audiences:
                 break
         else:
-            raise WorkIQError(UNAVAILABLE)
+            raise WorkIQError(UNAVAILABLE, "obo:no_app_for_audience")
         if app.client_id not in self._clients:
             self._clients[app.client_id] = msal.ConfidentialClientApplication(
                 app.client_id,
@@ -229,7 +236,8 @@ class MsalWorkIQClient:
         )
         token = result.get("access_token")
         if not token:
-            raise WorkIQError(error_for_obo(str(result.get("error") or "")))
+            error = str(result.get("error") or "")  # an OAuth error code, never the description
+            raise WorkIQError(error_for_obo(error), f"obo:{error or 'unknown'}")
         rpc = _Rpc(self._url, str(token), self._timeout)
         rpc.start()
 
@@ -245,11 +253,12 @@ class MsalWorkIQClient:
             except WorkIQError as exc:
                 return day, exc
             if data.get("statusCode", 200) != 200:
-                return day, WorkIQError(error_for_status(int(data["statusCode"]), ""))
+                status = int(data["statusCode"])
+                return day, WorkIQError(error_for_status(status, ""), f"graph:{status}")
             body = data.get("data") or {}
             events = [e for e in map(parse_event, body.get("value") or []) if e is not None]
             if body.get("@odata.nextLink"):  # more than the page cap: not the whole day
-                return day, WorkIQError(UNAVAILABLE)
+                return day, WorkIQError(UNAVAILABLE, "graph:next_link")
             return day, events
 
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -265,6 +274,9 @@ class MsalWorkIQClient:
             if error.code != UNAVAILABLE:  # about the user, not the service: no partial briefing
                 raise error
         if not by_day:
-            raise WorkIQError(UNAVAILABLE)
+            stages = sorted({e.stage for _, e in failures if e.stage})
+            raise WorkIQError(UNAVAILABLE, ";".join(stages) or "all_days_failed")
         log.info("work iq week days_ok=%d days_failed=%d", len(by_day), len(failures))
+        for _, error in failures:
+            log.warning("work iq day failed code=%s stage=%s", error.code, error.stage)
         return WeekFetch(by_day, [d for d, _ in failures])

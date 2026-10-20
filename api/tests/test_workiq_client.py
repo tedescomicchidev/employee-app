@@ -218,3 +218,24 @@ def test_fr_brf_005_unconfigured_work_iq_is_unavailable() -> None:
     with pytest.raises(WorkIQError) as exc:
         workiq.UnconfiguredWorkIQClient().fetch_week("u", DAYS)
     assert exc.value.code == UNAVAILABLE
+
+
+def test_fr_brf_005_a_failure_names_its_stage_and_never_its_content(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The log says where Work IQ failed (http:403, rpc, graph, obo) so the cause can be found."""
+    secret = "Quarterly planning with ACME"
+
+    class Http(_Http):
+        def post(self, url: str, json: Any, headers: Any, timeout: Any) -> _Response:  # noqa: A002
+            if json["method"] == "tools/call":
+                return _Response(
+                    {"jsonrpc": "2.0", "id": 1, "error": {"code": -32602, "message": secret}}
+                )
+            return super().post(url, json, headers, timeout)
+
+    with pytest.raises(WorkIQError) as exc:
+        _client(Http({}), monkeypatch).fetch_week("u", DAYS)
+    assert exc.value.code == UNAVAILABLE
+    assert exc.value.stage == "rpc:-32602:call_function"
+    assert secret not in caplog.text and "workiq-token" not in caplog.text

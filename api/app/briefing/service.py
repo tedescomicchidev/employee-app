@@ -1,4 +1,5 @@
 import hmac
+import logging
 import secrets
 import threading
 import uuid
@@ -26,6 +27,7 @@ from app.briefing.store import BriefingSettingsStore
 from app.briefing.week import WeekConfig, build_briefing, week_days, week_start
 from app.repositories import ConfirmationStore, ConfirmationToken, Directory, Proposal
 
+log = logging.getLogger("app.briefing")
 Clock = Callable[[], datetime]
 _APPLIED = "applied"
 
@@ -180,6 +182,8 @@ class BriefingService:
         try:
             fetch = self._work_iq.fetch_week(principal.assertion, week_days(start))
         except workiq.WorkIQError as exc:
+            # A code and the stage it failed at: never a token, a response body or an event.
+            log.warning("work iq week failed code=%s stage=%s", exc.code, exc.stage or "-")
             raise _workiq_error(exc) from None
         return build_briefing(start, fetch, self._config)
 
