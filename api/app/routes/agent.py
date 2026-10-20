@@ -65,6 +65,8 @@ def agent_turn(
         proposal_id = str(body.confirmation.proposal_id)
         if agent == "vacation":
             proposal = state.vacation_service.get_proposal(principal, proposal_id)
+        elif agent == "briefing":
+            proposal = state.briefing_service.get_proposal(principal, proposal_id)
         else:
             proposal = state.announcement_service.get_proposal(principal, proposal_id).proposal
         messages.append(body.confirmation.as_message(proposal.draft.canonical()))
