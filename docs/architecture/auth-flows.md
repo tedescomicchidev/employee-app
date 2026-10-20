@@ -222,3 +222,27 @@ Flow 4 notes (phase 8, implemented in `api/app/briefing/`):
 - Work IQ 403 is split by its text: "Required scopes" is `CONSENT_REQUIRED` (administrator), any other 403 is `NO_LICENCE` (billing not enabled or no licence; Learn gives both causes one status). The user can fix neither in the app.
 - Calendar is read one Zurich day per `call_function /me/calendarView?startDateTime&endDateTime` (`$top=100`, `$skip` is blocked by Work IQ): a day that fails, or has a `nextLink`, is reported as a missing day and the week is labelled partial. A failure about the account (consent, licence, token) on any day fails the whole week, never a half briefing.
 - **Spike S-2 is not verified against the tenant**: the tool name and response shape follow the Learn pages; billing (Copilot Credits vs per-user licence) is still the human's decision.
+
+## Tenant-wide directory (ADR-010 update): human-only steps
+The api reads the tenant's employees with the container app's managed identity. Nothing below is done by the agent.
+1. Find the managed identity's **object id** (the user-assigned identity's Overview page, not its client id) and the
+   Graph service principal (`appId 00000003-0000-0000-c000-000000000000`). Then grant the two **application** roles
+   (admin consent; Privileged Role Administrator or Global Administrator):
+   ```
+   MI=<object id of the managed identity>
+   GRAPH=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+   for ROLE in User.Read.All Application.Read.All; do
+     ROLE_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 \
+       --query "appRoles[?value=='$ROLE' && contains(allowedMemberTypes,'Application')].id | [0]" -o tsv)
+     az rest -m POST -u https://graph.microsoft.com/v1.0/servicePrincipals/$MI/appRoleAssignments \
+       -b "{\"principalId\":\"$MI\",\"resourceId\":\"$GRAPH\",\"appRoleId\":\"$ROLE_ID\"}"
+   done
+   ```
+2. Assign the users to the `employee-api` enterprise application with their app role (Employee, Manager or
+   Communicator). Only users holding a role are loaded. Group assignments are not expanded.
+3. Check the three attributes hold the data (`GRAPH_CANTON_ATTRIBUTE` default `state`, `GRAPH_STORE_ATTRIBUTE`
+   default `officeLocation`, `GRAPH_REGION_ATTRIBUTE` default `preferredLanguage`) and that managers are set.
+4. `azd env set GRAPH_DIRECTORY_SYNC true`, `azd provision` (sets the app setting), `azd deploy api`.
+5. Look for `directory sync employees=N active=N users_seen=N group_assignments_skipped=N` in the api log.
+   `directory sync failed code=graph_users_403` means step 1 is missing or has not propagated yet.
+To turn it off again: set the variable to `false` and remove the two role assignments.

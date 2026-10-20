@@ -316,3 +316,17 @@ not_collected:
   - precise location
   - advertising identifiers or third-party analytics
   - calendar content persisted server-side (by default)
+
+  - id: employee-directory
+    description: The tenant's employees as the api knows them (names, role, store, region, canton, manager)
+    fields: [oid, display_name, account_enabled, app_role, store, region, canton, manager_oid]
+    data_subjects: [employee]
+    classification: personal
+    purpose: audience targeting, approver routing, holiday counting, team coverage (FR-ANN-002, FR-VAC-004/005/006)
+    source: Microsoft Graph, read by the api with the managed identity (application permissions User.Read.All and Application.Read.All); only users holding an app role of employee-api; ADR-010 update
+    storage: [in memory in api/, refilled from Graph at startup and every 15 minutes (ADR-007 for the later Cosmos store)]
+    processors: [Microsoft Entra ID, Azure Container Apps]
+    shared_with_agents: own record only, through tool results; never the list
+    retention: not stored; replaced on every read
+    access: [api]
+    requirements: [FR-ANN-002, FR-VAC-004, PRIV-001]

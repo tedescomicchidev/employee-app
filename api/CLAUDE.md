@@ -7,7 +7,10 @@ Python 3.12, FastAPI, managed with uv. Run from `api/`.
   MCP tools must call the same domain services and the same role checks.
 - Validate Entra tokens (issuer, audience, roles) on every non-health route.
   OBO (user-delegated) is used for Graph, the tools resource app (`Tools.Invoke`) and Work IQ; never
-  app-only for user data, and never cache other users' Work IQ output.
+  app-only for user data, and never cache other users' Work IQ output. One narrow exception, decided by the
+  human (ADR-010 update): the employee directory (`app/directory/sync.py`) is read with the managed
+  identity's Graph application permissions (`User.Read.All`, `Application.Read.All`): names, enabled state,
+  three HR attributes, manager and app role only. Never mail, calendar, files or Work IQ app-only.
 - Writes by agent tools require a `confirmation_token` issued by the app's confirm card.
 - No secrets in code or logs. Key Vault + managed identity. Never log tokens or PII.
 - Emit experiment events per docs/experiment/metrics.md for every task flow.

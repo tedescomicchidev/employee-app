@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -25,6 +27,7 @@ from app.config import load_settings
 from app.directory.graph import GraphProfileClient, MsalGraphProfileClient
 from app.directory.provisioning import Provisioner
 from app.directory.settings import DirectorySettings, load_directory_settings
+from app.directory.sync import DirectorySync, GraphDirectoryClient, MsalGraphDirectoryClient
 from app.mcp.audit import McpAuditLog
 from app.mcp.server import McpGateway, build_mcp_server
 from app.repositories import (
@@ -47,6 +50,7 @@ def create_app(
     directory: SeedDirectory | None = None,
     directory_client: GraphProfileClient | None = None,
     directory_settings: DirectorySettings | None = None,
+    directory_lister: GraphDirectoryClient | None = None,
     agent_settings: AgentSettings | None = None,
     tools_token_client: ToolsTokenClient | None = None,
     agent_responder: AgentResponder | None = None,
@@ -54,7 +58,15 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         async with mcp.session_manager.run():
-            yield
+            # The tenant read runs beside the app: a slow or failing Graph never delays startup.
+            task = asyncio.create_task(sync.run_forever()) if sync is not None else None
+            try:
+                yield
+            finally:
+                if task is not None:
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
 
     app = FastAPI(title="Employee App API", lifespan=lifespan)
     if validator is None:
@@ -63,7 +75,12 @@ def create_app(
     app.state.token_validator = validator
     # In-memory stores until the Cosmos repositories land (ADR-007). One directory is shared by
     # every service and by the provisioner that adds signed-in users to it (ADR-010).
-    directory = directory or SeedDirectory.from_file()
+    directory_settings = directory_settings or load_directory_settings()
+    # With the tenant read on the seed is not loaded: the directory is the tenant's own people.
+    directory = directory or (
+        SeedDirectory([]) if directory_settings.sync_enabled else SeedDirectory.from_file()
+    )
+    sync = build_directory_sync(directory, directory_lister, directory_settings)
     app.state.announcement_service = announcement_service or AnnouncementService(
         directory, InMemoryAnnouncementStore(), InMemoryConfirmationStore()
     )
@@ -138,6 +155,23 @@ def build_work_iq_client() -> workiq.WorkIQClient:
     if not (api.tenant_id and apps and identity):
         return workiq.UnconfiguredWorkIQClient()
     return workiq.MsalWorkIQClient(api.tenant_id, apps, identity)
+
+
+def build_directory_sync(
+    directory: SeedDirectory,
+    client: GraphDirectoryClient | None,
+    settings: DirectorySettings,
+) -> DirectorySync | None:
+    """The tenant-wide directory read (ADR-010, superseded in part). None when it is switched off or
+    the app registration and managed identity it needs are not configured."""
+    if not settings.sync_enabled:
+        return None
+    if client is None:
+        api = load_settings()
+        if not (api.api_client_id and settings.managed_identity_client_id):
+            return None
+        client = MsalGraphDirectoryClient(api.api_client_id, settings.managed_identity_client_id)
+    return DirectorySync(directory, client, settings)
 
 
 def build_provisioner(

@@ -16,6 +16,10 @@ class DirectorySettings:
     # After a failed lookup, that user is not looked up again for this long (a broken setup would
     # otherwise add a Graph round trip to every request).
     retry_after: timedelta = field(default_factory=lambda: timedelta(seconds=60))
+    # The whole tenant's employees, read with the managed identity's own Graph permissions
+    # (`User.Read.All`, `Application.Read.All`). Off by default; the seed is not loaded when on.
+    sync_enabled: bool = False
+    sync_interval: timedelta = field(default_factory=lambda: timedelta(minutes=15))
 
     @property
     def attributes(self) -> list[str]:
@@ -24,7 +28,8 @@ class DirectorySettings:
 
 
 def load_directory_settings() -> DirectorySettings:
-    """`GRAPH_DIRECTORY=true` turns on Graph-backed provisioning (needs the federated identity)."""
+    """`GRAPH_DIRECTORY=true` turns on per-user provisioning (needs the federated identity);
+    `GRAPH_DIRECTORY_SYNC=true` loads the whole tenant's employees instead of the seed file."""
     env = os.environ
     return DirectorySettings(
         enabled=env.get("GRAPH_DIRECTORY", "").lower() in ("1", "true", "yes"),
@@ -34,4 +39,6 @@ def load_directory_settings() -> DirectorySettings:
         region_attribute=env.get("GRAPH_REGION_ATTRIBUTE", "preferredLanguage"),
         ttl=timedelta(hours=float(env.get("GRAPH_DIRECTORY_TTL_HOURS", "12"))),
         retry_after=timedelta(seconds=float(env.get("GRAPH_DIRECTORY_RETRY_SECONDS", "60"))),
+        sync_enabled=env.get("GRAPH_DIRECTORY_SYNC", "").lower() in ("1", "true", "yes"),
+        sync_interval=timedelta(minutes=float(env.get("GRAPH_DIRECTORY_SYNC_MINUTES", "15"))),
     )
