@@ -15,3 +15,4 @@ each ADR uses: Status, Context, Decision, Consequences, Alternatives, Sources (L
 | [008](ADR-008-push-notifications.md) | Notification Hubs, content-free payloads |
 | [009](ADR-009-experiment-events.md) | Event capture and pseudonymity |
 | [010](ADR-010-directory-attributes.md) | Seed file instead of app-only Graph sync |
+| [011](ADR-011-u03-work-iq-calendar-surface.md) | Work IQ calendar surface (U-03 spike; live result pending) |
