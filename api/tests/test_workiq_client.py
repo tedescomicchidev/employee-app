@@ -248,7 +248,7 @@ def test_fr_brf_005_an_obo_failure_logs_its_entra_error_numbers_only(
     rejected = {
         "error": "invalid_client",
         "error_codes": [700211],
-        "error_description": "AADSTS700211: No matching federated identity record for jane@example.com",
+        "error_description": "AADSTS700211: No matching federated record for jane@example.com",
     }
     app = type("App", (), {"acquire_token_on_behalf_of": lambda self, a, scopes: rejected})()
     monkeypatch.setattr(client, "_app_for", lambda _: app)
