@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request
 from app.announcements.service import AnnouncementService
 from app.auth.errors import FieldError
 from app.auth.principal import Principal, Role, authorize, current_principal
+from app.briefing.service import BriefingService
 from app.repositories import Proposal
 from app.routes.announcements import Body, _draft
 from app.routes.vacation import request_json, review_json
@@ -20,13 +21,22 @@ Caller = Annotated[Principal, Depends(current_principal)]
 
 def _type(body: Body) -> str:
     kind = body.get("type", "announcement")
-    if kind not in ("announcement", "vacation", "vacation_cancel", "vacation_decision"):
-        raise FieldError("type", "announcement, vacation, vacation_cancel or vacation_decision")
+    if kind not in ("announcement", "vacation", "vacation_cancel", "vacation_decision", "briefing"):
+        raise FieldError(
+            "type", "announcement, vacation, vacation_cancel, vacation_decision or briefing"
+        )
     return kind
 
 
 @router.post("/proposals")
 def create_proposal(principal: Caller, request: Request, body: Body) -> dict[str, Any]:
+    if _type(body) == "briefing":
+        payload = body.get("payload")
+        enabled = payload.get("enabled") if isinstance(payload, dict) else None
+        if not isinstance(enabled, bool):
+            raise FieldError("payload.enabled", "true or false")
+        briefing: BriefingService = request.app.state.briefing_service
+        return briefing_card(briefing.propose_opt_in(principal, enabled).proposal)
     if _type(body) == "vacation_cancel":
         payload = body.get("payload")
         request_id = payload.get("request_id") if isinstance(payload, dict) else None
@@ -86,6 +96,9 @@ def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[
 
     The proposal's own action says which domain it belongs to; announcements stay the default.
     """
+    briefing: BriefingService = request.app.state.briefing_service
+    if briefing.find_proposal(proposal_id) is not None:
+        return briefing_card(briefing.get_proposal(principal, proposal_id))  # owner-only
     vacation: VacationService = request.app.state.vacation_service
     if vacation.find_proposal(proposal_id) is not None:
         proposal = vacation.get_proposal(principal, proposal_id)  # owner-only, else NOT_FOUND
@@ -98,6 +111,17 @@ def get_proposal(proposal_id: str, principal: Caller, request: Request) -> dict[
         "payload": result.proposal.draft.canonical(),
         "recipient_count": result.recipient_count,
         "expires_at": result.proposal.expires_at.isoformat(),
+    }
+
+
+def briefing_card(proposal: Proposal) -> dict[str, Any]:
+    """Confirm card for turning the briefing on or off; it names what is accessed (FR-BRF-001.2)."""
+    return {
+        "proposal_id": proposal.id,
+        "type": "briefing",
+        "payload": proposal.draft.canonical(),
+        "access": "own_calendar_coming_week",
+        "expires_at": proposal.expires_at.isoformat(),
     }
 
 
@@ -129,7 +153,9 @@ def create_confirmation(principal: Caller, request: Request, body: Body) -> dict
     proposal_id = body.get("proposal_id")
     if not isinstance(proposal_id, str):
         raise FieldError("proposal_id", "required")
-    if kind in ("vacation_cancel", "vacation_decision"):
+    if kind == "briefing":
+        token = request.app.state.briefing_service.confirm(principal, proposal_id)
+    elif kind in ("vacation_cancel", "vacation_decision"):
         action = ACTION_CANCEL if kind == "vacation_cancel" else ACTION_DECIDE
         token = request.app.state.vacation_service.confirm(principal, proposal_id, action)
     elif kind == "vacation":

@@ -26,6 +26,7 @@ enum AppBootstrap {
                 feedCache: FeedCache(fileURL: FeedCache.defaultFileURL()),
                 vacation: URLSessionVacationService(baseURL: config.apiBaseURL),
                 vacationCache: VacationCache(fileURL: VacationCache.defaultFileURL()),
+                briefing: URLSessionBriefingService(baseURL: config.apiBaseURL),
                 events: events, taskContext: taskContext(),
                 agent: URLSessionAgentService(baseURL: config.apiBaseURL)), clearing: events)
         } catch {
@@ -66,6 +67,8 @@ enum AppBootstrap {
             { URLCache.shared.removeAllCachedResponses() },
         ]
         if let events { extra.append { await events.clear() } }
+        // FR-BRF-003.2: a tap on "Your week is ready" reaches the app, also on a cold start.
+        UNUserNotificationCenter.current().delegate = environment.briefingTaps
         Task { [extra] in await environment.registerSessionCleanup(also: extra) }
         return environment
     }

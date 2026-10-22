@@ -28,6 +28,12 @@ public struct AppEnvironment: Sendable {
     public let feedCache: FeedCache
     public let vacation: any VacationService
     public let vacationCache: VacationCache
+    /// The weekly briefing (FR-BRF-*): `api/` reads Work IQ on behalf of the user; the app never calls Work IQ.
+    public let briefing: any BriefingService
+    /// FR-BRF-003: the local Monday 07:00 reminder.
+    public let briefingReminder: BriefingReminder
+    /// Where a tap on the Monday notification is delivered (the app target installs it as the delegate).
+    public let briefingTaps: BriefingTapRouter
     /// Business "now"; fixed in screenshot and UI-test runs so dates in the fixtures stay in the future.
     public let clock: @Sendable () -> Date
     public let events: any EventSink
@@ -51,6 +57,10 @@ public struct AppEnvironment: Sendable {
     public var startOnApprovals = false
     /// Screenshots and UI tests: send these messages in the agent chat at launch, then optionally tap confirm.
     public var agentAutopilot: AgentAutopilot?
+    /// Screenshots and UI tests: start on the briefing (Week) tab and drive it to this state.
+    public var briefingAutopilot: BriefingAutopilot?
+    /// Screenshots and UI tests: start on the Week tab (the briefing agent's chat in AGENT mode).
+    public var startOnWeek = false
     #endif
 
     public init(
@@ -63,6 +73,9 @@ public struct AppEnvironment: Sendable {
         feedCache: FeedCache = FeedCache(),
         vacation: any VacationService = UnconfiguredVacationService(),
         vacationCache: VacationCache = VacationCache(),
+        briefing: any BriefingService = UnconfiguredBriefingService(),
+        briefingReminder: BriefingReminder = BriefingReminder(),
+        briefingTaps: BriefingTapRouter = BriefingTapRouter(),
         clock: @escaping @Sendable () -> Date = { Date() },
         events: any EventSink = MemoryEventSink(),
         taskContext: TaskContext = TaskContext(participantId: UUID()),
@@ -78,6 +91,9 @@ public struct AppEnvironment: Sendable {
         self.feedCache = feedCache
         self.vacation = vacation
         self.vacationCache = vacationCache
+        self.briefing = briefing
+        self.briefingReminder = briefingReminder
+        self.briefingTaps = briefingTaps
         self.clock = clock
         self.events = events
         self.taskContext = taskContext
@@ -91,7 +107,9 @@ public struct AppEnvironment: Sendable {
     /// A re-sign-in after expiry does not run these.
     public func registerSessionCleanup(also extra: [SessionCleaner.Hook] = []) async {
         let drafts = drafts, feedCache = feedCache, vacationCache = vacationCache
+        let reminder = briefingReminder
         await cleaner.register { await drafts.clear() }
+        await cleaner.register { await reminder.cancel() }  // FR-BRF-003.3
         await cleaner.register { await feedCache.clear() }
         await cleaner.register { await vacationCache.clear() }
         for hook in extra { await cleaner.register(hook) }
@@ -154,5 +172,12 @@ public struct AgentAutopilot: Sendable, Equatable {
         self.confirm = confirm
         self.chooseFirstOption = chooseFirstOption
     }
+}
+#endif
+
+#if DEBUG
+/// Drives the briefing screens without taps so `screenshot.sh` can capture each state (FR-BRF-*).
+public enum BriefingAutopilot: String, Sendable {
+    case optIn, consentInProgress, notificationPermission, week, day, settings
 }
 #endif

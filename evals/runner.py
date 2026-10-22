@@ -1,7 +1,7 @@
 """Agent eval runner.
 
-  python runner.py offline [--agent comms|vacation]   CI gate, no Azure and no model needed
-  python runner.py live    [--agent comms|vacation]   against a deployed dev API + agent (human)
+  python runner.py offline [--agent comms|vacation|briefing]   CI gate, no Azure, no model needed
+  python runner.py live    [--agent comms|vacation|briefing]   deployed dev API + agent (human)
 
 Offline proves the dataset and the scoring rules: every required @agent-eval scenario is covered,
 every golden trace passes, and every recorded bad trace is caught. It does NOT run a model. The
@@ -22,7 +22,16 @@ from typing import Any, Protocol
 import httpx
 from pydantic import ValidationError
 
-from models import Case, CaseResult, Persona, Reply, ToolCall, Trace, VacationFixture
+from models import (
+    BriefingFixture,
+    Case,
+    CaseResult,
+    Persona,
+    Reply,
+    ToolCall,
+    Trace,
+    VacationFixture,
+)
 from scoring import run_case, score
 
 ROOT = Path(__file__).resolve().parent
@@ -57,14 +66,33 @@ REQUIRED_SCENARIOS = {
         "Holiday answers come from the tool",
         "Status question",
     ],
+    "briefing": [
+        "Agent offers opt-in, toggle needs the confirm card",
+        "Agent includes every event or states omissions",
+        "Injected instruction in a calendar event",
+        "User asks the briefing agent about a colleague's calendar",
+        "Indirect and obfuscated attempts",
+        "Agent reports a tool failure honestly",
+    ],
 }
-INJECTION_VARIANTS = {"comms": 5, "vacation": 2}  # rows of an "Injection variants" outline
+INJECTION_VARIANTS = {
+    "comms": 5,
+    "vacation": 2,
+    "briefing": 0,
+}  # rows of an "Injection variants" outline
 # The cases the vacation brief names that test-cases.md covers under other IDs (all must exist).
 REQUIRED_CASE_IDS = {
     "vacation": [
         "vacation-balance-insufficient", "vacation-overlap-approved", "vacation-overlap-pending",
         "vacation-blackout", "vacation-blackout-partial", "vacation-self-approval",
         "vacation-employee-approves-own-by-chat",
+    ],
+    "briefing": [
+        "briefing-optin-offer", "briefing-optin-by-chat", "briefing-colleague-calendar",
+        "briefing-ceo-free", "briefing-week-all-events", "briefing-injection-main",
+        "briefing-obfuscated-pretend", "briefing-obfuscated-attendees",
+        "briefing-obfuscated-assistant", "briefing-obfuscated-compare",
+        "briefing-obfuscated-manager-said", "briefing-workiq-unavailable",
     ],
 }  # fmt: skip
 
@@ -158,6 +186,13 @@ class Driver(Protocol):
     def proposal(self, persona: Persona, proposal_id: str) -> dict[str, Any] | None: ...
 
 
+class BriefingDriver(Driver, Protocol):
+    """A briefing run: the opt-in state before and after, and the api's numbers for the week."""
+
+    def snapshot(self, case: Case) -> dict[str, str]: ...
+    def facts(self, persona: Persona, proposal_id: str | None) -> list[int]: ...
+
+
 class VacationDriver(Driver, Protocol):
     """The extra reads a vacation run needs: what changed in the requests, and the api's numbers."""
 
@@ -191,6 +226,8 @@ def _converse(case: Case, driver: Driver) -> tuple[Trace, str | None]:
 def run_live_case(case: Case, driver: Driver) -> Trace:
     if case.agent == "vacation":
         return run_live_vacation_case(case, driver)  # type: ignore[arg-type]
+    if case.agent == "briefing":
+        return run_live_briefing_case(case, driver)  # type: ignore[arg-type]
     for fixture in case.fixtures:
         driver.seed(fixture)
     before = driver.feed_size("ceo")
@@ -201,6 +238,19 @@ def run_live_case(case: Case, driver: Driver) -> Trace:
         1 for f in case.fixtures if not isinstance(f, VacationFixture) and f.audience == "all"
     )
     trace.created = max(0, driver.feed_size("ceo") - before - visible_fixtures)
+    return trace
+
+
+def run_live_briefing_case(case: Case, driver: BriefingDriver) -> Trace:
+    for fixture in case.fixtures:
+        driver.seed(fixture)
+    before = driver.snapshot(case)
+    trace, proposal_id = _converse(case, driver)
+    if proposal_id:
+        trace.proposal = driver.proposal(case.persona, proposal_id)
+    trace.facts = driver.facts(case.persona, proposal_id)
+    after = driver.snapshot(case)
+    trace.created = sum(1 for k in before.keys() | after.keys() if before.get(k) != after.get(k))
     return trace
 
 
@@ -220,6 +270,8 @@ def run_live_vacation_case(case: Case, driver: VacationDriver) -> Trace:
 def run_live(cases: Sequence[Case], driver: Driver) -> list[CaseResult]:
     results = []
     for case in cases:
+        if not case.live:
+            continue  # a condition a live run cannot produce: scored offline, replayed against api/
         try:
             results.append(run_case(case, run_live_case(case, driver)))
         except (httpx.HTTPError, RuntimeError) as exc:
@@ -272,6 +324,9 @@ class HttpDriver:
         return data
 
     def seed(self, fixture: Any) -> None:
+        if isinstance(fixture, BriefingFixture):
+            self._seed_briefing(fixture)
+            return
         if isinstance(fixture, VacationFixture):
             self._seed_request(fixture)
             return
@@ -299,7 +354,7 @@ class HttpDriver:
 
     def confirm(self, persona: Persona, proposal_id: str) -> str:
         body: dict[str, Any] = {"proposal_id": proposal_id}
-        if self._agent == "vacation":  # the confirm endpoint needs the domain of the proposal
+        if self._agent in ("vacation", "briefing"):  # the confirm endpoint needs the domain
             body["type"] = self._call("GET", f"/v1/proposals/{proposal_id}", persona)["type"]
         data = self._call("POST", "/v1/confirmations", persona, body)
         return str(data["confirmation_token"])
@@ -340,8 +395,51 @@ class HttpDriver:
             f"/v1/vacation/requests/{request['id']}/decision", payload,
         )  # fmt: skip
 
+    # --- briefing -------------------------------------------------------------------------
+
+    def _set_opt_in(self, persona: str, enabled: bool) -> None:
+        payload = {"enabled": enabled}
+        proposal = self._call(
+            "POST", "/v1/proposals", persona, {"type": "briefing", "payload": payload}
+        )
+        token = self._call(
+            "POST", "/v1/confirmations", persona,
+            {"type": "briefing", "proposal_id": proposal["proposal_id"]},
+        )["confirmation_token"]  # fmt: skip
+        self._call("POST", "/v1/briefing/opt-in", persona, {**payload, "confirmation_token": token})
+
+    def _seed_briefing(self, fixture: BriefingFixture) -> None:
+        """Sets the opt-in state, then checks the calendar is the one the case was written for."""
+        now = self._call("GET", "/v1/briefing/status", fixture.owner)["opted_in"]
+        if now != fixture.opted_in:
+            self._set_opt_in(fixture.owner, fixture.opted_in)
+        if not (fixture.opted_in and fixture.events):
+            return
+        week = self._call("GET", "/v1/briefing/week", fixture.owner)
+        have = sorted(e["title"] for d in week["days"] for e in d["events"])
+        # A multi-day event is listed on each day; compare titles as a set of what was seeded.
+        if sorted(set(have)) != sorted({e.title for e in fixture.events}):
+            raise RuntimeError("the dev calendar does not match the case fixture")
+
+    def _briefing_facts(self, persona: Persona) -> list[int]:
+        """The api's numbers for the week: event, conflict and day counts, free-block minutes."""
+        try:
+            week = self._call("GET", "/v1/briefing/week", persona)
+        except httpx.HTTPStatusError:
+            return []  # not opted in, or Work IQ failed: no numbers are legitimate
+        days = week["days"]
+        found = {week["event_count"], week["conflict_count"]}
+        found.add(sum(1 for d in days if d["events"]))
+        found |= {b["minutes"] for d in days for b in d["free_blocks"]}
+        found |= {len(d["free_blocks"]) for d in days}
+        return sorted(found)
+
     def snapshot(self, case: Case) -> dict[str, str]:
         """request id -> status, for the persona and the owners of the fixtures."""
+        if self._agent == "briefing":
+            return {
+                "opted_in": str(self._call("GET", "/v1/briefing/status", case.persona)["opted_in"])
+            }
         owners = {case.persona} | {f.owner for f in case.fixtures if isinstance(f, VacationFixture)}
         rows: dict[str, str] = {}
         for persona in sorted(owners):
@@ -351,6 +449,8 @@ class HttpDriver:
 
     def facts(self, persona: Persona, proposal_id: str | None) -> list[int]:
         """The api's numbers: balance, own requests, inbox and the stored proposal review."""
+        if self._agent == "briefing":
+            return self._briefing_facts(persona)
         found: set[int] = set()
 
         def collect(value: Any) -> None:

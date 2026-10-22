@@ -25,6 +25,7 @@ public struct RootView: View {
             }
         }
         .task {
+            environment.briefingTaps.attach { [model] in model.openBriefing() }
             await model.start()
             #if DEBUG
             if environment.autoSignIn, model.phase == .signedOut { await model.signIn() }

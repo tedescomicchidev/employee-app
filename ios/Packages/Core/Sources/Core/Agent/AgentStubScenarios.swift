@@ -10,8 +10,13 @@ public enum AgentStubScenario: String, Sendable, CaseIterable {
     // Vacation
     case vacEmpty, vacBalance, vacRequest, vacOptions, vacClarification, vacInsufficient, vacCoverage
     case vacSuccess, vacDecision, vacDecisionSuccess, vacBlackout, vacRefusal
+    // Weekly briefing (FR-BRF-001/002/004/005 AGENT)
+    case brfEmpty, brfOffer, brfOptedIn, brfLoading, brfOK, brfDeclined, brfUnavailable, brfConsent
 
-    public var feature: AgentFeature { rawValue.hasPrefix("ann") ? .comms : .vacation }
+    public var feature: AgentFeature {
+        if rawValue.hasPrefix("ann") { return .comms }
+        return rawValue.hasPrefix("brf") ? .briefing : .vacation
+    }
 
     // MARK: Fixtures (German, like the mockups; the app's own strings follow the UI language)
 
@@ -74,16 +79,21 @@ public enum AgentStubScenario: String, Sendable, CaseIterable {
         id: "p-dec-1", kind: .vacationDecision,
         content: .vacationDecision(decision: .approve, reason: nil, request: request), expiresAt: .distantFuture)
 
+    private static let briefingOnCard = AgentProposalCard(
+        id: "p-brf-1", kind: .briefing, content: .briefing(enabled: true), expiresAt: .distantFuture)
+
     private static func tool(_ name: String, ok: Bool = true) -> [AgentEvent] {
         [.status(.tool(name)), .toolFinished(AgentToolCall(name: name, ok: ok))]
     }
 
     private static func answer(
         _ text: String, kind: AgentReplyKind = .message, tools: [String] = [], proposalId: String? = nil,
-        options: [AgentOption] = [], reason: String? = nil, sources: [AgentSource] = [], thinking: Bool = true
+        options: [AgentOption] = [], reason: String? = nil, sources: [AgentSource] = [], thinking: Bool = true,
+        omitted: Int? = nil, failedTools: [String] = []
     ) -> StubTurn {
         var events: [AgentEvent] = thinking ? [.status(.thinking)] : []
         for name in tools { events += tool(name) }
+        for name in failedTools { events += tool(name, ok: false) }
         // Display text arrives in small pieces, like the real stream.
         var rest = Substring(text)
         while !rest.isEmpty {
@@ -91,8 +101,10 @@ public enum AgentStubScenario: String, Sendable, CaseIterable {
             rest = rest.dropFirst(12)
         }
         let reply = AgentReply(
-            kind: kind, text: text, proposalId: proposalId, options: options, reason: reason, sources: sources)
-        events.append(.final(AgentTurnResult(reply: reply, toolCalls: tools.map { AgentToolCall(name: $0, ok: true) })))
+            kind: kind, text: text, proposalId: proposalId, options: options, reason: reason, sources: sources,
+            omittedCount: omitted)
+        let calls = tools.map { AgentToolCall(name: $0, ok: true) } + failedTools.map { AgentToolCall(name: $0, ok: false) }
+        events.append(.final(AgentTurnResult(reply: reply, toolCalls: calls)))
         return StubTurn(events)
     }
 
@@ -104,7 +116,7 @@ public enum AgentStubScenario: String, Sendable, CaseIterable {
     public var script: StubAgentScript {
         typealias S = AgentStubScenario
         switch self {
-        case .annEmpty, .vacEmpty:
+        case .annEmpty, .vacEmpty, .brfEmpty:
             return StubAgentScript()
         case .annLoading:
             return StubAgentScript(turns: [
@@ -235,6 +247,54 @@ public enum AgentStubScenario: String, Sendable, CaseIterable {
                 S.answer(
                     "Die Regeln gelten für jedes Gesuch; ich kann sie nicht umgehen.", kind: .refusal,
                     reason: "rule_bypass"),
+            ])
+        case .brfOffer:
+            return StubAgentScript(
+                turns: [S.answer(
+                    "Das Wochenbriefing ist aus. Wenn du es einschaltest, liest die App deinen eigenen Kalender "
+                        + "für die kommende Woche über Work IQ, nur für dich. Bitte bestätige auf der Karte.",
+                    kind: .proposal, tools: ["get_briefing_status", "propose_briefing_optin"], proposalId: "p-brf-1")],
+                cards: ["p-brf-1": S.briefingOnCard])
+        case .brfOptedIn:
+            return StubAgentScript(
+                turns: [
+                    S.answer(
+                        "Das Wochenbriefing ist aus. Bitte bestätige auf der Karte.", kind: .proposal,
+                        tools: ["get_briefing_status", "propose_briefing_optin"], proposalId: "p-brf-1"),
+                    S.answer("Das Wochenbriefing ist eingeschaltet.", kind: .optedIn, tools: ["set_briefing_optin"]),
+                ],
+                cards: ["p-brf-1": S.briefingOnCard])
+        case .brfLoading:
+            return StubAgentScript(turns: [
+                StubTurn([.status(.thinking), .status(.tool("get_my_week"))], ending: .hang),
+            ])
+        case .brfOK:
+            return StubAgentScript(turns: [
+                S.answer(
+                    "Deine Woche hat 6 Termine. Montag: Team standup 09:00–09:30 und Budget review 09:15–10:15 "
+                        + "überschneiden sich. Dienstag: Store visit Zurich 13:00–15:00. Mittwoch: One-to-one with "
+                        + "manager 10:00–10:30 und Safety training 14:00–16:00. Freitag: Quarterly planning 11:00–12:00.",
+                    kind: .summary, tools: ["get_briefing_status", "get_my_week"], omitted: 0),
+            ])
+        case .brfDeclined:
+            return StubAgentScript(turns: [
+                S.answer(
+                    "Das Briefing zeigt nur deinen eigenen Kalender. Zum Kalender anderer Personen kann ich nichts sagen.",
+                    kind: .refusal, reason: "other_users_data"),
+            ])
+        case .brfUnavailable:
+            return StubAgentScript(turns: [
+                S.answer(
+                    "Ich konnte deinen Kalender nicht lesen: Work IQ ist vorübergehend nicht erreichbar. "
+                        + "Bitte versuche es später noch einmal.",
+                    tools: ["get_briefing_status"], failedTools: ["get_my_week"]),
+            ])
+        case .brfConsent:
+            return StubAgentScript(turns: [
+                S.answer(
+                    "Work IQ ist für deine Organisation noch nicht freigegeben. Eine Administratorin oder ein "
+                        + "Administrator muss den Zugriff genehmigen.",
+                    tools: ["get_briefing_status"], failedTools: ["get_my_week"]),
             ])
         }
     }

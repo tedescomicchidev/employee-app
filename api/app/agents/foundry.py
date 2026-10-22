@@ -45,7 +45,11 @@ class AgentSettings:
     project_endpoint: str = ""  # https://<account>.services.ai.azure.com/api/projects/<project>
     managed_identity_client_id: str = ""
     agents: dict[str, str] = field(
-        default_factory=lambda: {"comms": "comms", "vacation": "vacation"}  # route -> Foundry
+        default_factory=lambda: {  # route -> Foundry
+            "comms": "comms",
+            "vacation": "vacation",
+            "briefing": "briefing",
+        }
     )
     turns_per_minute: int = 20  # NFR-011
     max_messages: int = 20
@@ -64,6 +68,7 @@ def load_agent_settings() -> AgentSettings:
         agents={
             "comms": env.get("COMMS_AGENT_NAME", "comms"),
             "vacation": env.get("VACATION_AGENT_NAME", "vacation"),
+            "briefing": env.get("BRIEFING_AGENT_NAME", "briefing"),
         },
         turns_per_minute=int(env.get("AGENT_TURNS_PER_MINUTE", "20")),
     )

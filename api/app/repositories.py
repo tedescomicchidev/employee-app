@@ -20,7 +20,7 @@ class Employee:
     region: str = ""
     canton: str | None = None
     manager_oid: str | None = None
-    source: str = "seed"  # seed | graph | graph-manager (app.directory.provisioning)
+    source: str = "seed"  # seed | graph | graph-sync | graph-manager (app.directory)
     fetched_at: datetime | None = None
 
 
@@ -80,6 +80,7 @@ class SeedDirectory:
 
     def __init__(self, employees: list[Employee]) -> None:
         self._by_oid = {e.oid: e for e in employees}
+        self._lock = threading.Lock()
 
     @classmethod
     def from_file(cls, path: Path = SEED_FILE) -> "SeedDirectory":
@@ -106,11 +107,20 @@ class SeedDirectory:
     def active(self) -> list[Employee]:
         return [e for e in list(self._by_oid.values()) if e.active]
 
+    def apply_sync(self, employees: list[Employee]) -> None:
+        """Replaces everything that came from Graph with the latest tenant read (one swap, so a
+        reader never sees a half-filled directory). Seed entries stay; people who left disappear."""
+        with self._lock:
+            kept = {o: e for o, e in self._by_oid.items() if e.source == "seed"}
+            kept.update({e.oid: e for e in employees if e.oid not in kept})
+            self._by_oid = kept
+
     def upsert(self, employee: Employee) -> None:
         """Seed entries are never replaced by directory lookups."""
-        current = self._by_oid.get(employee.oid)
-        if current is None or current.source != "seed":
-            self._by_oid[employee.oid] = employee
+        with self._lock:
+            current = self._by_oid.get(employee.oid)
+            if current is None or current.source != "seed":
+                self._by_oid[employee.oid] = employee
 
 
 @dataclass

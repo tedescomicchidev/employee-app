@@ -104,6 +104,10 @@ extension L10n {
         case "cancel_vacation_request": .init("agent.tool.cancel_vacation_request.run", bundle: bundle)
         case "propose_decision": .init("agent.tool.propose_decision.run", bundle: bundle)
         case "decide_vacation_request": .init("agent.tool.decide_vacation_request.run", bundle: bundle)
+        case "get_briefing_status": .init("agent.tool.get_briefing_status.run", bundle: bundle)
+        case "get_my_week": .init("agent.tool.get_my_week.run", bundle: bundle)
+        case "propose_briefing_optin": .init("agent.tool.propose_briefing_optin.run", bundle: bundle)
+        case "set_briefing_optin": .init("agent.tool.set_briefing_optin.run", bundle: bundle)
         default: .init("agent.tool.generic.run", bundle: bundle)
         }
     }
@@ -128,6 +132,10 @@ extension L10n {
         case "cancel_vacation_request": .init("agent.tool.cancel_vacation_request.done", bundle: bundle)
         case "propose_decision": .init("agent.tool.propose_decision.done", bundle: bundle)
         case "decide_vacation_request": .init("agent.tool.decide_vacation_request.done", bundle: bundle)
+        case "get_briefing_status": .init("agent.tool.get_briefing_status.done", bundle: bundle)
+        case "get_my_week": .init("agent.tool.get_my_week.done", bundle: bundle)
+        case "propose_briefing_optin": .init("agent.tool.propose_briefing_optin.done", bundle: bundle)
+        case "set_briefing_optin": .init("agent.tool.set_briefing_optin.done", bundle: bundle)
         default: .init("agent.tool.generic.done", bundle: bundle)
         }
     }

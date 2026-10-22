@@ -114,14 +114,14 @@ sequenceDiagram
     App->>API: GET /v1/briefing/week (T-user), or MCP get_my_week via the agent
     API->>DB: read user_settings.briefing_optin
     alt not opted in
-        API-->>App: 403 BRIEFING_NOT_ENABLED (no Work IQ call)
+        API-->>App: 403 NOT_OPTED_IN (no Work IQ call)
     else opted in
         API->>Entra: OBO: T-user for api://workiq.svc.cloud.microsoft/WorkIQAgent.Ask
         Entra-->>API: T-workiq (admin consent granted once for the api app)
         API->>W: delegated request, window = this week, Europe/Zurich
         W-->>API: events for this user only
         API->>API: deterministic grouping, conflicts, free blocks (in memory, never cached or logged)
-        API-->>App: briefing, or a specific error (WORKIQ_UNAVAILABLE, consent missing, no licence, partial, empty)
+        API-->>App: briefing (empty or partial are labelled), or a specific error: WORKIQ_UNAVAILABLE 503, NO_LICENCE 403, CONSENT_REQUIRED 403, UNAUTHENTICATED 401
     end
 ```
 
@@ -216,3 +216,33 @@ Found while bringing `comms` up in the dev environment; each cost a failed turn.
   `invalid_client`/`unauthorized_client` (federated credential), `invalid_resource` (wrong tools app),
   `consent_required`/`invalid_grant`/`interaction_required` (consent), `foundry_403` (roles), `foundry_404` (agent name).
 - The agent is deployed as source code (no Docker, no ACR build); ACR Tasks may be blocked on the subscription.
+
+Flow 4 notes (phase 8, implemented in `api/app/briefing/`):
+- The REST route holds an `access_as_user` token and the MCP tool a `Tools.Invoke` token. `MsalWorkIQClient` picks the confidential client of the app the token was issued for (by `aud`) and does the OBO from it, so **both** the API app and the tools resource app need `WorkIQAgent.Ask` admin consent (human, once). The tools app also needs its own **federated identity credential** for the Container App's managed identity (issuer `https://login.microsoftonline.com/<tenant>/v2.0`, subject = the identity's object id, audience `api://AzureADTokenExchange`); without it the agent path fails with `obo:invalid_client`. Verified end to end on the dev tenant 2026-10-20 (agent `get_my_week` returns the week). No client secret: both trust the container app's managed identity (federated credential).
+- Work IQ 403 is split by its text: "Required scopes" is `CONSENT_REQUIRED` (administrator), any other 403 is `NO_LICENCE` (billing not enabled or no licence; Learn gives both causes one status). The user can fix neither in the app.
+- Calendar is read one Zurich day per `call_function /me/calendarView?startDateTime&endDateTime` (`$top=100`, `$skip` is blocked by Work IQ): a day that fails, or has a `nextLink`, is reported as a missing day and the week is labelled partial. A failure about the account (consent, licence, token) on any day fails the whole week, never a half briefing.
+- **Spike S-2 is not verified against the tenant**: the tool name and response shape follow the Learn pages; billing (Copilot Credits vs per-user licence) is still the human's decision.
+
+## Tenant-wide directory (ADR-010 update): human-only steps
+The api reads the tenant's employees with the container app's managed identity. Nothing below is done by the agent.
+1. Find the managed identity's **object id** (the user-assigned identity's Overview page, not its client id) and the
+   Graph service principal (`appId 00000003-0000-0000-c000-000000000000`). Then grant the two **application** roles
+   (admin consent; Privileged Role Administrator or Global Administrator):
+   ```
+   MI=<object id of the managed identity>
+   GRAPH=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv)
+   for ROLE in User.Read.All Application.Read.All; do
+     ROLE_ID=$(az ad sp show --id 00000003-0000-0000-c000-000000000000 \
+       --query "appRoles[?value=='$ROLE' && contains(allowedMemberTypes,'Application')].id | [0]" -o tsv)
+     az rest -m POST -u https://graph.microsoft.com/v1.0/servicePrincipals/$MI/appRoleAssignments \
+       -b "{\"principalId\":\"$MI\",\"resourceId\":\"$GRAPH\",\"appRoleId\":\"$ROLE_ID\"}"
+   done
+   ```
+2. Assign the users to the `employee-api` enterprise application with their app role (Employee, Manager or
+   Communicator). Only users holding a role are loaded. Group assignments are not expanded.
+3. Check the three attributes hold the data (`GRAPH_CANTON_ATTRIBUTE` default `state`, `GRAPH_STORE_ATTRIBUTE`
+   default `officeLocation`, `GRAPH_REGION_ATTRIBUTE` default `preferredLanguage`) and that managers are set.
+4. `azd env set GRAPH_DIRECTORY_SYNC true`, `azd provision` (sets the app setting), `azd deploy api`.
+5. Look for `directory sync employees=N active=N users_seen=N group_assignments_skipped=N` in the api log.
+   `directory sync failed code=graph_users_403` means step 1 is missing or has not propagated yet.
+To turn it off again: set the variable to `false` and remove the two role assignments.

@@ -2,7 +2,7 @@ import Foundation
 
 /// Which hosted agent a chat talks to. The app picks it from the feature entry point (overview.md).
 public enum AgentFeature: String, Sendable, CaseIterable {
-    case comms, vacation
+    case comms, vacation, briefing
 }
 
 /// One turn of the history the device keeps and resends (PRIV-004: nothing is stored server-side).
@@ -21,11 +21,14 @@ public struct AgentMessage: Sendable, Equatable, Codable {
 public enum AgentReplyKind: String, Sendable, Equatable {
     case message, clarification, proposal, published
     case options, submitted, cancelled, decided
+    /// Briefing: the opt-in write is done, and a summary of the user's own week (the api checked that
+    /// `get_my_week` succeeded in this turn).
+    case optedIn = "opted_in", summary
     case refusal
 
     /// A reply that reports a finished write (the api has verified the tool succeeded).
     public var isWriteResult: Bool {
-        [.published, .submitted, .cancelled, .decided].contains(self)
+        [.published, .submitted, .cancelled, .decided, .optedIn].contains(self)
     }
 }
 
@@ -63,10 +66,12 @@ public struct AgentReply: Sendable, Equatable {
     /// Refusals only: a short code such as `rule_bypass`. Unknown codes fall back to `text`.
     public let reason: String?
     public let sources: [AgentSource]
+    /// Briefing summaries: events the text leaves out; the full list is the Briefing screen.
+    public let omittedCount: Int?
 
     public init(
         kind: AgentReplyKind, text: String, proposalId: String? = nil, options: [AgentOption] = [],
-        reason: String? = nil, sources: [AgentSource] = []
+        reason: String? = nil, sources: [AgentSource] = [], omittedCount: Int? = nil
     ) {
         self.kind = kind
         self.text = text
@@ -74,6 +79,7 @@ public struct AgentReply: Sendable, Equatable {
         self.options = options
         self.reason = reason
         self.sources = sources
+        self.omittedCount = omittedCount
     }
 }
 
@@ -129,6 +135,7 @@ public enum AgentProposalKind: String, Sendable, Equatable {
     case vacation
     case vacationCancel = "vacation_cancel"
     case vacationDecision = "vacation_decision"
+    case briefing
 }
 
 /// Confirm-card content from `GET /v1/proposals/{id}`: what the server stored, never model text (A-13).
@@ -138,6 +145,8 @@ public struct AgentProposalCard: Sendable, Equatable {
         case vacation(start: CalendarDay, end: CalendarDay, review: VacationReview)
         case vacationCancel(VacationRequestSummary)
         case vacationDecision(decision: VacationDecision, reason: String?, request: VacationRequestSummary)
+        /// Turning the weekly briefing on or off: it reads the user's own calendar (FR-BRF-001.2).
+        case briefing(enabled: Bool)
     }
 
     public let id: String

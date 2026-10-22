@@ -28,6 +28,7 @@ CLAIM_TOOLS: dict[str, dict[str, str]] = {
         "cancelled": "cancel_vacation_request",
         "decided": "decide_vacation_request",
     },
+    "briefing": {"opted_in": "set_briefing_optin", "summary": "get_my_week"},
 }
 
 
@@ -70,6 +71,10 @@ COMMS_REASONS = (
 VACATION_REASONS = (
     "write_without_confirmation", "role_not_allowed", "rule_bypass", "out_of_scope",
     "other_users_data", "untrusted_instructions", "unsupported_action",
+)  # fmt: skip
+BRIEFING_REASONS = (
+    "write_without_confirmation", "other_users_data", "out_of_scope", "untrusted_instructions",
+    "unsupported_action",
 )  # fmt: skip
 FALLBACK_REASON = "unsupported_action"
 MAX_SOURCES = 10
@@ -139,6 +144,35 @@ class VacationReply(BaseModel):
     @classmethod
     def _reason(cls, value: Any) -> Any:
         return _known_reason(value, VACATION_REASONS)
+
+
+class BriefingReply(BaseModel):
+    """Mirror of agents/briefing/briefing_schemas.py: the hosted briefing agent's final output.
+
+    `summary` is a conversational summary of the user's own week. It is believed only if
+    `get_my_week` succeeded in this turn; the full list is the Briefing screen (`omitted_count`).
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    kind: Literal["message", "clarification", "proposal", "opted_in", "summary", "refusal"] = (
+        "message"
+    )
+    text: str = Field(default="", max_length=4000)
+    proposal_id: UUID | None = None
+    omitted_count: int | None = Field(default=None, ge=0, le=1000)
+    reason: str | None = None
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _reason(cls, value: Any) -> Any:
+        return _known_reason(value, BRIEFING_REASONS)
+
+
+MODELS: dict[str, type[BaseModel]] = {
+    "comms": AgentReply,
+    "vacation": VacationReply,
+    "briefing": BriefingReply,
+}
 
 
 @dataclass(frozen=True)
@@ -213,9 +247,11 @@ def tool_trace(response: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def parse_reply(response: dict[str, Any], agent: str = "comms") -> AgentReply | VacationReply:
+def parse_reply(
+    response: dict[str, Any], agent: str = "comms"
+) -> AgentReply | VacationReply | BriefingReply:
     text = output_text(response)
-    model = VacationReply if agent == "vacation" else AgentReply
+    model: Any = MODELS.get(agent, AgentReply)
     try:
         data = json.loads(text)
     except ValueError:
@@ -336,12 +372,35 @@ def ground_comms_reply(
     return reply.model_copy(update=update)
 
 
+def ground_briefing_reply(reply: BriefingReply, service: Any, principal: Any) -> BriefingReply:
+    """Tie the reply to what the api stored for this user (FR-BRF-001).
+
+    A proposal id must be the caller's own, unexpired opt-in proposal. Fields that do not belong to
+    the reply's kind are cleared, so a stray id or count cannot become a card or a claim.
+    """
+    if reply.kind == "proposal":
+        try:
+            service.get_proposal(principal, str(reply.proposal_id))
+        except Exception:  # ApiError: unknown, someone else's or expired look the same
+            return BriefingReply(kind="message", text=reply.text)
+    update: dict[str, Any] = {}
+    if reply.kind != "proposal":
+        update["proposal_id"] = None
+    if reply.kind != "refusal":
+        update["reason"] = None
+    if reply.kind != "summary":
+        update["omitted_count"] = None
+    return reply.model_copy(update=update)
+
+
 def ground_reply(
-    reply: AgentReply | VacationReply,
+    reply: AgentReply | VacationReply | BriefingReply,
     state: Any,
     principal: Any,
     response: dict[str, Any] | None = None,
 ) -> Any:
+    if isinstance(reply, BriefingReply):
+        return ground_briefing_reply(reply, state.briefing_service, principal)
     if isinstance(reply, VacationReply):
         return ground_vacation_reply(reply, state.vacation_service, principal)
     read_ids = announcement_ids_read(response) if response is not None else set()

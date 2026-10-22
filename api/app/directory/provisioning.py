@@ -19,6 +19,7 @@ from app.vacation.models import CANTONS
 log = logging.getLogger("app.directory")
 
 SOURCE_GRAPH = "graph"
+SOURCE_SYNC = "graph-sync"  # the tenant-wide read (app.directory.sync)
 SOURCE_MANAGER = "graph-manager"  # known only as someone's manager; replaced when they sign in
 
 
@@ -113,7 +114,7 @@ class Provisioner:
 
     def _fresh(self, employee: Employee, now: datetime) -> bool:
         return (
-            employee.source == SOURCE_GRAPH
+            employee.source in (SOURCE_GRAPH, SOURCE_SYNC)
             and employee.fetched_at is not None
             and now - employee.fetched_at < self._settings.ttl
         )

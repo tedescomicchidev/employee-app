@@ -18,6 +18,9 @@ param apiClientId string = ''
 // Resource app for agent tool calls (Tools.Invoke, ADR-002). Empty until the human registers employee-tools.
 param toolsClientId string = ''
 param graphDirectory string = 'false'
+// 'true' loads the whole tenant's employees (ADR-010, superseded in part) instead of the seed file. Needs
+// Graph User.Read.All and Application.Read.All on the managed identity (human-only, auth-flows.md).
+param graphDirectorySync string = 'false'
 // Image `azd deploy api` last pushed (SERVICE_API_IMAGE_NAME); empty on a first provision.
 param apiImage string = ''
 
@@ -111,6 +114,7 @@ module containerApps 'modules/containerapps.bicep' = {
     apiClientId: apiClientId
     toolsClientId: toolsClientId
     graphDirectory: graphDirectory
+    graphDirectorySync: graphDirectorySync
     deployedImage: apiImage
   }
 }

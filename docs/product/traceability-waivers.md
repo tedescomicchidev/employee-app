@@ -8,11 +8,6 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 ## Not built yet (feature or process does not exist)
 
 - FR-ANN-004: withdraw an announcement (Could); not implemented in CLASSIC or AGENT.
-- FR-BRF-001: briefing opt-in; the briefing feature is not built (phase 8).
-- FR-BRF-002: briefing content; not built (phase 8).
-- FR-BRF-003: briefing screen; not built (phase 8).
-- FR-BRF-004: briefing settings; not built (phase 8).
-- FR-BRF-005: briefing failure states; not built (phase 8).
 - EXP-004: mode assignment and counterbalancing are not built; `ModeStore` fixes `.classic` in Release and the setter is DEBUG-only.
 - EXP-006: satisfaction items (Should); not built.
 - EXP-007: participant withdrawal and event deletion; needs the durable events store (ADR-009), not built.
@@ -22,10 +17,6 @@ tests land. Format: `- ID: reason`. Reviewed at the close of the CLASSIC build (
 - PRIV-009: `PrivacyInfo.xcprivacy` derived from the data inventory; release phase (11).
 - PRIV-010: crash-report exclusions and app-switcher blanking; not built.
 
-## AGENT mode or Work IQ only (no CLASSIC surface)
-
-- FR-AUTH-004: on-behalf-of Work IQ consent; needs the agents (phase 6).
-- PRIV-003: Work IQ handling; phase 6/8.
 
 ## Verified by a check that does not name the ID, or by a human
 

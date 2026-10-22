@@ -19,6 +19,8 @@ param toolsClientId string = ''
 // 'true' fills the employee directory from each signed-in user's own Graph profile (ADR-010). Needs the
 // federated credential and Graph User.Read consent on employee-api first (docs/architecture/auth-flows.md).
 param graphDirectory string = 'false'
+// 'true': the directory is the tenant's employees (managed identity, Graph application permissions).
+param graphDirectorySync string = 'false'
 // Placeholder until `azd deploy` pushes the real api image (listens on 80 until then).
 // After a deploy azd records SERVICE_API_IMAGE_NAME in its environment; main.bicepparam passes it back so a
 // later `azd provision` keeps the deployed image instead of resetting the app to the placeholder.
@@ -97,6 +99,7 @@ resource api 'Microsoft.App/containerApps@2025-01-01' = {
             { name: 'API_CLIENT_ID', value: apiClientId }
             { name: 'TOOLS_CLIENT_ID', value: toolsClientId }
             { name: 'GRAPH_DIRECTORY', value: graphDirectory }
+            { name: 'GRAPH_DIRECTORY_SYNC', value: graphDirectorySync }
             { name: 'COSMOS_ENDPOINT', value: cosmosEndpoint }
             { name: 'COSMOS_DATABASE', value: cosmosDatabase }
             { name: 'KEY_VAULT_URI', value: keyVaultUri }

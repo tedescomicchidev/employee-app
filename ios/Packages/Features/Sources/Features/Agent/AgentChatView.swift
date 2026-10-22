@@ -9,6 +9,8 @@ struct AgentChatConfig {
     var openSource: (String) -> Void = { _ in }
     /// After a vacation write: the classic list of the user's requests.
     var openRequests: (() -> Void)?
+    /// After a briefing summary: the classic Briefing screen with every event.
+    var openWeek: (() -> Void)?
 }
 
 /// The agent composer inside a feature (docs/design/mockups: `<feature>-agent_chat-*`). Shows the
@@ -193,6 +195,7 @@ private struct AgentReplyView: View {
                     }
                 }
             }
+            if reply.kind == .summary { summaryFooter }
             if !reply.options.isEmpty { options }
             if !reply.sources.isEmpty { sources }
             if !tools.isEmpty {
@@ -201,6 +204,18 @@ private struct AgentReplyView: View {
                     items: tools.map { .init(L10n.agentToolDone($0.name), ok: $0.ok) })
                     .accessibilityIdentifier("agent.summary")
             }
+        }
+    }
+
+    /// A summary links the full week, because the text may leave events out (FR-BRF-002 AGENT).
+    @ViewBuilder private var summaryFooter: some View {
+        if let omitted = reply.omittedCount, omitted > 0 {
+            Text(L10n.brfAgentOmitted(omitted)).font(DSFont.caption).foregroundStyle(DSColor.ink2)
+                .accessibilityIdentifier("agent.omitted")
+        }
+        if let openWeek = config.openWeek {
+            DSButton(L10n.brfAgentOpenweek, kind: .soft, action: openWeek)
+                .accessibilityIdentifier("agent.openweek")
         }
     }
 

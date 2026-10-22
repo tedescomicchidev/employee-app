@@ -29,7 +29,14 @@ scenarios=(signin signin-failed signin-offline home-employee home-manager home-p
            vacation-agent_chat-options vacation-agent_chat-refusal vacation-agent_chat-team_coverage
            vacation-agent_confirm_card-ok vacation-agent_confirm_card-success
            vacation-agent_confirm_card-validation_blackout vacation-agent_confirm_card-decision_ok
-           vacation-agent_confirm_card-decision_success)
+           vacation-agent_confirm_card-decision_success
+           briefing-opt_in-ok briefing-opt_in-consent_in_progress briefing-opt_in-notification_permission
+           briefing-week-ok briefing-week-loading briefing-week-empty briefing-week-partial briefing-week-offline
+           briefing-week-error_workiq_unavailable briefing-week-error_no_licence briefing-week-error_consent_required
+           briefing-day-ok briefing-settings-ok
+           briefing-agent_chat-opt_in_offer briefing-agent_chat-loading briefing-agent_chat-ok
+           briefing-agent_chat-declined_other_calendar briefing-agent_chat-error_workiq_unavailable
+           briefing-agent_chat-consent_required briefing-agent_confirm_card-ok briefing-agent_confirm_card-success)
 lang=${SCREENSHOT_LANG:-de}
 appearances=(light dark)
 

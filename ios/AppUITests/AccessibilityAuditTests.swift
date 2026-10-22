@@ -23,7 +23,7 @@ final class AccessibilityAuditTests: XCTestCase {
         return app
     }
 
-    /// Open findings, see docs/design/a11y-findings.md (F1..F5).
+    /// Open findings, see docs/design/a11y-findings.md (F1..F6).
     private static func isKnown(_ screen: String, _ issue: XCUIAccessibilityAuditIssue) -> Bool {
         let label = issue.element?.label ?? ""
         let isLanguageChip = ["DE", "FR", "IT", "EN"].contains(label)
@@ -32,6 +32,7 @@ final class AccessibilityAuditTests: XCTestCase {
         case ("News", .dynamicType): return isLanguageChip || label.contains(" · ")  // F2
         case ("News", .textClipped): return label.hasPrefix("Liebe Kolleginnen") || issue.element == nil  // F3
         case ("Vacation", .contrast): return label == "My requests"  // F4
+        case ("Week", .contrast): return label == "No events"  // F6
         case ("More", .contrast): return label == "AM" || issue.element?.identifier == "debug.expire"  // F5
         default: return false
         }
